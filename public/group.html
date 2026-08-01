@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Group — LendLocal</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="app-header">
+      <div class="app-header-inner">
+        <a class="logo" href="/dashboard.html">LendLocal</a>
+        <div class="header-actions">
+          <span id="userChip" class="user-chip"></span>
+          <button id="logoutBtn" class="btn btn-ghost" type="button">Log out</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="page-head">
+        <div>
+          <p style="margin:0 0 0.35rem"><a href="/dashboard.html">← All groups</a></p>
+          <h1 id="groupName">Group</h1>
+          <p id="groupDesc"></p>
+        </div>
+        <button id="openExpense" class="btn btn-primary" type="button">Add expense</button>
+      </div>
+
+      <div class="summary-strip">
+        <div class="stat">
+          <div class="label">Total spent</div>
+          <div id="statTotal" class="value">₹0.00</div>
+        </div>
+        <div class="stat">
+          <div class="label">Your balance</div>
+          <div id="statMine" class="value">₹0.00</div>
+        </div>
+        <div class="stat">
+          <div class="label">Expenses</div>
+          <div id="statCount" class="value">0</div>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="expenses" type="button">Expenses</button>
+        <button class="tab" data-tab="balances" type="button">Balances</button>
+        <button class="tab" data-tab="members" type="button">Members</button>
+      </div>
+
+      <section id="panel-expenses" class="panel active">
+        <div id="expenseList" class="expense-list"></div>
+      </section>
+
+      <section id="panel-balances" class="panel">
+        <h2 class="section-title">Who owes whom</h2>
+        <div id="settlementList" class="settlement-list"></div>
+        <h2 class="section-title" style="margin-top:1.75rem">Net balances</h2>
+        <div id="balanceList" class="balance-list"></div>
+      </section>
+
+      <section id="panel-members" class="panel">
+        <div id="memberList" class="member-list"></div>
+        <form id="addMemberForm" class="inline-form">
+          <input id="memberEmail" type="email" required placeholder="Add member by email" />
+          <button class="btn btn-secondary" type="submit">Add</button>
+        </form>
+        <div id="memberAlert" class="alert alert-error" style="margin-top:0.75rem"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="expenseModal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h2>Add expense</h2>
+      <div id="expenseAlert" class="alert alert-error"></div>
+      <form id="expenseForm" class="form-stack">
+        <div class="field">
+          <label for="expDesc">Description</label>
+          <input id="expDesc" name="description" required maxlength="200" placeholder="Dinner at café" />
+        </div>
+        <div class="field">
+          <label for="expAmount">Amount (₹)</label>
+          <input id="expAmount" name="amount" type="number" min="0.01" step="0.01" required placeholder="500" />
+        </div>
+        <div class="field">
+          <label for="expCategory">Category</label>
+          <select id="expCategory" name="category">
+            <option>General</option>
+            <option>Food</option>
+            <option>Rent</option>
+            <option>Travel</option>
+            <option>Utilities</option>
+            <option>Entertainment</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="expPaidBy">Paid by</label>
+          <select id="expPaidBy" name="paidBy" required></select>
+        </div>
+        <div class="field">
+          <label for="expSplitType">Split</label>
+          <select id="expSplitType" name="splitType">
+            <option value="equal">Split equally</option>
+            <option value="custom">Custom amounts</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Participants / shares</label>
+          <div id="splitList" class="split-list"></div>
+        </div>
+        <div class="field">
+          <label for="expDate">Date</label>
+          <input id="expDate" name="date" type="date" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="closeExpense">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save expense</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/group.js"></script>
+</body>
+</html>

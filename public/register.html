@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Create account — LendLocal</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div class="page auth-shell">
+    <section class="auth-hero" aria-label="Brand">
+      <div>
+        <p class="brand-mark">LendLocal</p>
+        <p>A simple ledger for student groups — rent, trips, dinners, and everything in between.</p>
+      </div>
+    </section>
+
+    <section class="auth-panel">
+      <div class="auth-card">
+        <h1>Create account</h1>
+        <p class="lede">Join LendLocal and start splitting fairly.</p>
+        <div id="alert" class="alert alert-error" role="alert"></div>
+        <form id="registerForm" class="form-stack">
+          <div class="field">
+            <label for="name">Full name</label>
+            <input id="name" name="name" type="text" autocomplete="name" required placeholder="Your name" maxlength="80" />
+          </div>
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="new-password" required placeholder="At least 6 characters" minlength="6" />
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">Register</button>
+        </form>
+        <p class="auth-switch">Already have an account? <a href="/login.html">Sign in</a></p>
+      </div>
+    </section>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    redirectIfAuthed();
+
+    const form = document.getElementById('registerForm');
+    const alertEl = document.getElementById('alert');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAlert(alertEl);
+
+      try {
+        const data = await api('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: form.name.value.trim(),
+            email: form.email.value.trim(),
+            password: form.password.value,
+          }),
+        });
+        setSession(data.token, data.user);
+        window.location.href = '/dashboard.html';
+      } catch (err) {
+        showAlert(alertEl, err.message);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in — LendLocal</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div class="page auth-shell">
+    <section class="auth-hero" aria-label="Brand">
+      <div>
+        <p class="brand-mark">LendLocal</p>
+        <p>Track shared costs with friends and roommates — who paid, who owes, settled in seconds.</p>
+      </div>
+    </section>
+
+    <section class="auth-panel">
+      <div class="auth-card">
+        <h1>Welcome back</h1>
+        <p class="lede">Sign in to see your groups and balances.</p>
+        <div id="alert" class="alert alert-error" role="alert"></div>
+        <form id="loginForm" class="form-stack">
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required placeholder="••••••••" minlength="6" />
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+        </form>
+        <p class="auth-switch">New here? <a href="/register.html">Create an account</a></p>
+      </div>
+    </section>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    redirectIfAuthed();
+
+    const form = document.getElementById('loginForm');
+    const alertEl = document.getElementById('alert');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAlert(alertEl);
+      const email = form.email.value.trim();
+      const password = form.password.value;
+
+      try {
+        const data = await api('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+        setSession(data.token, data.user);
+        window.location.href = '/dashboard.html';
+      } catch (err) {
+        showAlert(alertEl, err.message);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard — LendLocal</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="app-header">
+      <div class="app-header-inner">
+        <a class="logo" href="/dashboard.html">LendLocal</a>
+        <div class="header-actions">
+          <span id="userChip" class="user-chip"></span>
+          <button id="logoutBtn" class="btn btn-ghost" type="button">Log out</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="page-head">
+        <div>
+          <h1>Your groups</h1>
+          <p>Balances update automatically as expenses are added.</p>
+        </div>
+        <button id="openCreate" class="btn btn-primary" type="button">New group</button>
+      </div>
+
+      <div class="summary-strip">
+        <div class="stat">
+          <div class="label">Groups</div>
+          <div id="statGroups" class="value">0</div>
+        </div>
+        <div class="stat">
+          <div class="label">You are owed</div>
+          <div id="statOwed" class="value positive">₹0.00</div>
+        </div>
+        <div class="stat">
+          <div class="label">You owe</div>
+          <div id="statOwe" class="value negative">₹0.00</div>
+        </div>
+      </div>
+
+      <h2 class="section-title">All groups</h2>
+      <div id="groupList" class="group-list"></div>
+    </main>
+  </div>
+
+  <div id="createModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="createTitle">
+    <div class="modal">
+      <h2 id="createTitle">Create a group</h2>
+      <div id="createAlert" class="alert alert-error"></div>
+      <form id="createForm" class="form-stack">
+        <div class="field">
+          <label for="groupName">Group name</label>
+          <input id="groupName" name="name" required maxlength="100" placeholder="e.g. Hostel Room 12" />
+        </div>
+        <div class="field">
+          <label for="groupDesc">Description (optional)</label>
+          <textarea id="groupDesc" name="description" rows="2" maxlength="300" placeholder="Rent, groceries, utilities…"></textarea>
+        </div>
+        <div class="field">
+          <label for="memberEmails">Invite members by email</label>
+          <input id="memberEmails" name="memberEmails" placeholder="friend1@mail.com, friend2@mail.com" />
+          <p style="margin:0.4rem 0 0;font-size:0.82rem;color:var(--muted)">They must already have a LendLocal account.</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="closeCreate">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

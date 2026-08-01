@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LendLocal — Shared expenses, made clear</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+  <script>
+    // Bounce authed users to dashboard; others to login landing
+    (function () {
+      if (localStorage.getItem('lendlocal_token')) {
+        location.replace('/dashboard.html');
+      } else {
+        location.replace('/login.html');
+      }
+    })();
+  </script>
+</head>
+<body>
+  <p style="padding:2rem;font-family:sans-serif;text-align:center;">Loading LendLocal…</p>
+</body>
+</html>
