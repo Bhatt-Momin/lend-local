@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Create account — LendLocal</title>
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
+
 <body>
   <div class="page auth-shell">
     <section class="auth-hero" aria-label="Brand">
@@ -23,7 +25,8 @@
         <form id="registerForm" class="form-stack">
           <div class="field">
             <label for="name">Full name</label>
-            <input id="name" name="name" type="text" autocomplete="name" required placeholder="Your name" maxlength="80" />
+            <input id="name" name="name" type="text" autocomplete="name" required placeholder="Your name"
+              maxlength="80" />
           </div>
           <div class="field">
             <label for="email">Email</label>
@@ -31,7 +34,8 @@
           </div>
           <div class="field">
             <label for="password">Password</label>
-            <input id="password" name="password" type="password" autocomplete="new-password" required placeholder="At least 6 characters" minlength="6" />
+            <input id="password" name="password" type="password" autocomplete="new-password" required
+              placeholder="At least 6 characters" minlength="6" />
           </div>
           <button class="btn btn-primary btn-block" type="submit">Register</button>
         </form>
@@ -49,23 +53,71 @@
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+
       hideAlert(alertEl);
 
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      // Name validation
+      if (name.length < 2) {
+        showAlert(alertEl, 'Name must be at least 2 characters.');
+        return;
+      }
+
+      if (!/^[A-Za-z ]+$/.test(name)) {
+        showAlert(alertEl, 'Name can contain only letters and spaces.');
+        return;
+      }
+
+      // Email validation
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showAlert(alertEl, 'Please enter a valid email address.');
+        return;
+      }
+
+      // Password validation
+      if (password.length < 8) {
+        showAlert(alertEl, 'Password must be at least 8 characters.');
+        return;
+      }
+
+      if (!/[A-Z]/.test(password)) {
+        showAlert(alertEl, 'Password must contain at least one uppercase letter.');
+        return;
+      }
+
+      if (!/[a-z]/.test(password)) {
+        showAlert(alertEl, 'Password must contain at least one lowercase letter.');
+        return;
+      }
+
+      if (!/[0-9]/.test(password)) {
+        showAlert(alertEl, 'Password must contain at least one number.');
+        return;
+      }
+
+      // Send registration request
       try {
         const data = await api('/auth/register', {
           method: 'POST',
           body: JSON.stringify({
-            name: form.name.value.trim(),
-            email: form.email.value.trim(),
-            password: form.password.value,
+            name,
+            email,
+            password
           }),
         });
+
         setSession(data.token, data.user);
+
         window.location.href = '/dashboard.html';
+
       } catch (err) {
         showAlert(alertEl, err.message);
       }
     });
   </script>
 </body>
+
 </html>
