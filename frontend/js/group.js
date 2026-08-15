@@ -312,7 +312,7 @@ if (!requireAuth()) {
               </strong>
 
               ${
-                s.from.id === me.id
+                String(s.from.id || s.from._id) === String(me.id || me._id)
                   ? `
                     <button
                       class="pay-btn"
