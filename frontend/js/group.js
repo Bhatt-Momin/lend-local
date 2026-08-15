@@ -130,9 +130,7 @@ if (!requireAuth()) {
               ${escapeHtml(m.name)}
             </label>
 
-            <span
-              style="color:var(--muted);font-size:0.9rem"
-            >
+            <span style="color:var(--muted);font-size:0.9rem">
               ${formatMoney(equalShare)} each*
             </span>
           </div>
@@ -184,7 +182,7 @@ if (!requireAuth()) {
       String(balanceRes.expenseCount);
 
     const mine = balanceRes.balances.find(
-      (b) => b.userId === me.id
+      (b) => String(b.userId) === String(me.id || me._id)
     );
 
     const myNet = mine ? mine.net : 0;
@@ -310,6 +308,7 @@ if (!requireAuth()) {
                 class="pay-btn"
                 type="button"
                 data-pay="${s.amount}"
+                data-to="${s.to.id || s.to._id}"
               >
                 Pay ${formatMoney(s.amount)}
               </button>
@@ -322,9 +321,10 @@ if (!requireAuth()) {
         .querySelectorAll('[data-pay]')
         .forEach((button) => {
           button.addEventListener('click', () => {
-            startPayment(
-              Number(button.dataset.pay)
-            );
+            const amount = Number(button.dataset.pay);
+            const toUserId = button.dataset.to;
+
+            startPayment(amount, toUserId);
           });
         });
     }
@@ -343,7 +343,11 @@ if (!requireAuth()) {
             <div class="balance-item">
               <div>
                 ${escapeHtml(b.name)}
-                ${b.userId === me.id ? ' (you)' : ''}
+                ${
+                  String(b.userId) === String(me.id || me._id)
+                    ? ' (you)'
+                    : ''
+                }
               </div>
 
               <span
@@ -366,7 +370,12 @@ if (!requireAuth()) {
               <div>
                 <strong>
                   ${escapeHtml(m.name)}
-                  ${m.id === me.id ? ' (you)' : ''}
+                  ${
+                    String(m.id || m._id) ===
+                    String(me.id || me._id)
+                      ? ' (you)'
+                      : ''
+                  }
                 </strong>
 
                 <div class="email">
@@ -379,7 +388,7 @@ if (!requireAuth()) {
         .join('');
   }
 
-  async function startPayment(amount) {
+  async function startPayment(amount, toUserId) {
     try {
       const order = await api('/payment/create-order', {
         method: 'POST',
@@ -387,10 +396,12 @@ if (!requireAuth()) {
         body: JSON.stringify({
           amount,
           groupId,
+          toUserId,
         }),
       });
 
       const options = {
+        // Replace with your actual Razorpay Key ID
         key: 'rzp_test_TPv7QuxyBVkM0D',
 
         amount: order.amount,
@@ -403,23 +414,53 @@ if (!requireAuth()) {
 
         order_id: order.id,
 
-        handler: function (response) {
-          alert('Payment successful!');
+        handler: async function (response) {
+          try {
+            const verification = await api(
+              '/payment/verify-payment',
+              {
+                method: 'POST',
 
-          console.log(
-            'Payment ID:',
-            response.razorpay_payment_id
-          );
+                body: JSON.stringify({
+                  razorpay_payment_id:
+                    response.razorpay_payment_id,
 
-          console.log(
-            'Order ID:',
-            response.razorpay_order_id
-          );
+                  razorpay_order_id:
+                    response.razorpay_order_id,
 
-          console.log(
-            'Signature:',
-            response.razorpay_signature
-          );
+                  razorpay_signature:
+                    response.razorpay_signature,
+
+                  amount,
+                  groupId,
+                  toUserId,
+                }),
+              }
+            );
+
+            if (verification.success) {
+              alert('Payment verified successfully!');
+
+              console.log(
+                'Verified payment:',
+                verification
+              );
+
+              await loadAll();
+            } else {
+              alert('Payment verification failed.');
+            }
+          } catch (error) {
+            console.error(
+              'Verification error:',
+              error
+            );
+
+            alert(
+              error.message ||
+              'Payment verification failed'
+            );
+          }
         },
 
         prefill: {
@@ -436,7 +477,8 @@ if (!requireAuth()) {
 
       razorpay.open();
     } catch (err) {
-      console.error(err);
+      console.error('Payment error:', err);
+
       alert(
         err.message ||
         'Could not start payment. Please try again.'
