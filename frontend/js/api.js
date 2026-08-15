@@ -1,4 +1,4 @@
-const API_BASE = 'https://lend-local-1.onrender.com/api';
+const API_BASE = '/api';
 
 function getToken() {
   return localStorage.getItem('lendlocal_token');
