@@ -310,7 +310,6 @@
     background: linear-gradient(135deg, var(--accent), #c78f12);
     box-shadow: 0 8px 20px rgba(212, 160, 23, 0.35);
     transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
-    animation: pulseGlowAccent 2.6s ease-in-out infinite;
   }
   
   .pay-btn:hover {
@@ -321,10 +320,10 @@
     transform: translateY(0) scale(0.98);
   }
   
-  @keyframes pulseGlowAccent {
+  /* @keyframes pulseGlowAccent {
     0%, 100% { box-shadow: 0 8px 20px rgba(212, 160, 23, 0.35); }
     50%      { box-shadow: 0 8px 26px rgba(212, 160, 23, 0.6), 0 0 0 4px rgba(212, 160, 23, 0.1); }
-  }
+  } */
   
   .tab.active {
     box-shadow: 0 6px 20px rgba(15, 92, 76, 0.35);

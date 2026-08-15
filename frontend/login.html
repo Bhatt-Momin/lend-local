@@ -41,25 +41,56 @@
   <script src="/js/effects.js"></script>
   <script>
     redirectIfAuthed();
-
+  
     const form = document.getElementById('loginForm');
     const alertEl = document.getElementById('alert');
-
+    const submitBtn = form.querySelector('button[type="submit"]');
+  
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+  
       hideAlert(alertEl);
+  
       const email = form.email.value.trim();
       const password = form.password.value;
-
+  
+      // Prevent multiple clicks while login is processing
+      submitBtn.disabled = true;
+      submitBtn.dataset.originalText = submitBtn.textContent;
+      submitBtn.innerHTML = `
+        <span class="fx-spinner"></span>
+        Signing in...
+      `;
+  
       try {
         const data = await api('/auth/login', {
           method: 'POST',
           body: JSON.stringify({ email, password }),
         });
+  
         setSession(data.token, data.user);
-        window.location.href = '/dashboard.html';
+  
+        if (window.FX) {
+          window.FX.toast('Signed in successfully!');
+        }
+  
+        // Allow the success feedback to appear before redirecting
+        setTimeout(() => {
+          window.location.href = '/dashboard.html';
+        }, 500);
+  
       } catch (err) {
         showAlert(alertEl, err.message);
+  
+        // Shake the error message
+        if (window.FX) {
+          window.FX.shake(alertEl);
+        }
+  
+        // Restore button
+        submitBtn.disabled = false;
+        submitBtn.textContent =
+          submitBtn.dataset.originalText || 'Sign in';
       }
     });
   </script>

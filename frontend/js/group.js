@@ -20,6 +20,7 @@ if (!requireAuth()) {
   const expenseAlert = document.getElementById('expenseAlert');
   const splitList = document.getElementById('splitList');
 
+  // Tabs
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach((t) => {
@@ -38,6 +39,7 @@ if (!requireAuth()) {
     });
   });
 
+  // Open expense modal
   document.getElementById('openExpense').addEventListener('click', () => {
     hideAlert(expenseAlert);
 
@@ -68,9 +70,7 @@ if (!requireAuth()) {
   document
     .getElementById('expAmount')
     .addEventListener('input', () => {
-      if (
-        document.getElementById('expSplitType').value === 'equal'
-      ) {
+      if (document.getElementById('expSplitType').value === 'equal') {
         renderSplitInputs('equal');
       }
     });
@@ -175,11 +175,9 @@ if (!requireAuth()) {
     document.getElementById('groupDesc').textContent =
       group.description || `${members.length} members`;
 
-    document.getElementById('statTotal').textContent =
-      formatMoney(balanceRes.totalSpent);
-
-    document.getElementById('statCount').textContent =
-      String(balanceRes.expenseCount);
+    const statTotal = document.getElementById('statTotal');
+    const statCount = document.getElementById('statCount');
+    const mineEl = document.getElementById('statMine');
 
     const mine = balanceRes.balances.find(
       (b) => String(b.userId) === String(me.id || me._id)
@@ -187,8 +185,33 @@ if (!requireAuth()) {
 
     const myNet = mine ? mine.net : 0;
 
-    const mineEl = document.getElementById('statMine');
+    // Animated statistics
+    if (window.FX) {
+      window.FX.animateNumber(
+        statTotal,
+        balanceRes.totalSpent,
+        {
+          prefix: '₹',
+          decimals: 2,
+        }
+      );
 
+      window.FX.animateNumber(
+        statCount,
+        balanceRes.expenseCount,
+        {
+          decimals: 0,
+        }
+      );
+    } else {
+      statTotal.textContent =
+        formatMoney(balanceRes.totalSpent);
+
+      statCount.textContent =
+        String(balanceRes.expenseCount);
+    }
+
+    // Your balance
     mineEl.textContent =
       Math.abs(myNet) < 0.01
         ? 'Settled'
@@ -220,7 +243,6 @@ if (!requireAuth()) {
           Add the first shared cost for this group.
         </div>
       `;
-
       return;
     }
 
@@ -256,6 +278,10 @@ if (!requireAuth()) {
       )
       .join('');
 
+    if (window.FX) {
+      window.FX.staggerReveal(list, '.expense-item');
+    }
+
     list.querySelectorAll('[data-delete]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         if (!confirm('Delete this expense?')) {
@@ -263,13 +289,29 @@ if (!requireAuth()) {
         }
 
         try {
+          const expenseItem = btn.closest('.expense-item');
+
           await api(`/expenses/${btn.dataset.delete}`, {
             method: 'DELETE',
           });
 
-          await loadAll();
+          if (window.FX && expenseItem) {
+            window.FX.removeWithAnimation(
+              expenseItem,
+              async () => {
+                window.FX.toast('Expense deleted');
+                await loadAll();
+              }
+            );
+          } else {
+            await loadAll();
+          }
         } catch (err) {
           alert(err.message);
+
+          if (window.FX) {
+            window.FX.shake(list);
+          }
         }
       });
     });
@@ -317,6 +359,13 @@ if (!requireAuth()) {
         )
         .join('');
 
+      if (window.FX) {
+        window.FX.staggerReveal(
+          sList,
+          '.settlement-item'
+        );
+      }
+
       sList
         .querySelectorAll('[data-pay]')
         .forEach((button) => {
@@ -329,63 +378,82 @@ if (!requireAuth()) {
         });
     }
 
-    document.getElementById('balanceList').innerHTML =
-      balances
-        .map((b) => {
-          const label =
-            Math.abs(b.net) < 0.01
-              ? 'Settled'
-              : b.net > 0
-                ? `owed ${formatMoney(b.net)}`
-                : `owes ${formatMoney(Math.abs(b.net))}`;
+    const balanceList =
+      document.getElementById('balanceList');
 
-          return `
-            <div class="balance-item">
-              <div>
-                ${escapeHtml(b.name)}
-                ${
-                  String(b.userId) === String(me.id || me._id)
-                    ? ' (you)'
-                    : ''
-                }
-              </div>
+    balanceList.innerHTML = balances
+      .map((b) => {
+        const label =
+          Math.abs(b.net) < 0.01
+            ? 'Settled'
+            : b.net > 0
+              ? `owed ${formatMoney(b.net)}`
+              : `owes ${formatMoney(Math.abs(b.net))}`;
 
-              <span
-                class="balance-pill ${balanceClass(b.net)}"
-              >
-                ${label}
-              </span>
+        return `
+          <div class="balance-item">
+            <div>
+              ${escapeHtml(b.name)}
+              ${
+                String(b.userId) ===
+                String(me.id || me._id)
+                  ? ' (you)'
+                  : ''
+              }
             </div>
-          `;
-        })
-        .join('');
+
+            <span
+              class="balance-pill ${balanceClass(b.net)}"
+            >
+              ${label}
+            </span>
+          </div>
+        `;
+      })
+      .join('');
+
+    if (window.FX) {
+      window.FX.staggerReveal(
+        balanceList,
+        '.balance-item'
+      );
+    }
   }
 
   function renderMembers() {
-    document.getElementById('memberList').innerHTML =
-      members
-        .map(
-          (m) => `
-            <div class="member-item">
-              <div>
-                <strong>
-                  ${escapeHtml(m.name)}
-                  ${
-                    String(m.id || m._id) ===
-                    String(me.id || me._id)
-                      ? ' (you)'
-                      : ''
-                  }
-                </strong>
+    const memberList =
+      document.getElementById('memberList');
 
-                <div class="email">
-                  ${escapeHtml(m.email)}
-                </div>
+    memberList.innerHTML = members
+      .map(
+        (m) => `
+          <div class="member-item">
+            <div>
+              <strong>
+                ${escapeHtml(m.name)}
+                ${
+                  String(m.id || m._id) ===
+                  String(me.id || me._id)
+                    ? ' (you)'
+                    : ''
+                }
+              </strong>
+
+              <div class="email">
+                ${escapeHtml(m.email)}
               </div>
             </div>
-          `
-        )
-        .join('');
+          </div>
+        `
+      )
+      .join('');
+
+    if (window.FX) {
+      window.FX.staggerReveal(
+        memberList,
+        '.member-item'
+      );
+    }
   }
 
   async function startPayment(amount, toUserId) {
@@ -401,7 +469,6 @@ if (!requireAuth()) {
       });
 
       const options = {
-        // Replace with your actual Razorpay Key ID
         key: 'rzp_test_TPv7QuxyBVkM0D',
 
         amount: order.amount,
@@ -439,16 +506,35 @@ if (!requireAuth()) {
             );
 
             if (verification.success) {
-              alert('Payment verified successfully!');
-
               console.log(
                 'Verified payment:',
                 verification
               );
 
-              await loadAll();
+              if (window.FX) {
+                window.FX.toast(
+                  'Payment verified successfully!'
+                );
+
+                window.FX.confettiBurst();
+              } else {
+                alert(
+                  'Payment verified successfully!'
+                );
+              }
+
+              // Let the success feedback appear first
+              setTimeout(async () => {
+                await loadAll();
+              }, 500);
             } else {
               alert('Payment verification failed.');
+
+              if (window.FX) {
+                window.FX.toast(
+                  'Payment verification failed'
+                );
+              }
             }
           } catch (error) {
             console.error(
@@ -525,9 +611,19 @@ if (!requireAuth()) {
           'success'
         );
 
+        if (window.FX) {
+          window.FX.toast(
+            'Member added successfully!'
+          );
+        }
+
         await loadAll();
       } catch (err) {
         showAlert(alertEl, err.message);
+
+        if (window.FX) {
+          window.FX.shake(alertEl);
+        }
       }
     });
 
@@ -552,6 +648,10 @@ if (!requireAuth()) {
           expenseAlert,
           'Select at least one participant'
         );
+
+        if (window.FX) {
+          window.FX.shake(expenseAlert);
+        }
 
         return;
       }
@@ -606,12 +706,22 @@ if (!requireAuth()) {
 
         expenseModal.classList.remove('open');
 
+        if (window.FX) {
+          window.FX.toast(
+            'Expense added successfully!'
+          );
+        }
+
         await loadAll();
       } catch (err) {
         showAlert(
           expenseAlert,
           err.message
         );
+
+        if (window.FX) {
+          window.FX.shake(expenseAlert);
+        }
       }
     }
   );
