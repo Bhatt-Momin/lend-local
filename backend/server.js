@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const connectDB = require('./config/db');
+const paymentRoutes = require("./routes/payment");
 
 const authRoutes = require('./routes/auth');
 const groupRoutes = require('./routes/groups');
@@ -24,6 +25,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/balances', balanceRoutes);
+app.use("/api/payment", paymentRoutes);
 
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'API route not found' });
