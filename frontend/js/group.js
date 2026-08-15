@@ -5,92 +5,87 @@ if (!requireAuth()) {
   wireLogout();
 
   const params = new URLSearchParams(window.location.search);
-  const groupId = params.get("id");
+  const groupId = params.get('id');
 
   if (!groupId) {
-    window.location.href = "/dashboard.html";
+    window.location.href = '/dashboard.html';
   }
 
   const me = getUser();
-
   let group = null;
   let members = [];
 
-  const expenseModal = document.getElementById("expenseModal");
-  const expenseForm = document.getElementById("expenseForm");
-  const expenseAlert = document.getElementById("expenseAlert");
-  const splitList = document.getElementById("splitList");
+  const expenseModal = document.getElementById('expenseModal');
+  const expenseForm = document.getElementById('expenseForm');
+  const expenseAlert = document.getElementById('expenseAlert');
+  const splitList = document.getElementById('splitList');
 
-  // Tabs
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach((t) => {
-        t.classList.remove("active");
+  document.querySelectorAll('.tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach((t) => {
+        t.classList.remove('active');
       });
 
-      document.querySelectorAll(".panel").forEach((p) => {
-        p.classList.remove("active");
+      document.querySelectorAll('.panel').forEach((p) => {
+        p.classList.remove('active');
       });
 
-      tab.classList.add("active");
+      tab.classList.add('active');
 
       document
         .getElementById(`panel-${tab.dataset.tab}`)
-        .classList.add("active");
+        .classList.add('active');
     });
   });
 
-  // Expense Modal
-  document.getElementById("openExpense").addEventListener("click", () => {
+  document.getElementById('openExpense').addEventListener('click', () => {
     hideAlert(expenseAlert);
+
     expenseForm.reset();
+    expenseForm.date.value = new Date().toISOString().slice(0, 10);
 
-    expenseForm.date.value = new Date()
-      .toISOString()
-      .slice(0, 10);
+    renderSplitInputs('equal');
 
-    renderSplitInputs("equal");
-
-    expenseModal.classList.add("open");
+    expenseModal.classList.add('open');
   });
 
-  document.getElementById("closeExpense").addEventListener("click", () => {
-    expenseModal.classList.remove("open");
+  document.getElementById('closeExpense').addEventListener('click', () => {
+    expenseModal.classList.remove('open');
   });
 
-  expenseModal.addEventListener("click", (e) => {
+  expenseModal.addEventListener('click', (e) => {
     if (e.target === expenseModal) {
-      expenseModal.classList.remove("open");
+      expenseModal.classList.remove('open');
     }
   });
 
   document
-    .getElementById("expSplitType")
-    .addEventListener("change", (e) => {
+    .getElementById('expSplitType')
+    .addEventListener('change', (e) => {
       renderSplitInputs(e.target.value);
     });
 
   document
-    .getElementById("expAmount")
-    .addEventListener("input", () => {
+    .getElementById('expAmount')
+    .addEventListener('input', () => {
       if (
-        document.getElementById("expSplitType").value === "equal"
+        document.getElementById('expSplitType').value === 'equal'
       ) {
-        renderSplitInputs("equal");
+        renderSplitInputs('equal');
       }
     });
 
   function escapeHtml(str) {
     return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   function renderSplitInputs(type) {
     const amount =
-      Number(document.getElementById("expAmount").value) || 0;
+      Number(document.getElementById('expAmount').value) || 0;
 
     const equalShare = members.length
       ? Math.round((amount / members.length) * 100) / 100
@@ -98,7 +93,7 @@ if (!requireAuth()) {
 
     splitList.innerHTML = members
       .map((m) => {
-        if (type === "custom") {
+        if (type === 'custom') {
           return `
             <div class="split-row">
               <label>
@@ -135,28 +130,32 @@ if (!requireAuth()) {
               ${escapeHtml(m.name)}
             </label>
 
-            <span style="color:var(--muted);font-size:0.9rem">
+            <span
+              style="color:var(--muted);font-size:0.9rem"
+            >
               ${formatMoney(equalShare)} each*
             </span>
           </div>
         `;
       })
-      .join("");
+      .join('');
   }
 
   function renderPaidBy() {
-    const select = document.getElementById("expPaidBy");
+    const select = document.getElementById('expPaidBy');
 
     select.innerHTML = members
       .map(
-        (m) =>
-          `<option value="${m.id}" ${
-            m.id === me.id ? "selected" : ""
-          }>
+        (m) => `
+          <option
+            value="${m.id}"
+            ${m.id === me.id ? 'selected' : ''}
+          >
             ${escapeHtml(m.name)}
-          </option>`
+          </option>
+        `
       )
-      .join("");
+      .join('');
   }
 
   async function loadAll() {
@@ -172,17 +171,16 @@ if (!requireAuth()) {
 
     document.title = `${group.name} — LendLocal`;
 
-    document.getElementById("groupName").textContent =
+    document.getElementById('groupName').textContent =
       group.name;
 
-    document.getElementById("groupDesc").textContent =
-      group.description ||
-      `${members.length} members`;
+    document.getElementById('groupDesc').textContent =
+      group.description || `${members.length} members`;
 
-    document.getElementById("statTotal").textContent =
+    document.getElementById('statTotal').textContent =
       formatMoney(balanceRes.totalSpent);
 
-    document.getElementById("statCount").textContent =
+    document.getElementById('statCount').textContent =
       String(balanceRes.expenseCount);
 
     const mine = balanceRes.balances.find(
@@ -191,21 +189,21 @@ if (!requireAuth()) {
 
     const myNet = mine ? mine.net : 0;
 
-    const mineEl = document.getElementById("statMine");
+    const mineEl = document.getElementById('statMine');
 
     mineEl.textContent =
       Math.abs(myNet) < 0.01
-        ? "Settled"
+        ? 'Settled'
         : myNet > 0
           ? `+${formatMoney(myNet)}`
           : `−${formatMoney(Math.abs(myNet))}`;
 
     mineEl.className = `value ${
       myNet > 0.01
-        ? "positive"
+        ? 'positive'
         : myNet < -0.01
-          ? "negative"
-          : ""
+          ? 'negative'
+          : ''
     }`;
 
     renderExpenses(expenseRes.expenses || []);
@@ -215,7 +213,7 @@ if (!requireAuth()) {
   }
 
   function renderExpenses(expenses) {
-    const list = document.getElementById("expenseList");
+    const list = document.getElementById('expenseList');
 
     if (!expenses.length) {
       list.innerHTML = `
@@ -224,6 +222,7 @@ if (!requireAuth()) {
           Add the first shared cost for this group.
         </div>
       `;
+
       return;
     }
 
@@ -257,37 +256,33 @@ if (!requireAuth()) {
           </article>
         `
       )
-      .join("");
+      .join('');
 
-    list
-      .querySelectorAll("[data-delete]")
-      .forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          if (!confirm("Delete this expense?")) return;
+    list.querySelectorAll('[data-delete]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this expense?')) {
+          return;
+        }
 
-          try {
-            await api(
-              `/expenses/${btn.dataset.delete}`,
-              {
-                method: "DELETE",
-              }
-            );
+        try {
+          await api(`/expenses/${btn.dataset.delete}`, {
+            method: 'DELETE',
+          });
 
-            await loadAll();
-          } catch (err) {
-            alert(err.message);
-          }
-        });
+          await loadAll();
+        } catch (err) {
+          alert(err.message);
+        }
       });
+    });
   }
 
-  // Render Balances and Settlements
   function renderBalances(data) {
     const settlements = data.settlements || [];
     const balances = data.balances || [];
 
     const sList =
-      document.getElementById("settlementList");
+      document.getElementById('settlementList');
 
     if (!settlements.length) {
       sList.innerHTML = `
@@ -311,44 +306,35 @@ if (!requireAuth()) {
                 ${formatMoney(s.amount)}
               </strong>
 
-              ${
-                String(s.from.id || s.from._id) === String(me.id || me._id)
-                  ? `
-                    <button
-                      class="pay-btn"
-                      type="button"
-                      data-pay="${s.amount}"
-                    >
-                      Pay ${formatMoney(s.amount)}
-                    </button>
-                  `
-                  : ""
-              }
+              <button
+                class="pay-btn"
+                type="button"
+                data-pay="${s.amount}"
+              >
+                Pay ${formatMoney(s.amount)}
+              </button>
             </div>
           `
         )
-        .join("");
+        .join('');
 
-      // Attach event listeners to Pay buttons
       sList
-        .querySelectorAll("[data-pay]")
+        .querySelectorAll('[data-pay]')
         .forEach((button) => {
-          button.addEventListener("click", () => {
-            const amount = Number(
-              button.dataset.pay
+          button.addEventListener('click', () => {
+            startPayment(
+              Number(button.dataset.pay)
             );
-
-            startPayment(amount);
           });
         });
     }
 
-    document.getElementById("balanceList").innerHTML =
+    document.getElementById('balanceList').innerHTML =
       balances
         .map((b) => {
           const label =
             Math.abs(b.net) < 0.01
-              ? "Settled"
+              ? 'Settled'
               : b.net > 0
                 ? `owed ${formatMoney(b.net)}`
                 : `owes ${formatMoney(Math.abs(b.net))}`;
@@ -357,76 +343,22 @@ if (!requireAuth()) {
             <div class="balance-item">
               <div>
                 ${escapeHtml(b.name)}
-                ${b.userId === me.id ? " (you)" : ""}
+                ${b.userId === me.id ? ' (you)' : ''}
               </div>
 
-              <span class="balance-pill ${balanceClass(b.net)}">
+              <span
+                class="balance-pill ${balanceClass(b.net)}"
+              >
                 ${label}
               </span>
             </div>
           `;
         })
-        .join("");
-  }
-
-  // Razorpay Payment
-  async function startPayment(amount) {
-    try {
-      // Create order from backend
-      const order = await api(
-        "/payment/create-order",
-        {
-          method: "POST",
-
-          body: JSON.stringify({
-            amount: amount,
-          }),
-        }
-      );
-
-      const options = {
-        
-        key: "rzp_test_TPv7QuxyBVkM0D",
-
-        amount: order.amount,
-
-        currency: order.currency,
-
-        name: "LendLocal",
-
-        description: "Settlement Payment",
-
-        order_id: order.id,
-
-        handler: function (response) {
-          console.log(
-            "Payment successful:",
-            response
-          );
-
-          alert("Payment successful!");
-        },
-      };
-
-      const razorpay = new Razorpay(options);
-
-      razorpay.open();
-
-    } catch (error) {
-      console.error(
-        "Payment failed:",
-        error
-      );
-
-      alert(
-        error.message ||
-        "Unable to start payment"
-      );
-    }
+        .join('');
   }
 
   function renderMembers() {
-    document.getElementById("memberList").innerHTML =
+    document.getElementById('memberList').innerHTML =
       members
         .map(
           (m) => `
@@ -434,7 +366,7 @@ if (!requireAuth()) {
               <div>
                 <strong>
                   ${escapeHtml(m.name)}
-                  ${m.id === me.id ? " (you)" : ""}
+                  ${m.id === me.id ? ' (you)' : ''}
                 </strong>
 
                 <div class="email">
@@ -444,23 +376,87 @@ if (!requireAuth()) {
             </div>
           `
         )
-        .join("");
+        .join('');
   }
 
-  // Add Member
+  async function startPayment(amount) {
+    try {
+      const order = await api('/payment/create-order', {
+        method: 'POST',
+
+        body: JSON.stringify({
+          amount,
+          groupId,
+        }),
+      });
+
+      const options = {
+        key: 'rzp_test_TPv7QuxyBVkM0D',
+
+        amount: order.amount,
+
+        currency: order.currency,
+
+        name: 'LendLocal',
+
+        description: 'Settlement Payment',
+
+        order_id: order.id,
+
+        handler: function (response) {
+          alert('Payment successful!');
+
+          console.log(
+            'Payment ID:',
+            response.razorpay_payment_id
+          );
+
+          console.log(
+            'Order ID:',
+            response.razorpay_order_id
+          );
+
+          console.log(
+            'Signature:',
+            response.razorpay_signature
+          );
+        },
+
+        prefill: {
+          name: me.name || '',
+          email: me.email || '',
+        },
+
+        theme: {
+          color: '#0f5c4e',
+        },
+      };
+
+      const razorpay = new Razorpay(options);
+
+      razorpay.open();
+    } catch (err) {
+      console.error(err);
+      alert(
+        err.message ||
+        'Could not start payment. Please try again.'
+      );
+    }
+  }
+
   document
-    .getElementById("addMemberForm")
-    .addEventListener("submit", async (e) => {
+    .getElementById('addMemberForm')
+    .addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const alertEl =
-        document.getElementById("memberAlert");
+        document.getElementById('memberAlert');
 
       hideAlert(alertEl);
 
       const email =
         document
-          .getElementById("memberEmail")
+          .getElementById('memberEmail')
           .value
           .trim();
 
@@ -468,7 +464,7 @@ if (!requireAuth()) {
         const data = await api(
           `/groups/${groupId}/members`,
           {
-            method: "POST",
+            method: 'POST',
 
             body: JSON.stringify({
               email,
@@ -478,29 +474,23 @@ if (!requireAuth()) {
 
         members = data.members;
 
-        document.getElementById(
-          "memberEmail"
-        ).value = "";
+        document.getElementById('memberEmail').value =
+          '';
 
         showAlert(
           alertEl,
-          "Member added",
-          "success"
+          'Member added',
+          'success'
         );
 
         await loadAll();
-
       } catch (err) {
-        showAlert(
-          alertEl,
-          err.message
-        );
+        showAlert(alertEl, err.message);
       }
     });
 
-  // Add Expense
   expenseForm.addEventListener(
-    "submit",
+    'submit',
     async (e) => {
       e.preventDefault();
 
@@ -511,14 +501,14 @@ if (!requireAuth()) {
 
       const checked = [
         ...document.querySelectorAll(
-          ".split-check:checked"
+          '.split-check:checked'
         ),
       ];
 
       if (!checked.length) {
         showAlert(
           expenseAlert,
-          "Select at least one participant"
+          'Select at least one participant'
         );
 
         return;
@@ -526,7 +516,7 @@ if (!requireAuth()) {
 
       let splits;
 
-      if (splitType === "equal") {
+      if (splitType === 'equal') {
         splits = checked.map((c) => ({
           user: c.dataset.user,
         }));
@@ -545,8 +535,8 @@ if (!requireAuth()) {
       }
 
       try {
-        await api("/expenses", {
-          method: "POST",
+        await api('/expenses', {
+          method: 'POST',
 
           body: JSON.stringify({
             groupId,
@@ -568,15 +558,13 @@ if (!requireAuth()) {
               expenseForm.category.value,
 
             date:
-              expenseForm.date.value ||
-              undefined,
+              expenseForm.date.value || undefined,
           }),
         });
 
-        expenseModal.classList.remove("open");
+        expenseModal.classList.remove('open');
 
         await loadAll();
-
       } catch (err) {
         showAlert(
           expenseAlert,
@@ -586,9 +574,10 @@ if (!requireAuth()) {
     }
   );
 
-  // Initial Load
   loadAll().catch((err) => {
-    document.getElementById("expenseList").innerHTML = `
+    document.getElementById(
+      'expenseList'
+    ).innerHTML = `
       <div class="empty">
         <strong>Could not load group</strong>
         ${escapeHtml(err.message)}
