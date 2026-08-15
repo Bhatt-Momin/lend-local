@@ -15,9 +15,7 @@ const PORT = process.env.PORT || 3000;
 
 connectDB();
 
-app.use(cors({
-  origin: 'https://lend-local-2.onrender.com'
-}));
+app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname,'..', 'frontend')));
 
