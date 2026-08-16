@@ -1,0 +1,788 @@
+/* =========================================================
+   LENDLOCAL
+   MODERN DASHBOARD UI
+========================================================= */
+
+
+/* =========================================================
+   ROOT
+========================================================= */
+
+.modern-dashboard {
+    min-height: 100vh;
+    background: #f6f8f7;
+    color: #1d2925;
+  }
+  
+  .modern-page {
+    min-height: 100vh;
+  }
+  
+  
+  /* =========================================================
+     HEADER
+  ========================================================= */
+  
+  .modern-header {
+    background: rgba(255, 255, 255, 0.9);
+    border-bottom: 1px solid #e8eeeb;
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  
+  .modern-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    text-decoration: none;
+  }
+  
+  .logo-icon {
+    width: 42px;
+    height: 42px;
+  
+    display: grid;
+    place-items: center;
+  
+    border-radius: 12px;
+  
+    background: #0f7a5f;
+    color: white;
+  
+    font-weight: 700;
+    font-size: 1.2rem;
+  
+    box-shadow: 0 8px 20px rgba(15, 122, 95, 0.2);
+  }
+  
+  .modern-logo strong {
+    display: block;
+    color: #17342b;
+    font-size: 1rem;
+  }
+  
+  .modern-logo small {
+    display: block;
+    margin-top: 0.1rem;
+    color: #82908a;
+    font-size: 0.68rem;
+  }
+  
+  .modern-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .user-area {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .user-avatar {
+    width: 34px;
+    height: 34px;
+  
+    display: grid;
+    place-items: center;
+  
+    border-radius: 50%;
+  
+    background: #e4f3ed;
+    color: #0f7a5f;
+  
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+  
+  .modern-logout {
+    font-size: 0.8rem;
+  }
+  
+  
+  /* =========================================================
+     CONTAINER
+  ========================================================= */
+  
+  .modern-container {
+    padding-top: 3rem;
+    padding-bottom: 4rem;
+  }
+  
+  
+  /* =========================================================
+     INTRO
+  ========================================================= */
+  
+  .dashboard-intro {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  
+    gap: 2rem;
+  
+    margin-bottom: 2rem;
+  }
+  
+  .welcome-label {
+    display: inline-block;
+  
+    margin-bottom: 0.6rem;
+  
+    color: #0f7a5f;
+  
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+  }
+  
+  .dashboard-intro h1 {
+    margin: 0;
+  
+    color: #1b2924;
+  
+    font-size: clamp(2rem, 5vw, 3rem);
+    letter-spacing: -0.04em;
+  }
+  
+  .dashboard-intro p {
+    margin: 0.55rem 0 0;
+  
+    color: #77857f;
+  }
+  
+  .add-group-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  
+    padding: 0.85rem 1.25rem;
+  
+    border-radius: 10px;
+  
+    font-size: 0.85rem;
+  }
+  
+  .add-group-btn span {
+    font-size: 1.3rem;
+    line-height: 0;
+  }
+  
+  
+  /* =========================================================
+     BALANCE CARD
+  ========================================================= */
+  
+  .balance-card {
+    position: relative;
+  
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  
+    overflow: hidden;
+  
+    min-height: 230px;
+  
+    margin-bottom: 1.25rem;
+    padding: 2.5rem 3rem;
+  
+    border-radius: 22px;
+  
+    background:
+      linear-gradient(
+        135deg,
+        #0f7a5f,
+        #12906f
+      );
+  
+    color: white;
+  
+    box-shadow:
+      0 20px 50px rgba(15, 122, 95, 0.18);
+  }
+  
+  .balance-info {
+    position: relative;
+    z-index: 2;
+  }
+  
+  .balance-label {
+    display: block;
+  
+    color: rgba(255, 255, 255, 0.7);
+  
+    font-size: 0.85rem;
+  }
+  
+  .net-balance {
+    margin-top: 0.5rem;
+  
+    font-size: clamp(2.8rem, 7vw, 5rem);
+    font-weight: 750;
+  
+    letter-spacing: -0.06em;
+  }
+  
+  .balance-status {
+    display: inline-block;
+  
+    margin-top: 0.5rem;
+    padding: 0.45rem 0.75rem;
+  
+    border-radius: 20px;
+  
+    background: rgba(255, 255, 255, 0.12);
+  
+    color: rgba(255, 255, 255, 0.85);
+  
+    font-size: 0.75rem;
+  }
+  
+  .balance-decoration {
+    position: absolute;
+    right: 0;
+    top: 0;
+  
+    width: 45%;
+    height: 100%;
+  }
+  
+  .circle {
+    position: absolute;
+  
+    border-radius: 50%;
+  
+    border: 1px solid rgba(255, 255, 255, 0.14);
+  }
+  
+  .circle-one {
+    width: 300px;
+    height: 300px;
+  
+    right: -80px;
+    top: -80px;
+  }
+  
+  .circle-two {
+    width: 200px;
+    height: 200px;
+  
+    right: 50px;
+    bottom: -100px;
+  }
+  
+  .circle-three {
+    width: 80px;
+    height: 80px;
+  
+    right: 230px;
+    top: 40px;
+  
+    background: rgba(255, 255, 255, 0.08);
+  }
+  
+  
+  /* =========================================================
+     STAT CARDS
+  ========================================================= */
+  
+  .dashboard-stats {
+    display: grid;
+  
+    grid-template-columns: repeat(3, 1fr);
+  
+    gap: 1rem;
+  
+    margin-bottom: 3.5rem;
+  }
+  
+  .modern-stat {
+    display: flex;
+    align-items: center;
+  
+    gap: 1rem;
+  
+    padding: 1.4rem;
+  
+    background: white;
+  
+    border: 1px solid #edf1ef;
+  
+    border-radius: 16px;
+  
+    box-shadow:
+      0 5px 20px rgba(20, 40, 30, 0.04);
+  
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+  
+  .modern-stat:hover {
+    transform: translateY(-4px);
+  
+    box-shadow:
+      0 15px 35px rgba(20, 40, 30, 0.08);
+  }
+  
+  .stat-icon {
+    width: 48px;
+    height: 48px;
+  
+    flex-shrink: 0;
+  
+    display: grid;
+    place-items: center;
+  
+    border-radius: 14px;
+  
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+  
+  .groups-icon {
+    background: #eef4f1;
+  }
+  
+  .owed-icon {
+    background: #e5f8ef;
+    color: #129b66;
+  }
+  
+  .owe-icon {
+    background: #fff0ed;
+    color: #d65c45;
+  }
+  
+  .modern-stat .label {
+    color: #82908a;
+  
+    font-size: 0.78rem;
+  }
+  
+  .modern-stat .value {
+    margin-top: 0.2rem;
+  
+    color: #1d2925;
+  
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+  
+  .modern-stat .positive {
+    color: #129b66;
+  }
+  
+  .modern-stat .negative {
+    color: #d65c45;
+  }
+  
+  
+  /* =========================================================
+     GROUP SECTION
+  ========================================================= */
+  
+  .groups-section {
+    margin-top: 1rem;
+  }
+  
+  .section-header {
+    display: flex;
+  
+    justify-content: space-between;
+    align-items: center;
+  
+    margin-bottom: 1.25rem;
+  }
+  
+  .section-header h2 {
+    margin: 0;
+  
+    color: #1b2924;
+  
+    font-size: 1.4rem;
+  }
+  
+  .section-header p {
+    margin: 0.35rem 0 0;
+  
+    color: #82908a;
+  
+    font-size: 0.85rem;
+  }
+  
+  .activity-indicator {
+    display: flex;
+    align-items: center;
+  
+    gap: 0.45rem;
+  
+    color: #82908a;
+  
+    font-size: 0.75rem;
+  }
+  
+  .activity-indicator span {
+    width: 8px;
+    height: 8px;
+  
+    border-radius: 50%;
+  
+    background: #35c78c;
+  
+    box-shadow:
+      0 0 0 4px rgba(53, 199, 140, 0.12);
+  }
+  
+  
+  /* =========================================================
+     GROUP LIST
+  ========================================================= */
+  
+  .modern-group-list {
+    display: flex;
+    flex-direction: column;
+  
+    gap: 0.8rem;
+  }
+  
+  
+  /* =========================================================
+     GROUP CARD
+  ========================================================= */
+  
+  .modern-group-card {
+    display: grid;
+  
+    grid-template-columns: 54px 1fr auto;
+  
+    align-items: center;
+  
+    gap: 1rem;
+  
+    padding: 1.2rem;
+  
+    border-radius: 16px;
+  
+    background: white;
+  
+    border: 1px solid #edf1ef;
+  
+    text-decoration: none;
+  
+    color: inherit;
+  
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease,
+      border-color 0.2s ease;
+  }
+  
+  .modern-group-card:hover {
+    transform: translateY(-3px);
+  
+    border-color: #dce8e2;
+  
+    box-shadow:
+      0 14px 35px rgba(20, 40, 30, 0.08);
+  }
+  
+  .group-icon {
+    width: 52px;
+    height: 52px;
+  
+    display: grid;
+    place-items: center;
+  
+    border-radius: 15px;
+  
+    background: #eaf5f0;
+  
+    color: #0f7a5f;
+  
+    font-size: 1.2rem;
+    font-weight: 700;
+  }
+  
+  .group-main {
+    min-width: 0;
+  }
+  
+  .group-main h3 {
+    margin: 0;
+  
+    color: #22332d;
+  
+    font-size: 1rem;
+  }
+  
+  .group-main .meta {
+    margin-top: 0.35rem;
+  
+    color: #84918c;
+  
+    font-size: 0.78rem;
+  }
+  
+  .group-balance {
+    text-align: right;
+  }
+  
+  .group-balance-label {
+    display: block;
+  
+    margin-bottom: 0.3rem;
+  
+    color: #9aa59f;
+  
+    font-size: 0.68rem;
+  }
+  
+  .group-balance .balance-pill {
+    font-weight: 700;
+  }
+  
+  
+  /* =========================================================
+     EMPTY STATE
+  ========================================================= */
+  
+  .modern-empty {
+    padding: 4rem 2rem;
+  
+    text-align: center;
+  
+    border: 2px dashed #dce6e1;
+  
+    border-radius: 18px;
+  
+    background: rgba(255, 255, 255, 0.5);
+  }
+  
+  .empty-icon {
+    width: 58px;
+    height: 58px;
+  
+    display: grid;
+    place-items: center;
+  
+    margin: 0 auto 1rem;
+  
+    border-radius: 18px;
+  
+    background: #eaf5f0;
+  
+    color: #0f7a5f;
+  
+    font-size: 1.4rem;
+  }
+  
+  .modern-empty strong {
+    display: block;
+  
+    color: #273730;
+  }
+  
+  .modern-empty p {
+    margin: 0.5rem auto 1.2rem;
+  
+    color: #82908a;
+  }
+  
+  
+  /* =========================================================
+     MODAL
+  ========================================================= */
+  
+  .modern-modal-backdrop {
+    background: rgba(20, 35, 29, 0.45);
+  
+    backdrop-filter: blur(6px);
+  }
+  
+  .modern-modal {
+    width: min(520px, calc(100% - 2rem));
+  
+    padding: 1.8rem;
+  
+    border-radius: 20px;
+  
+    background: white;
+  
+    box-shadow:
+      0 30px 80px rgba(10, 25, 18, 0.2);
+  }
+  
+  .modal-header {
+    display: flex;
+  
+    justify-content: space-between;
+  
+    gap: 1rem;
+  
+    margin-bottom: 1.5rem;
+  }
+  
+  .modal-header h2 {
+    margin: 0;
+  
+    color: #1d2c26;
+  }
+  
+  .modal-header p {
+    margin: 0.4rem 0 0;
+  
+    color: #84918c;
+  
+    font-size: 0.85rem;
+  }
+  
+  .close-modal {
+    width: 34px;
+    height: 34px;
+  
+    border: none;
+  
+    border-radius: 50%;
+  
+    background: #f2f5f3;
+  
+    color: #66736e;
+  
+    font-size: 1.4rem;
+  
+    cursor: pointer;
+  }
+  
+  .close-modal:hover {
+    background: #e7ece9;
+  }
+  
+  .modern-modal .field label {
+    color: #405049;
+  
+    font-size: 0.82rem;
+  
+    font-weight: 600;
+  }
+  
+  .optional {
+    color: #a0aaa5;
+  
+    font-weight: 400;
+  }
+  
+  .modern-modal input,
+  .modern-modal textarea {
+    border-color: #dde5e1;
+  
+    background: #fbfcfb;
+  
+    color: #25332d;
+  }
+  
+  .modern-modal input:focus,
+  .modern-modal textarea:focus {
+    border-color: #0f7a5f;
+  
+    box-shadow:
+      0 0 0 3px rgba(15, 122, 95, 0.1);
+  }
+  
+  .field-hint {
+    margin: 0.45rem 0 0;
+  
+    color: #8c9893;
+  
+    font-size: 0.75rem;
+  }
+  
+  .modern-modal-actions {
+    display: flex;
+  
+    justify-content: flex-end;
+  
+    gap: 0.7rem;
+  
+    margin-top: 1.5rem;
+  }
+  
+  
+  /* =========================================================
+     RESPONSIVE
+  ========================================================= */
+  
+  @media (max-width: 760px) {
+  
+    .modern-container {
+      padding-top: 1.8rem;
+    }
+  
+    .dashboard-intro {
+      flex-direction: column;
+  
+      align-items: stretch;
+    }
+  
+    .add-group-btn {
+      justify-content: center;
+    }
+  
+    .balance-card {
+      min-height: 210px;
+  
+      padding: 2rem;
+  
+      border-radius: 18px;
+    }
+  
+    .balance-decoration {
+      opacity: 0.55;
+    }
+  
+    .dashboard-stats {
+      grid-template-columns: 1fr;
+    }
+  
+    .section-header {
+      align-items: flex-start;
+  
+      flex-direction: column;
+    }
+  
+    .modern-group-card {
+      grid-template-columns: 52px 1fr;
+    }
+  
+    .group-balance {
+      grid-column: 2;
+  
+      text-align: left;
+    }
+  
+    .modern-actions {
+      gap: 0.4rem;
+    }
+  
+    .user-area {
+      max-width: 130px;
+  
+      overflow: hidden;
+    }
+  
+    .user-chip {
+      overflow: hidden;
+  
+      text-overflow: ellipsis;
+  
+      white-space: nowrap;
+    }
+  
+    .modern-logo small {
+      display: none;
+    }
+  }
