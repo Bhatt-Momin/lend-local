@@ -1,451 +1,405 @@
 /* =========================================================
-   LendLocal — animation & effects layer
-   Loaded AFTER styles.css. Purely additive: nothing here
-   removes or overrides base layout, only motion/visual flair.
-   ========================================================= */
+   LendLocal — Animation & Interaction Layer
 
-   :root {
-    --glow-brand: rgba(15, 92, 76, 0.55);
-    --glow-accent: rgba(212, 160, 23, 0.6);
-    --glow-owe: rgba(194, 59, 34, 0.55);
-    --glow-owed: rgba(15, 122, 95, 0.55);
+   Loaded AFTER styles.css.
+
+   This file owns motion only.
+   Layout, spacing, colors, component structure, and visual
+   hierarchy belong in styles.css.
+========================================================= */
+
+:root {
+  --motion-fast: 160ms;
+  --motion-base: 240ms;
+  --motion-slow: 420ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+
+/* =========================================================
+   1. REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
-  
-  /* ------------------------------------------------------
-     0. Respect reduced-motion users — kill everything below
-     ------------------------------------------------------ */
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.001ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.001ms !important;
-      scroll-behavior: auto !important;
-    }
-    /* #particle-canvas, */
-    /* #cursor-glow, */
-    .confetti-piece {
-      display: none !important;
-    }
-  }
-  
-  /* ------------------------------------------------------
-     1. Full-page particle canvas (floating ambient dots)
-     ------------------------------------------------------ */
-  #particle-canvas {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    opacity: 0.55;
-  }
-  
-  /* ------------------------------------------------------
-     2. Cursor glow trail (desktop only — see JS gate)
-     ------------------------------------------------------ */
-  #cursor-glow {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 260px;
-    height: 260px;
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 2;
-    transform: translate(-50%, -50%);
-    background: radial-gradient(circle, var(--glow-accent) 0%, transparent 70%);
-    mix-blend-mode: multiply;
-    opacity: 0;
-    transition: opacity 0.4s ease;
-    will-change: transform;
-  }
-  
-  /* #cursor-glow.active {
-    opacity: 0.5;
-  } */
-  
-  /* ------------------------------------------------------
-     3. Animated gradient brand mark / logo shimmer
-     ------------------------------------------------------ */
-  .brand-mark,
-  .logo {
-    background: linear-gradient(90deg, var(--accent) 0%, #fff 20%, var(--brand-soft) 40%, var(--accent) 60%);
-    background-size: 300% auto;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: shimmer 5s linear infinite;
-  }
-  
-  .logo {
-    background: linear-gradient(90deg, var(--brand-deep) 0%, var(--brand) 25%, var(--accent) 50%, var(--brand) 75%, var(--brand-deep) 100%);
-    background-size: 300% auto;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-  
-  @keyframes shimmer {
-    to { background-position: -300% center; }
-  }
-  
-  /* ------------------------------------------------------
-     4. Hero blob glow — extra atmosphere behind auth hero
-     ------------------------------------------------------ */
-  .auth-hero::after {
-    content: '';
-    position: absolute;
-    inset: -20%;
-    background:
-      radial-gradient(circle at 30% 20%, rgba(212, 160, 23, 0.35), transparent 45%),
-      radial-gradient(circle at 80% 80%, rgba(15, 122, 95, 0.4), transparent 50%);
-    animation: blobDrift 12s ease-in-out infinite alternate;
-    pointer-events: none;
-    z-index: 0;
-    filter: blur(10px);
-  }
-  
-  .auth-hero > div {
-    position: relative;
-    z-index: 1;
-  }
-  
-  @keyframes blobDrift {
-    0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
-    50%  { transform: translate(3%, -4%) scale(1.08) rotate(8deg); }
-    100% { transform: translate(-4%, 3%) scale(1.02) rotate(-6deg); }
-  }
-  
-  /* ------------------------------------------------------
-     5. Buttons — glow pulse, ripple, magnetic press
-     ------------------------------------------------------ */
-  .btn {
-    position: relative;
-    overflow: hidden;
-  }
-  
-  .btn-primary {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-  
-  .btn-primary:hover {
-    transform: translateY(-2px) scale(1.03);
-    box-shadow: 0 14px 34px var(--glow-brand);
-  }
-  
-  /* @keyframes pulseGlow {
-    0%, 100% { box-shadow: 0 10px 24px rgba(15, 92, 76, 0.28); }
-    50%      { box-shadow: 0 10px 34px rgba(15, 92, 76, 0.5), 0 0 0 4px rgba(15, 92, 76, 0.08); }
-  } */
-  
+
+  .confetti-piece,
   .ripple {
-    position: absolute;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.55);
-    transform: scale(0);
-    animation: rippleAnim 0.6s ease-out forwards;
-    pointer-events: none;
-    z-index: 1;
+    display: none !important;
   }
-  
-  .btn > * {
-    position: relative;
-    z-index: 2;
-  }
-  
-  @keyframes rippleAnim {
-    to {
-      transform: scale(3.5);
-      opacity: 0;
-    }
-  }
-  
-  /* ------------------------------------------------------
-     6. Card entrances — staggered rise + tilt-on-hover
-     ------------------------------------------------------ */
-  .reveal-stagger {
+}
+
+
+/* =========================================================
+   2. BUTTON INTERACTION
+========================================================= */
+
+.btn,
+.pay-btn {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-fast) ease;
+}
+
+.btn:hover,
+.pay-btn:hover {
+  transform: translateY(-2px);
+}
+
+.btn:active,
+.pay-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.btn:focus-visible,
+.pay-btn:focus-visible,
+.tab:focus-visible {
+  outline: 3px solid rgba(15, 92, 76, 0.22);
+  outline-offset: 3px;
+}
+
+
+/* =========================================================
+   3. RIPPLE
+========================================================= */
+
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  transform: scale(0);
+  pointer-events: none;
+  animation: rippleAnim 520ms ease-out forwards;
+}
+
+.btn > *,
+.pay-btn > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes rippleAnim {
+  to {
+    transform: scale(3.5);
     opacity: 0;
-    transform: translateY(18px) scale(0.98);
   }
-  
-  .reveal-stagger.in {
-    animation: staggerIn 0.6s var(--ease) forwards;
+}
+
+
+/* =========================================================
+   4. STAGGERED CONTENT ENTRANCE
+
+   JavaScript can add:
+   .reveal-stagger
+   then:
+   .in
+========================================================= */
+
+.reveal-stagger {
+  opacity: 0;
+  transform: translateY(14px);
+}
+
+.reveal-stagger.in {
+  animation: staggerIn var(--motion-slow) var(--motion-ease) forwards;
+}
+
+@keyframes staggerIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
-  
-  @keyframes staggerIn {
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
+}
+
+
+/* =========================================================
+   5. INTERACTIVE CARDS
+
+   Motion only. Visual styling remains in styles.css.
+========================================================= */
+
+.group-row,
+.stat,
+.expense-item,
+.settlement-item,
+.balance-item,
+.member-item {
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    box-shadow var(--motion-base) var(--motion-ease),
+    border-color var(--motion-base) ease;
+}
+
+.group-row:hover,
+.stat:hover,
+.expense-item:hover,
+.settlement-item:hover,
+.balance-item:hover,
+.member-item:hover {
+  transform: translateY(-3px);
+}
+
+
+/* =========================================================
+   6. NUMBER COUNTING
+
+   Used by JavaScript while statistics animate.
+========================================================= */
+
+.counting {
+  display: inline-block;
+}
+
+
+/* =========================================================
+   7. ERROR FEEDBACK
+========================================================= */
+
+.shake {
+  animation: shakeAnim 420ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes shakeAnim {
+  10%,
+  90% {
+    transform: translateX(-1px);
   }
-  
-  .group-row,
-  .stat,
-  .expense-item,
-  .settlement-item,
-  .balance-item,
-  .member-item {
-    transition: transform 0.35s var(--ease), box-shadow 0.35s var(--ease), border-color 0.3s;
-    will-change: transform;
+
+  20%,
+  80% {
+    transform: translateX(2px);
   }
-  
+
+  30%,
+  50%,
+  70% {
+    transform: translateX(-4px);
+  }
+
+  40%,
+  60% {
+    transform: translateX(4px);
+  }
+}
+
+
+/* =========================================================
+   8. MODAL TRANSITION
+========================================================= */
+
+.modal-backdrop.open .modal {
+  animation: modalIn var(--motion-base) var(--motion-ease) both;
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+/* =========================================================
+   9. TAB TRANSITIONS
+========================================================= */
+
+.tab {
+  transition:
+    color var(--motion-fast) ease,
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease;
+}
+
+.tab:active {
+  transform: scale(0.98);
+}
+
+.panel.active {
+  animation: panelIn var(--motion-base) var(--motion-ease);
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+/* =========================================================
+   10. TOAST NOTIFICATIONS
+========================================================= */
+
+#fx-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+
+  z-index: 999;
+
+  max-width: calc(100vw - 2rem);
+
+  padding: 0.85rem 1.2rem;
+
+  border-radius: 12px;
+
+  background: var(--brand-deep);
+  color: #fff;
+
+  font-weight: 700;
+  font-size: 0.9rem;
+
+  box-shadow:
+    0 16px 40px rgba(10, 61, 51, 0.24);
+
+  opacity: 0;
+
+  pointer-events: none;
+
+  transform:
+    translateX(-50%)
+    translateY(14px);
+
+  transition:
+    opacity var(--motion-base) ease,
+    transform var(--motion-base) var(--motion-ease);
+}
+
+#fx-toast.show {
+  opacity: 1;
+
+  transform:
+    translateX(-50%)
+    translateY(0);
+}
+
+
+/* =========================================================
+   11. REMOVE / DELETE ANIMATION
+========================================================= */
+
+.fx-removing {
+  overflow: hidden;
+  animation: removeCollapse 320ms var(--motion-ease) forwards;
+}
+
+@keyframes removeCollapse {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+    max-height: 300px;
+  }
+
+  60% {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(12px);
+    max-height: 0;
+    margin: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+  }
+}
+
+
+/* =========================================================
+   12. LOADING SPINNER
+========================================================= */
+
+.fx-spinner {
+  display: inline-block;
+
+  width: 18px;
+  height: 18px;
+
+  margin-right: 0.5rem;
+
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: currentColor;
+
+  border-radius: 50%;
+
+  animation: spin 700ms linear infinite;
+
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+/* =========================================================
+   13. LEGACY CONFETTI SUPPORT
+
+   Kept only so existing JavaScript does not break.
+   No new code should trigger this effect.
+========================================================= */
+
+.confetti-piece {
+  position: fixed;
+  top: -10px;
+
+  z-index: 999;
+
+  pointer-events: none;
+
+  border-radius: 2px;
+
+  animation: confettiFall linear forwards;
+}
+
+@keyframes confettiFall {
+  to {
+    transform: translateY(105vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+
+/* =========================================================
+   14. MOBILE MOTION
+========================================================= */
+
+@media (max-width: 700px) {
   .group-row:hover,
+  .stat:hover,
   .expense-item:hover,
   .settlement-item:hover,
   .balance-item:hover,
   .member-item:hover {
-    box-shadow: 0 16px 40px rgba(10, 61, 51, 0.18);
-    border-color: rgba(15, 92, 76, 0.3);
+    transform: none;
   }
-  
-  .stat {
-    position: relative;
-    overflow: hidden;
-  }
-  
-  .stat::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -60%;
-    width: 40%;
-    height: 200%;
-    background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.55), transparent);
-    transform: rotate(20deg);
-    /* animation: statSheen 5s ease-in-out infinite; */
-    pointer-events: none;
-  }
-  
-  @keyframes statSheen {
-    0%   { left: -60%; }
-    35%  { left: 130%; }
-    100% { left: 130%; }
-  }
-  
-  .stat:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 16px 40px rgba(10, 61, 51, 0.2);
-  }
-  
-  /* ------------------------------------------------------
-     7. Balance pills — breathing glow based on state
-     ------------------------------------------------------ */
-  /* .balance-pill.owed {
-    animation: glowOwed 2.4s ease-in-out infinite;
-  } */
-  
-  /* .balance-pill.owe {
-    animation: glowOwe 2.4s ease-in-out infinite;
-  } */
-  
-  @keyframes glowOwed {
-    0%, 100% { box-shadow: 0 0 0 rgba(15, 122, 95, 0); }
-    50%      { box-shadow: 0 0 14px var(--glow-owed); }
-  }
-  
-  @keyframes glowOwe {
-    0%, 100% { box-shadow: 0 0 0 rgba(194, 59, 34, 0); }
-    50%      { box-shadow: 0 0 14px var(--glow-owe); }
-  }
-  
-  /* ------------------------------------------------------
-     8. Number roll-up (JS toggles this class while counting)
-     ------------------------------------------------------ */
-  .counting {
-    display: inline-block;
-    /* animation: countPulse 0.25s ease-in-out infinite alternate; */
-  }
-  
-  @keyframes countPulse {
-    from { transform: scale(1); }
-    to   { transform: scale(1.035); }
-  }
-  
-  /* ------------------------------------------------------
-     9. Shake — used for form/alert errors
-     ------------------------------------------------------ */
-  .shake {
-    animation: shakeAnim 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-  }
-  
-  @keyframes shakeAnim {
-    10%, 90% { transform: translateX(-1px); }
-    20%, 80% { transform: translateX(2px); }
-    30%, 50%, 70% { transform: translateX(-4px); }
-    40%, 60% { transform: translateX(4px); }
-  }
-  
-  /* ------------------------------------------------------
-     10. Modal — bouncier entrance + backdrop blur ramp
-     ------------------------------------------------------ */
-  .modal-backdrop.open .modal {
-    animation: modalPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  }
-  
-  @keyframes modalPop {
-    0%   { opacity: 0; transform: translateY(24px) scale(0.92); }
-    60%  { opacity: 1; transform: translateY(-4px) scale(1.015); }
-    100% { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  
-  /* ------------------------------------------------------
-     11. Tabs — sliding active-state underline glow
-     ------------------------------------------------------ */
-  .tab {
-    position: relative;
-    overflow: hidden;
-  }
-  
-  /* .pay-btn ships with zero base styling — give it a proper look */
-  .pay-btn {
-    position: relative;
-    overflow: hidden;
-    border: none;
-    cursor: pointer;
-    border-radius: 999px;
-    padding: 0.55rem 1.1rem;
-    font-weight: 700;
-    font-size: 0.85rem;
-    font-family: inherit;
-    color: #fff;
-    background: linear-gradient(135deg, var(--accent), #c78f12);
-    box-shadow: 0 8px 20px rgba(212, 160, 23, 0.35);
-    transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
-  }
-  
-  .pay-btn:hover {
-    transform: translateY(-2px) scale(1.03);
-  }
-  
-  .pay-btn:active {
-    transform: translateY(0) scale(0.98);
-  }
-  
-  /* @keyframes pulseGlowAccent {
-    0%, 100% { box-shadow: 0 8px 20px rgba(212, 160, 23, 0.35); }
-    50%      { box-shadow: 0 8px 26px rgba(212, 160, 23, 0.6), 0 0 0 4px rgba(212, 160, 23, 0.1); }
-  } */
-  
-  .tab.active {
-    box-shadow: 0 6px 20px rgba(15, 92, 76, 0.35);
-    animation: tabPop 0.35s var(--ease);
-  }
-  
-  @keyframes tabPop {
-    0%   { transform: scale(0.9); }
-    60%  { transform: scale(1.06); }
-    100% { transform: scale(1); }
-  }
-  
-  .panel.active {
-    animation: panelIn 0.45s var(--ease);
-  }
-  
-  @keyframes panelIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  
-  /* ------------------------------------------------------
-     12. Confetti burst pieces (spawned + removed by JS)
-     ------------------------------------------------------ */
-  .confetti-piece {
-    position: fixed;
-    top: -10px;
-    z-index: 999;
-    pointer-events: none;
-    border-radius: 2px;
-    animation: confettiFall linear forwards;
-  }
-  
-  @keyframes confettiFall {
-    to {
-      transform: translateY(105vh) rotate(720deg);
-      opacity: 0.9;
-    }
-  }
-  
-  /* ------------------------------------------------------
-     13. Toast / success flash
-     ------------------------------------------------------ */
+
   #fx-toast {
-    position: fixed;
-    bottom: 1.5rem;
-    left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: var(--brand-deep);
-    color: #fff;
-    padding: 0.85rem 1.4rem;
-    border-radius: 999px;
-    font-weight: 700;
-    font-size: 0.92rem;
-    box-shadow: 0 16px 40px rgba(10, 61, 51, 0.4);
-    z-index: 999;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.35s var(--ease), transform 0.35s var(--ease);
+    bottom: 1rem;
   }
-  
-  #fx-toast.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-  
-  /* ------------------------------------------------------
-     14. Delete / removal — collapse animation
-     ------------------------------------------------------ */
-  .fx-removing {
-    animation: removeCollapse 0.4s ease forwards;
-    overflow: hidden;
-  }
-  
-  @keyframes removeCollapse {
-    0%   { opacity: 1; transform: scale(1) translateX(0); max-height: 300px; }
-    60%  { opacity: 0; transform: scale(0.95) translateX(20px); }
-    100% { opacity: 0; transform: scale(0.9); max-height: 0; margin: 0; padding-top: 0; padding-bottom: 0; }
-  }
-  
-  /* ------------------------------------------------------
-     15. Page-load flourish for headings
-     ------------------------------------------------------ */
-  .page-head h1 {
-    animation: headIn 0.7s var(--ease) both;
-  }
-  
-  @keyframes headIn {
-    from { opacity: 0; transform: translateX(-14px); }
-    to   { opacity: 1; transform: translateX(0); }
-  }
-  
-  /* ------------------------------------------------------
-     16. Loading spinner (used while data fetches)
-     ------------------------------------------------------ */
-  .fx-spinner {
-    display: inline-block;
-    width: 18px;
-    height: 18px;
-    border: 3px solid rgba(255, 255, 255, 0.4);
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    vertical-align: middle;
-    margin-right: 0.5rem;
-  }
-  
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-  
-  /* ------------------------------------------------------
-     17. Input focus glow ring pulse
-     ------------------------------------------------------ */
-     .field input:focus,
-     .field select:focus,
-     .field textarea:focus {
-       transition: box-shadow 0.2s ease, border-color 0.2s ease;
-     }
-  
-  /* @keyframes fieldGlow {
-    0%, 100% { box-shadow: 0 0 0 3px rgba(15, 92, 76, 0.15); }
-    50%      { box-shadow: 0 0 0 5px rgba(15, 92, 76, 0.25); }
-  } */
-  
+}

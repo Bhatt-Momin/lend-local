@@ -12,54 +12,150 @@ if (!requireAuth()) {
   }
 
   const me = getUser();
+
   let group = null;
   let members = [];
 
-  const expenseModal = document.getElementById('expenseModal');
-  const expenseForm = document.getElementById('expenseForm');
-  const expenseAlert = document.getElementById('expenseAlert');
-  const splitList = document.getElementById('splitList');
+  const expenseModal =
+    document.getElementById('expenseModal');
 
-  // Tabs
-  document.querySelectorAll('.tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach((t) => {
-        t.classList.remove('active');
+  const expenseForm =
+    document.getElementById('expenseForm');
+
+  const expenseAlert =
+    document.getElementById('expenseAlert');
+
+  const splitList =
+    document.getElementById('splitList');
+
+  /* =========================================================
+     USER AVATAR
+  ========================================================= */
+
+  const userAvatar =
+    document.getElementById('userAvatar');
+
+  if (userAvatar && me) {
+    const name = me.name || 'U';
+
+    userAvatar.textContent =
+      name.charAt(0).toUpperCase();
+  }
+
+  /* =========================================================
+     TABS
+  ========================================================= */
+
+  document
+    .querySelectorAll('.tab')
+    .forEach((tab) => {
+      tab.addEventListener('click', () => {
+        document
+          .querySelectorAll('.tab')
+          .forEach((t) => {
+            t.classList.remove('active');
+          });
+
+        document
+          .querySelectorAll('.panel')
+          .forEach((panel) => {
+            panel.classList.remove('active');
+          });
+
+        tab.classList.add('active');
+
+        const panel =
+          document.getElementById(
+            `panel-${tab.dataset.tab}`
+          );
+
+        if (panel) {
+          panel.classList.add('active');
+        }
       });
-
-      document.querySelectorAll('.panel').forEach((p) => {
-        p.classList.remove('active');
-      });
-
-      tab.classList.add('active');
-
-      document
-        .getElementById(`panel-${tab.dataset.tab}`)
-        .classList.add('active');
     });
-  });
 
-  // Open expense modal
-  document.getElementById('openExpense').addEventListener('click', () => {
-    hideAlert(expenseAlert);
+  /* =========================================================
+     EXPENSE MODAL
+  ========================================================= */
 
-    expenseForm.reset();
-    expenseForm.date.value = new Date().toISOString().slice(0, 10);
-
-    renderSplitInputs('equal');
-
-    expenseModal.classList.add('open');
-  });
-
-  document.getElementById('closeExpense').addEventListener('click', () => {
+  function closeExpenseModal() {
     expenseModal.classList.remove('open');
-  });
 
-  expenseModal.addEventListener('click', (e) => {
-    if (e.target === expenseModal) {
-      expenseModal.classList.remove('open');
+    hideAlert(expenseAlert);
+  }
+
+  document
+    .getElementById('openExpense')
+    .addEventListener('click', () => {
+      hideAlert(expenseAlert);
+
+      expenseForm.reset();
+
+      expenseForm.date.value =
+        new Date()
+          .toISOString()
+          .slice(0, 10);
+
+      renderSplitInputs('equal');
+
+      expenseModal.classList.add('open');
+    });
+
+  /* X BUTTON */
+
+  const closeExpense =
+    document.getElementById('closeExpense');
+
+  if (closeExpense) {
+    closeExpense.addEventListener(
+      'click',
+      closeExpenseModal
+    );
+  }
+
+  /* CANCEL BUTTON */
+
+  const closeExpenseSecondary =
+    document.getElementById(
+      'closeExpenseSecondary'
+    );
+
+  if (closeExpenseSecondary) {
+    closeExpenseSecondary.addEventListener(
+      'click',
+      closeExpenseModal
+    );
+  }
+
+  /* CLICK OUTSIDE MODAL */
+
+  expenseModal.addEventListener(
+    'click',
+    (e) => {
+      if (e.target === expenseModal) {
+        closeExpenseModal();
+      }
     }
-  });
+  );
+
+  /* ESC KEY */
+
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      if (
+        e.key === 'Escape' &&
+        expenseModal.classList.contains('open')
+      ) {
+        closeExpenseModal();
+      }
+    }
+  );
+
+  /* =========================================================
+     SPLIT TYPE
+  ========================================================= */
 
   document
     .getElementById('expSplitType')
@@ -70,10 +166,19 @@ if (!requireAuth()) {
   document
     .getElementById('expAmount')
     .addEventListener('input', () => {
-      if (document.getElementById('expSplitType').value === 'equal') {
+      const splitType =
+        document.getElementById(
+          'expSplitType'
+        ).value;
+
+      if (splitType === 'equal') {
         renderSplitInputs('equal');
       }
     });
+
+  /* =========================================================
+     HELPERS
+  ========================================================= */
 
   function escapeHtml(str) {
     return String(str)
@@ -83,16 +188,30 @@ if (!requireAuth()) {
       .replace(/"/g, '&quot;');
   }
 
+  /* =========================================================
+     SPLIT INPUTS
+  ========================================================= */
+
   function renderSplitInputs(type) {
     const amount =
-      Number(document.getElementById('expAmount').value) || 0;
+      Number(
+        document.getElementById(
+          'expAmount'
+        ).value
+      ) || 0;
 
-    const equalShare = members.length
-      ? Math.round((amount / members.length) * 100) / 100
-      : 0;
+    const equalShare =
+      members.length
+        ? Math.round(
+            (amount / members.length) * 100
+          ) / 100
+        : 0;
 
     splitList.innerHTML = members
-      .map((m) => {
+      .map((member) => {
+        const userId =
+          member.id || member._id;
+
         if (type === 'custom') {
           return `
             <div class="split-row">
@@ -100,16 +219,17 @@ if (!requireAuth()) {
                 <input
                   type="checkbox"
                   class="split-check"
-                  data-user="${m.id}"
+                  data-user="${userId}"
                   checked
                 />
-                ${escapeHtml(m.name)}
+
+                ${escapeHtml(member.name)}
               </label>
 
               <input
                 type="number"
                 class="split-share"
-                data-user="${m.id}"
+                data-user="${userId}"
                 min="0"
                 step="0.01"
                 value="${equalShare}"
@@ -124,14 +244,20 @@ if (!requireAuth()) {
               <input
                 type="checkbox"
                 class="split-check"
-                data-user="${m.id}"
+                data-user="${userId}"
                 checked
               />
-              ${escapeHtml(m.name)}
+
+              ${escapeHtml(member.name)}
             </label>
 
-            <span style="color:var(--muted);font-size:0.9rem">
-              ${formatMoney(equalShare)} each*
+            <span
+              style="
+                color: var(--muted);
+                font-size: 0.9rem;
+              "
+            >
+              ${formatMoney(equalShare)} each
             </span>
           </div>
         `;
@@ -139,57 +265,95 @@ if (!requireAuth()) {
       .join('');
   }
 
+  /* =========================================================
+     PAID BY
+  ========================================================= */
+
   function renderPaidBy() {
-    const select = document.getElementById('expPaidBy');
+    const select =
+      document.getElementById('expPaidBy');
 
     select.innerHTML = members
-      .map(
-        (m) => `
+      .map((member) => {
+        const userId =
+          member.id || member._id;
+
+        return `
           <option
-            value="${m.id}"
-            ${m.id === me.id ? 'selected' : ''}
+            value="${userId}"
+            ${
+              String(userId) ===
+              String(me.id || me._id)
+                ? 'selected'
+                : ''
+            }
           >
-            ${escapeHtml(m.name)}
+            ${escapeHtml(member.name)}
           </option>
-        `
-      )
+        `;
+      })
       .join('');
   }
 
+  /* =========================================================
+     LOAD GROUP DATA
+  ========================================================= */
+
   async function loadAll() {
-    const [groupRes, expenseRes, balanceRes] =
-      await Promise.all([
-        api(`/groups/${groupId}`),
-        api(`/expenses/${groupId}`),
-        api(`/balances/${groupId}`),
-      ]);
+    const [
+      groupRes,
+      expenseRes,
+      balanceRes,
+    ] = await Promise.all([
+      api(`/groups/${groupId}`),
+
+      api(`/expenses/${groupId}`),
+
+      api(`/balances/${groupId}`),
+    ]);
 
     group = groupRes.group;
-    members = group.members;
 
-    document.title = `${group.name} — LendLocal`;
+    members = group.members || [];
 
-    document.getElementById('groupName').textContent =
-      group.name;
+    document.title =
+      `${group.name} — LendLocal`;
 
-    document.getElementById('groupDesc').textContent =
-      group.description || `${members.length} members`;
+    document.getElementById(
+      'groupName'
+    ).textContent = group.name;
 
-    const statTotal = document.getElementById('statTotal');
-    const statCount = document.getElementById('statCount');
-    const mineEl = document.getElementById('statMine');
+    document.getElementById(
+      'groupDesc'
+    ).textContent =
+      group.description ||
+      `${members.length} members`;
 
-    const mine = balanceRes.balances.find(
-      (b) => String(b.userId) === String(me.id || me._id)
-    );
+    const statTotal =
+      document.getElementById('statTotal');
 
-    const myNet = mine ? mine.net : 0;
+    const statCount =
+      document.getElementById('statCount');
 
-    // Animated statistics
+    const mineEl =
+      document.getElementById('statMine');
+
+    const mine =
+      (balanceRes.balances || []).find(
+        (balance) =>
+          String(balance.userId) ===
+          String(me.id || me._id)
+      );
+
+    const myNet =
+      mine ? mine.net : 0;
+
+    /* Statistics */
+
     if (window.FX) {
       window.FX.animateNumber(
         statTotal,
-        balanceRes.totalSpent,
+        balanceRes.totalSpent || 0,
         {
           prefix: '₹',
           decimals: 2,
@@ -198,26 +362,33 @@ if (!requireAuth()) {
 
       window.FX.animateNumber(
         statCount,
-        balanceRes.expenseCount,
+        balanceRes.expenseCount || 0,
         {
           decimals: 0,
         }
       );
     } else {
       statTotal.textContent =
-        formatMoney(balanceRes.totalSpent);
+        formatMoney(
+          balanceRes.totalSpent || 0
+        );
 
       statCount.textContent =
-        String(balanceRes.expenseCount);
+        String(
+          balanceRes.expenseCount || 0
+        );
     }
 
-    // Your balance
+    /* Your balance */
+
     mineEl.textContent =
       Math.abs(myNet) < 0.01
         ? 'Settled'
         : myNet > 0
           ? `+${formatMoney(myNet)}`
-          : `−${formatMoney(Math.abs(myNet))}`;
+          : `−${formatMoney(
+              Math.abs(myNet)
+            )}`;
 
     mineEl.className = `value ${
       myNet > 0.01
@@ -227,14 +398,24 @@ if (!requireAuth()) {
           : ''
     }`;
 
-    renderExpenses(expenseRes.expenses || []);
+    renderExpenses(
+      expenseRes.expenses || []
+    );
+
     renderBalances(balanceRes);
+
     renderMembers();
+
     renderPaidBy();
   }
 
+  /* =========================================================
+     EXPENSES
+  ========================================================= */
+
   function renderExpenses(expenses) {
-    const list = document.getElementById('expenseList');
+    const list =
+      document.getElementById('expenseList');
 
     if (!expenses.length) {
       list.innerHTML = `
@@ -243,86 +424,130 @@ if (!requireAuth()) {
           Add the first shared cost for this group.
         </div>
       `;
+
       return;
     }
 
     list.innerHTML = expenses
-      .map(
-        (e) => `
-          <article class="expense-item">
-            <div>
-              <h4>${escapeHtml(e.description)}</h4>
+      .map((expense) => `
+        <article class="expense-item">
 
-              <div class="meta">
-                ${escapeHtml(e.category)}
-                · Paid by ${escapeHtml(e.paidBy.name)}
-                · ${formatDate(e.date)}
-              </div>
-            </div>
+          <div>
+            <h4>
+              ${escapeHtml(
+                expense.description
+              )}
+            </h4>
 
-            <div class="amount">
-              ${formatMoney(e.amount)}
+            <div class="meta">
+              ${escapeHtml(
+                expense.category
+              )}
+              · Paid by
+              ${escapeHtml(
+                expense.paidBy.name
+              )}
+              ·
+              ${formatDate(expense.date)}
             </div>
+          </div>
 
-            <div class="actions">
-              <button
-                class="btn btn-danger"
-                type="button"
-                data-delete="${e.id}"
-              >
-                Delete
-              </button>
-            </div>
-          </article>
-        `
-      )
+          <div class="amount">
+            ${formatMoney(expense.amount)}
+          </div>
+
+          <div class="actions">
+            <button
+              class="btn btn-danger"
+              type="button"
+              data-delete="${expense.id}"
+            >
+              Delete
+            </button>
+          </div>
+
+        </article>
+      `)
       .join('');
 
     if (window.FX) {
-      window.FX.staggerReveal(list, '.expense-item');
+      window.FX.staggerReveal(
+        list,
+        '.expense-item'
+      );
     }
 
-    list.querySelectorAll('[data-delete]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        if (!confirm('Delete this expense?')) {
-          return;
-        }
+    list
+      .querySelectorAll('[data-delete]')
+      .forEach((btn) => {
+        btn.addEventListener(
+          'click',
+          async () => {
+            if (
+              !confirm(
+                'Delete this expense?'
+              )
+            ) {
+              return;
+            }
 
-        try {
-          const expenseItem = btn.closest('.expense-item');
+            try {
+              const expenseItem =
+                btn.closest(
+                  '.expense-item'
+                );
 
-          await api(`/expenses/${btn.dataset.delete}`, {
-            method: 'DELETE',
-          });
+              await api(
+                `/expenses/${btn.dataset.delete}`,
+                {
+                  method: 'DELETE',
+                }
+              );
 
-          if (window.FX && expenseItem) {
-            window.FX.removeWithAnimation(
-              expenseItem,
-              async () => {
-                window.FX.toast('Expense deleted');
+              if (
+                window.FX &&
+                expenseItem
+              ) {
+                window.FX.removeWithAnimation(
+                  expenseItem,
+                  async () => {
+                    window.FX.toast(
+                      'Expense deleted'
+                    );
+
+                    await loadAll();
+                  }
+                );
+              } else {
                 await loadAll();
               }
-            );
-          } else {
-            await loadAll();
-          }
-        } catch (err) {
-          alert(err.message);
+            } catch (err) {
+              alert(err.message);
 
-          if (window.FX) {
-            window.FX.shake(list);
+              if (window.FX) {
+                window.FX.shake(list);
+              }
+            }
           }
-        }
+        );
       });
-    });
   }
 
+  /* =========================================================
+     BALANCES
+  ========================================================= */
+
   function renderBalances(data) {
-    const settlements = data.settlements || [];
-    const balances = data.balances || [];
+    const settlements =
+      data.settlements || [];
+
+    const balances =
+      data.balances || [];
 
     const sList =
-      document.getElementById('settlementList');
+      document.getElementById(
+        'settlementList'
+      );
 
     if (!settlements.length) {
       sList.innerHTML = `
@@ -333,30 +558,44 @@ if (!requireAuth()) {
       `;
     } else {
       sList.innerHTML = settlements
-        .map(
-          (s) => `
-            <div class="settlement-item">
-              <div class="flow">
-                ${escapeHtml(s.from.name)}
-                <span>owes</span>
-                ${escapeHtml(s.to.name)}
-              </div>
+        .map((settlement) => `
+          <div class="settlement-item">
 
-              <strong>
-                ${formatMoney(s.amount)}
-              </strong>
+            <div class="flow">
+              ${escapeHtml(
+                settlement.from.name
+              )}
 
-              <button
-                class="pay-btn"
-                type="button"
-                data-pay="${s.amount}"
-                data-to="${s.to.id || s.to._id}"
-              >
-                Pay ${formatMoney(s.amount)}
-              </button>
+              <span>owes</span>
+
+              ${escapeHtml(
+                settlement.to.name
+              )}
             </div>
-          `
-        )
+
+            <strong>
+              ${formatMoney(
+                settlement.amount
+              )}
+            </strong>
+
+            <button
+              class="pay-btn"
+              type="button"
+              data-pay="${settlement.amount}"
+              data-to="${
+                settlement.to.id ||
+                settlement.to._id
+              }"
+            >
+              Pay
+              ${formatMoney(
+                settlement.amount
+              )}
+            </button>
+
+          </div>
+        `)
         .join('');
 
       if (window.FX) {
@@ -369,33 +608,52 @@ if (!requireAuth()) {
       sList
         .querySelectorAll('[data-pay]')
         .forEach((button) => {
-          button.addEventListener('click', () => {
-            const amount = Number(button.dataset.pay);
-            const toUserId = button.dataset.to;
+          button.addEventListener(
+            'click',
+            () => {
+              const amount =
+                Number(
+                  button.dataset.pay
+                );
 
-            startPayment(amount, toUserId);
-          });
+              const toUserId =
+                button.dataset.to;
+
+              startPayment(
+                amount,
+                toUserId
+              );
+            }
+          );
         });
     }
 
     const balanceList =
-      document.getElementById('balanceList');
+      document.getElementById(
+        'balanceList'
+      );
 
     balanceList.innerHTML = balances
-      .map((b) => {
+      .map((balance) => {
         const label =
-          Math.abs(b.net) < 0.01
+          Math.abs(balance.net) < 0.01
             ? 'Settled'
-            : b.net > 0
-              ? `owed ${formatMoney(b.net)}`
-              : `owes ${formatMoney(Math.abs(b.net))}`;
+            : balance.net > 0
+              ? `owed ${formatMoney(
+                  balance.net
+                )}`
+              : `owes ${formatMoney(
+                  Math.abs(balance.net)
+                )}`;
 
         return `
           <div class="balance-item">
+
             <div>
-              ${escapeHtml(b.name)}
+              ${escapeHtml(balance.name)}
+
               ${
-                String(b.userId) ===
+                String(balance.userId) ===
                 String(me.id || me._id)
                   ? ' (you)'
                   : ''
@@ -403,10 +661,12 @@ if (!requireAuth()) {
             </div>
 
             <span
-              class="balance-pill ${balanceClass(b.net)}"
+              class="balance-pill
+              ${balanceClass(balance.net)}"
             >
               ${label}
             </span>
+
           </div>
         `;
       })
@@ -420,19 +680,30 @@ if (!requireAuth()) {
     }
   }
 
+  /* =========================================================
+     MEMBERS
+  ========================================================= */
+
   function renderMembers() {
     const memberList =
-      document.getElementById('memberList');
+      document.getElementById(
+        'memberList'
+      );
 
     memberList.innerHTML = members
-      .map(
-        (m) => `
+      .map((member) => {
+        const userId =
+          member.id || member._id;
+
+        return `
           <div class="member-item">
+
             <div>
               <strong>
-                ${escapeHtml(m.name)}
+                ${escapeHtml(member.name)}
+
                 ${
-                  String(m.id || m._id) ===
+                  String(userId) ===
                   String(me.id || me._id)
                     ? ' (you)'
                     : ''
@@ -440,12 +711,13 @@ if (!requireAuth()) {
               </strong>
 
               <div class="email">
-                ${escapeHtml(m.email)}
+                ${escapeHtml(member.email)}
               </div>
             </div>
+
           </div>
-        `
-      )
+        `;
+      })
       .join('');
 
     if (window.FX) {
@@ -456,17 +728,27 @@ if (!requireAuth()) {
     }
   }
 
-  async function startPayment(amount, toUserId) {
-    try {
-      const order = await api('/payment/create-order', {
-        method: 'POST',
+  /* =========================================================
+     PAYMENT
+  ========================================================= */
 
-        body: JSON.stringify({
-          amount,
-          groupId,
-          toUserId,
-        }),
-      });
+  async function startPayment(
+    amount,
+    toUserId
+  ) {
+    try {
+      const order = await api(
+        '/payment/create-order',
+        {
+          method: 'POST',
+
+          body: JSON.stringify({
+            amount,
+            groupId,
+            toUserId,
+          }),
+        }
+      );
 
       const options = {
         key: 'rzp_test_TPv7QuxyBVkM0D',
@@ -477,40 +759,42 @@ if (!requireAuth()) {
 
         name: 'LendLocal',
 
-        description: 'Settlement Payment',
+        description:
+          'Settlement Payment',
 
         order_id: order.id,
 
-        handler: async function (response) {
+        handler: async function (
+          response
+        ) {
           try {
-            const verification = await api(
-              '/payment/verify-payment',
-              {
-                method: 'POST',
+            const verification =
+              await api(
+                '/payment/verify-payment',
+                {
+                  method: 'POST',
 
-                body: JSON.stringify({
-                  razorpay_payment_id:
-                    response.razorpay_payment_id,
+                  body: JSON.stringify({
+                    razorpay_payment_id:
+                      response
+                        .razorpay_payment_id,
 
-                  razorpay_order_id:
-                    response.razorpay_order_id,
+                    razorpay_order_id:
+                      response
+                        .razorpay_order_id,
 
-                  razorpay_signature:
-                    response.razorpay_signature,
+                    razorpay_signature:
+                      response
+                        .razorpay_signature,
 
-                  amount,
-                  groupId,
-                  toUserId,
-                }),
-              }
-            );
-
-            if (verification.success) {
-              console.log(
-                'Verified payment:',
-                verification
+                    amount,
+                    groupId,
+                    toUserId,
+                  }),
+                }
               );
 
+            if (verification.success) {
               if (window.FX) {
                 window.FX.toast(
                   'Payment verified successfully!'
@@ -523,12 +807,16 @@ if (!requireAuth()) {
                 );
               }
 
-              // Let the success feedback appear first
-              setTimeout(async () => {
-                await loadAll();
-              }, 500);
+              setTimeout(
+                async () => {
+                  await loadAll();
+                },
+                500
+              );
             } else {
-              alert('Payment verification failed.');
+              alert(
+                'Payment verification failed.'
+              );
 
               if (window.FX) {
                 window.FX.toast(
@@ -559,11 +847,15 @@ if (!requireAuth()) {
         },
       };
 
-      const razorpay = new Razorpay(options);
+      const razorpay =
+        new Razorpay(options);
 
       razorpay.open();
     } catch (err) {
-      console.error('Payment error:', err);
+      console.error(
+        'Payment error:',
+        err
+      );
 
       alert(
         err.message ||
@@ -572,60 +864,80 @@ if (!requireAuth()) {
     }
   }
 
+  /* =========================================================
+     ADD MEMBER
+  ========================================================= */
+
   document
     .getElementById('addMemberForm')
-    .addEventListener('submit', async (e) => {
-      e.preventDefault();
+    .addEventListener(
+      'submit',
+      async (e) => {
+        e.preventDefault();
 
-      const alertEl =
-        document.getElementById('memberAlert');
-
-      hideAlert(alertEl);
-
-      const email =
-        document
-          .getElementById('memberEmail')
-          .value
-          .trim();
-
-      try {
-        const data = await api(
-          `/groups/${groupId}/members`,
-          {
-            method: 'POST',
-
-            body: JSON.stringify({
-              email,
-            }),
-          }
-        );
-
-        members = data.members;
-
-        document.getElementById('memberEmail').value =
-          '';
-
-        showAlert(
-          alertEl,
-          'Member added',
-          'success'
-        );
-
-        if (window.FX) {
-          window.FX.toast(
-            'Member added successfully!'
+        const alertEl =
+          document.getElementById(
+            'memberAlert'
           );
-        }
 
-        await loadAll();
-      } catch (err) {
-        showAlert(alertEl, err.message);
+        hideAlert(alertEl);
 
-        if (window.FX) {
-          window.FX.shake(alertEl);
+        const email =
+          document
+            .getElementById(
+              'memberEmail'
+            )
+            .value
+            .trim();
+
+        try {
+          const data = await api(
+            `/groups/${groupId}/members`,
+            {
+              method: 'POST',
+
+              body: JSON.stringify({
+                email,
+              }),
+            }
+          );
+
+          members =
+            data.members || [];
+
+          document.getElementById(
+            'memberEmail'
+          ).value = '';
+
+          showAlert(
+            alertEl,
+            'Member added',
+            'success'
+          );
+
+          if (window.FX) {
+            window.FX.toast(
+              'Member added successfully!'
+            );
+          }
+
+          await loadAll();
+        } catch (err) {
+          showAlert(
+            alertEl,
+            err.message
+          );
+
+          if (window.FX) {
+            window.FX.shake(alertEl);
+          }
         }
       }
-    });
+    );
+
+  /* =========================================================
+     ADD EXPENSE
+  ========================================================= */
 
   expenseForm.addEventListener(
     'submit',
@@ -650,7 +962,9 @@ if (!requireAuth()) {
         );
 
         if (window.FX) {
-          window.FX.shake(expenseAlert);
+          window.FX.shake(
+            expenseAlert
+          );
         }
 
         return;
@@ -659,21 +973,29 @@ if (!requireAuth()) {
       let splits;
 
       if (splitType === 'equal') {
-        splits = checked.map((c) => ({
-          user: c.dataset.user,
-        }));
+        splits = checked.map(
+          (checkbox) => ({
+            user:
+              checkbox.dataset.user,
+          })
+        );
       } else {
-        splits = checked.map((c) => {
-          const input =
-            document.querySelector(
-              `.split-share[data-user="${c.dataset.user}"]`
-            );
+        splits = checked.map(
+          (checkbox) => {
+            const input =
+              document.querySelector(
+                `.split-share[data-user="${checkbox.dataset.user}"]`
+              );
 
-          return {
-            user: c.dataset.user,
-            share: Number(input.value),
-          };
-        });
+            return {
+              user:
+                checkbox.dataset.user,
+
+              share:
+                Number(input.value),
+            };
+          }
+        );
       }
 
       try {
@@ -687,7 +1009,9 @@ if (!requireAuth()) {
               expenseForm.description.value.trim(),
 
             amount:
-              Number(expenseForm.amount.value),
+              Number(
+                expenseForm.amount.value
+              ),
 
             paidBy:
               expenseForm.paidBy.value,
@@ -700,11 +1024,12 @@ if (!requireAuth()) {
               expenseForm.category.value,
 
             date:
-              expenseForm.date.value || undefined,
+              expenseForm.date.value ||
+              undefined,
           }),
         });
 
-        expenseModal.classList.remove('open');
+        closeExpenseModal();
 
         if (window.FX) {
           window.FX.toast(
@@ -720,11 +1045,17 @@ if (!requireAuth()) {
         );
 
         if (window.FX) {
-          window.FX.shake(expenseAlert);
+          window.FX.shake(
+            expenseAlert
+          );
         }
       }
     }
   );
+
+  /* =========================================================
+     INITIAL LOAD
+  ========================================================= */
 
   loadAll().catch((err) => {
     document.getElementById(

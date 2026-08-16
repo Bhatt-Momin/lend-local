@@ -786,3 +786,779 @@
       display: none;
     }
   }
+  /* =========================================================
+   LENDLOCAL — GROUP PAGE UI
+========================================================= */
+
+
+/* =========================================================
+   BACK LINK
+========================================================= */
+
+.group-back {
+  display: inline-flex;
+  align-items: center;
+
+  margin-bottom: 1.5rem;
+
+  color: #73817b;
+
+  font-size: 0.85rem;
+  font-weight: 600;
+
+  text-decoration: none;
+
+  transition:
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.group-back:hover {
+  color: #0f7a5f;
+
+  transform: translateX(-3px);
+}
+
+
+/* =========================================================
+   GROUP HERO
+========================================================= */
+
+.group-hero {
+  display: flex;
+
+  justify-content: space-between;
+  align-items: flex-end;
+
+  gap: 2rem;
+
+  margin-bottom: 2rem;
+}
+
+.group-hero h1 {
+  margin: 0;
+
+  color: #1b2924;
+
+  font-size: clamp(2rem, 5vw, 3rem);
+
+  letter-spacing: -0.04em;
+}
+
+.group-hero p {
+  margin: 0.6rem 0 0;
+
+  max-width: 650px;
+
+  color: #77857f;
+
+  line-height: 1.6;
+}
+
+.add-expense-btn {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 0.5rem;
+
+  flex-shrink: 0;
+
+  padding: 0.9rem 1.3rem;
+
+  border-radius: 12px;
+}
+
+.add-expense-btn span {
+  font-size: 1.25rem;
+
+  line-height: 1;
+}
+
+
+/* =========================================================
+   GROUP STATS
+========================================================= */
+
+.group-stats {
+  margin-bottom: 2.5rem;
+}
+
+
+/* =========================================================
+   TAB WRAPPER
+========================================================= */
+
+.group-tabs-wrapper {
+  margin-bottom: 2rem;
+
+  padding: 0.45rem;
+
+  border: 1px solid #e7eeea;
+
+  border-radius: 16px;
+
+  background: white;
+
+  box-shadow:
+    0 8px 25px rgba(20, 40, 30, 0.04);
+}
+
+
+/* =========================================================
+   MODERN TABS
+========================================================= */
+
+.modern-tabs {
+  display: grid;
+
+  grid-template-columns: repeat(3, 1fr);
+
+  gap: 0.35rem;
+
+  border: none;
+
+  background: transparent;
+}
+
+.modern-tabs .tab {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 0.5rem;
+
+  padding: 0.8rem 1rem;
+
+  border: none;
+
+  border-radius: 11px;
+
+  background: transparent;
+
+  color: #7d8a84;
+
+  font-size: 0.85rem;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.modern-tabs .tab:hover {
+  background: #f2f7f4;
+
+  color: #0f7a5f;
+}
+
+.modern-tabs .tab.active {
+  background: #0f7a5f;
+
+  color: white;
+
+  box-shadow:
+    0 8px 20px rgba(15, 122, 95, 0.18);
+}
+
+.modern-tabs .tab.active:hover {
+  background: #0f7a5f;
+
+  color: white;
+}
+
+
+/* =========================================================
+   GROUP SECTION HEADER
+========================================================= */
+
+.group-section-header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 1rem;
+
+  margin-bottom: 1.25rem;
+}
+
+.group-section-header h2 {
+  margin: 0;
+
+  color: #1b2924;
+
+  font-size: 1.35rem;
+
+  letter-spacing: -0.02em;
+}
+
+.group-section-header p {
+  margin: 0.35rem 0 0;
+
+  color: #84918c;
+
+  font-size: 0.85rem;
+}
+
+.balance-heading {
+  margin-top: 2.5rem;
+}
+
+
+/* =========================================================
+   EXPENSE LIST
+========================================================= */
+
+.modern-expense-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 0.85rem;
+}
+
+.modern-expense-list .expense-item {
+  display: grid;
+
+  grid-template-columns: 1fr auto auto;
+
+  align-items: center;
+
+  gap: 1.5rem;
+
+  padding: 1.25rem 1.4rem;
+
+  border: 1px solid #edf1ef;
+
+  border-radius: 16px;
+
+  background: white;
+
+  box-shadow:
+    0 5px 20px rgba(20, 40, 30, 0.035);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.modern-expense-list .expense-item:hover {
+  transform: translateY(-3px);
+
+  border-color: #dbe8e2;
+
+  box-shadow:
+    0 14px 35px rgba(20, 40, 30, 0.07);
+}
+
+.expense-main {
+  min-width: 0;
+}
+
+.modern-expense-list h4 {
+  margin: 0;
+
+  color: #22332d;
+
+  font-size: 1rem;
+}
+
+.modern-expense-list .meta {
+  margin-top: 0.35rem;
+
+  color: #84918c;
+
+  font-size: 0.78rem;
+}
+
+.modern-expense-list .amount {
+  color: #17342b;
+
+  font-size: 1.1rem;
+  font-weight: 750;
+
+  white-space: nowrap;
+}
+
+.modern-expense-list .actions {
+  display: flex;
+
+  align-items: center;
+}
+
+.modern-expense-list .btn-danger {
+  padding: 0.55rem 0.8rem;
+
+  border-radius: 9px;
+
+  font-size: 0.75rem;
+}
+
+
+/* =========================================================
+   SETTLEMENTS
+========================================================= */
+
+.settlement-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 0.85rem;
+}
+
+.settlement-item {
+  display: grid;
+
+  grid-template-columns: 1fr auto auto;
+
+  align-items: center;
+
+  gap: 1.5rem;
+
+  padding: 1.2rem 1.35rem;
+
+  border: 1px solid #edf1ef;
+
+  border-radius: 16px;
+
+  background: white;
+
+  box-shadow:
+    0 5px 20px rgba(20, 40, 30, 0.035);
+}
+
+.settlement-item .flow {
+  display: flex;
+
+  align-items: center;
+
+  gap: 0.45rem;
+
+  color: #25352f;
+
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.settlement-item .flow span {
+  padding: 0.25rem 0.55rem;
+
+  border-radius: 20px;
+
+  background: #f0f5f2;
+
+  color: #82908a;
+
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.settlement-item strong {
+  color: #17342b;
+
+  white-space: nowrap;
+}
+
+.pay-btn {
+  padding: 0.65rem 1rem;
+
+  border: none;
+
+  border-radius: 9px;
+
+  background: #0f7a5f;
+
+  color: white;
+
+  font-size: 0.78rem;
+  font-weight: 650;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.pay-btn:hover {
+  background: #0c6a52;
+
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 8px 18px rgba(15, 122, 95, 0.2);
+}
+
+
+/* =========================================================
+   NET BALANCES
+========================================================= */
+
+.balance-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 0.7rem;
+}
+
+.balance-item {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 1rem;
+
+  padding: 1rem 1.2rem;
+
+  border: 1px solid #edf1ef;
+
+  border-radius: 14px;
+
+  background: white;
+
+  color: #273730;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.balance-item:hover {
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 10px 25px rgba(20, 40, 30, 0.06);
+}
+
+
+/* =========================================================
+   MODERN MEMBER LIST
+========================================================= */
+
+.modern-member-list {
+  display: grid;
+
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 0.8rem;
+
+  margin-bottom: 1.5rem;
+}
+
+.modern-member-list .member-item {
+  padding: 1.15rem 1.2rem;
+
+  border: 1px solid #edf1ef;
+
+  border-radius: 15px;
+
+  background: white;
+
+  box-shadow:
+    0 5px 20px rgba(20, 40, 30, 0.035);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.modern-member-list .member-item:hover {
+  transform: translateY(-3px);
+
+  border-color: #dce8e2;
+
+  box-shadow:
+    0 12px 30px rgba(20, 40, 30, 0.07);
+}
+
+.modern-member-list strong {
+  color: #273730;
+
+  font-size: 0.9rem;
+}
+
+.modern-member-list .email {
+  margin-top: 0.35rem;
+
+  color: #84918c;
+
+  font-size: 0.78rem;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   ADD MEMBER CARD
+========================================================= */
+
+.add-member-card {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 2rem;
+
+  padding: 1.4rem;
+
+  border: 1px dashed #ccdcd5;
+
+  border-radius: 16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f7fbf9,
+      #ffffff
+    );
+}
+
+.add-member-card strong {
+  color: #273730;
+}
+
+.add-member-card p {
+  margin: 0.35rem 0 0;
+
+  color: #84918c;
+
+  font-size: 0.78rem;
+}
+
+.add-member-card .inline-form {
+  display: flex;
+
+  gap: 0.6rem;
+
+  min-width: min(100%, 420px);
+}
+
+.add-member-card input {
+  flex: 1;
+
+  min-width: 0;
+}
+
+
+/* =========================================================
+   SPLIT LIST
+========================================================= */
+
+.split-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 0.6rem;
+}
+
+.split-row {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 1rem;
+
+  padding: 0.75rem 0.85rem;
+
+  border: 1px solid #e6ece8;
+
+  border-radius: 10px;
+
+  background: #fafcfb;
+}
+
+.split-row label {
+  display: flex;
+
+  align-items: center;
+
+  gap: 0.55rem;
+
+  margin: 0 !important;
+
+  color: #405049;
+
+  font-size: 0.82rem;
+}
+
+.split-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+
+  accent-color: #0f7a5f;
+}
+
+.split-share {
+  width: 110px;
+
+  padding: 0.5rem !important;
+
+  text-align: right;
+}
+
+
+/* =========================================================
+   MODERN MODAL SELECT
+========================================================= */
+
+.modern-modal select {
+  width: 100%;
+
+  padding: 0.75rem 0.85rem;
+
+  border: 1px solid #dde5e1;
+
+  border-radius: 9px;
+
+  outline: none;
+
+  background: #fbfcfb;
+
+  color: #25332d;
+
+  font: inherit;
+}
+
+.modern-modal select:focus {
+  border-color: #0f7a5f;
+
+  box-shadow:
+    0 0 0 3px rgba(15, 122, 95, 0.1);
+}
+
+
+/* =========================================================
+   RESPONSIVE — GROUP PAGE
+========================================================= */
+
+@media (max-width: 760px) {
+
+  .group-hero {
+    flex-direction: column;
+
+    align-items: stretch;
+
+    gap: 1.3rem;
+  }
+
+  .add-expense-btn {
+    justify-content: center;
+  }
+
+  .group-section-header {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+  .modern-tabs {
+    gap: 0.2rem;
+  }
+
+  .modern-tabs .tab {
+    gap: 0.3rem;
+
+    padding: 0.7rem 0.4rem;
+
+    font-size: 0.76rem;
+  }
+
+  .modern-expense-list .expense-item {
+    grid-template-columns: 1fr auto;
+
+    gap: 0.8rem;
+  }
+
+  .modern-expense-list .actions {
+    grid-column: 1 / -1;
+  }
+
+  .modern-expense-list .btn-danger {
+    width: 100%;
+  }
+
+  .settlement-item {
+    grid-template-columns: 1fr auto;
+
+    gap: 0.8rem;
+  }
+
+  .settlement-item .pay-btn {
+    grid-column: 1 / -1;
+
+    width: 100%;
+  }
+
+  .modern-member-list {
+    grid-template-columns: 1fr;
+  }
+
+  .add-member-card {
+    align-items: stretch;
+
+    flex-direction: column;
+
+    gap: 1rem;
+  }
+
+  .add-member-card .inline-form {
+    flex-direction: column;
+
+    width: 100%;
+  }
+
+  .add-member-card .inline-form button {
+    width: 100%;
+  }
+
+  .split-row {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+  .split-share {
+    width: 100%;
+  }
+}
+
+
+@media (max-width: 480px) {
+
+  .group-hero h1 {
+    font-size: 2rem;
+  }
+
+  .modern-tabs .tab span {
+    display: none;
+  }
+
+  .balance-item {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+  .balance-pill {
+    align-self: flex-start;
+  }
+
+}
