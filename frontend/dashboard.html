@@ -78,6 +78,14 @@
 
         </div>
 
+        <!-- TEMPORARY NOTIFICATION BUTTON -->
+        <button
+          id="enableNotificationsBtn"
+          class="btn btn-ghost"
+          type="button"
+        >
+          🔔 Enable Notifications
+        </button>
 
         <button
           id="logoutBtn"
@@ -101,7 +109,6 @@
   <main
     class="container modern-container modern-page"
   >
-
 
     <!-- ===================================================
          INTRO
@@ -145,9 +152,6 @@
 
     <!-- ===================================================
          MAIN BALANCE CARD
-
-         NOTE:
-         These IDs are kept compatible with dashboard.js.
     ==================================================== -->
 
     <section class="balance-card">
@@ -158,14 +162,12 @@
           Your overall balance
         </span>
 
-
         <div
           id="netBalance"
           class="net-balance"
         >
           ₹0.00
         </div>
-
 
         <div
           id="balanceStatus"
@@ -176,8 +178,6 @@
 
       </div>
 
-
-      <!-- Decorative circles -->
 
       <div class="balance-decoration">
 
@@ -199,17 +199,11 @@
 
     <section class="dashboard-stats">
 
-
-      <!-- Groups -->
-
       <div class="modern-stat">
 
-        <div
-          class="stat-icon groups-icon"
-        >
+        <div class="stat-icon groups-icon">
           👥
         </div>
-
 
         <div>
 
@@ -229,17 +223,11 @@
       </div>
 
 
-
-      <!-- Owed -->
-
       <div class="modern-stat">
 
-        <div
-          class="stat-icon owed-icon"
-        >
+        <div class="stat-icon owed-icon">
           ↑
         </div>
-
 
         <div>
 
@@ -259,17 +247,11 @@
       </div>
 
 
-
-      <!-- Owe -->
-
       <div class="modern-stat">
 
-        <div
-          class="stat-icon owe-icon"
-        >
+        <div class="stat-icon owe-icon">
           ↓
         </div>
-
 
         <div>
 
@@ -288,7 +270,6 @@
 
       </div>
 
-
     </section>
 
 
@@ -298,7 +279,6 @@
     ==================================================== -->
 
     <section class="groups-section">
-
 
       <div class="section-header">
 
@@ -314,7 +294,6 @@
 
         </div>
 
-
         <div class="activity-indicator">
 
           <span></span>
@@ -326,17 +305,12 @@
       </div>
 
 
-
-      <!-- dashboard.js renders groups here -->
-
       <div
         id="groupList"
         class="modern-group-list group-list"
       ></div>
 
-
     </section>
-
 
   </main>
 
@@ -356,7 +330,6 @@
 
     <div class="modal modern-modal">
 
-
       <div class="modal-header">
 
         <div>
@@ -371,7 +344,6 @@
 
         </div>
 
-
         <button
           type="button"
           id="closeCreate"
@@ -384,21 +356,16 @@
       </div>
 
 
-
       <div
         id="createAlert"
         class="alert alert-error"
       ></div>
 
 
-
       <form
         id="createForm"
         class="form-stack"
       >
-
-
-        <!-- Group name -->
 
         <div class="field">
 
@@ -417,9 +384,6 @@
         </div>
 
 
-
-        <!-- Description -->
-
         <div class="field">
 
           <label for="groupDesc">
@@ -432,7 +396,6 @@
 
           </label>
 
-
           <textarea
             id="groupDesc"
             name="description"
@@ -444,22 +407,17 @@
         </div>
 
 
-
-        <!-- Members -->
-
         <div class="field">
 
           <label for="memberEmails">
             Invite members by email
           </label>
 
-
           <input
             id="memberEmails"
             name="memberEmails"
             placeholder="friend1@mail.com, friend2@mail.com"
           />
-
 
           <p class="field-hint">
             Separate multiple email addresses with commas.
@@ -468,9 +426,6 @@
 
         </div>
 
-
-
-        <!-- Actions -->
 
         <div class="modal-actions modern-modal-actions">
 
@@ -482,7 +437,6 @@
             Cancel
           </button>
 
-
           <button
             type="submit"
             class="btn btn-primary"
@@ -492,9 +446,7 @@
 
         </div>
 
-
       </form>
-
 
     </div>
 
@@ -513,10 +465,7 @@
   <script src="/js/dashboard.js"></script>
 
 
-  <!-- =====================================================
-       EXTRA MODAL CLOSE HANDLER
-  ====================================================== -->
-
+  <!-- Existing modal close handler -->
   <script>
 
     document
@@ -527,6 +476,57 @@
           .getElementById('createModal')
           .classList
           .remove('open');
+
+      });
+
+  </script>
+
+
+  <!-- Firebase Messaging -->
+  <script
+    type="module"
+    src="/js/firebase.js"
+  ></script>
+
+
+  <!-- =====================================================
+       ENABLE NOTIFICATIONS TEST
+  ====================================================== -->
+
+  <script>
+
+    document
+      .getElementById('enableNotificationsBtn')
+      ?.addEventListener('click', async () => {
+
+        if (!window.requestNotificationPermission) {
+          alert(
+            'Firebase notification system is still loading. Please wait a moment and try again.'
+          );
+          return;
+        }
+
+        const token =
+          await window.requestNotificationPermission();
+
+        if (token) {
+
+          console.log(
+            'Notification token generated:',
+            token
+          );
+
+          alert(
+            'Notifications enabled successfully!'
+          );
+
+        } else {
+
+          alert(
+            'Could not enable notifications. Check the browser console for errors.'
+          );
+
+        }
 
       });
 
