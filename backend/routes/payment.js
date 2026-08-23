@@ -2,13 +2,20 @@ const express = require("express");
 const crypto = require("crypto");
 
 const Payment = require("../models/payment");
+const User = require("../models/User");
+
 const { protect } = require("../middleware/auth");
 const razorpay = require("../config/razorpay");
+
+const { getMessaging } = require("firebase-admin/messaging");
 
 const router = express.Router();
 
 
+// =====================================================
 // CREATE RAZORPAY ORDER
+// =====================================================
+
 router.post("/create-order", protect, async (req, res) => {
   try {
     const { amount, groupId, toUserId } = req.body;
@@ -46,9 +53,13 @@ router.post("/create-order", protect, async (req, res) => {
 });
 
 
+// =====================================================
 // VERIFY AND SAVE PAYMENT
+// =====================================================
+
 router.post("/verify-payment", protect, async (req, res) => {
   try {
+
     const {
       razorpay_payment_id,
       razorpay_order_id,
@@ -57,6 +68,11 @@ router.post("/verify-payment", protect, async (req, res) => {
       groupId,
       toUserId,
     } = req.body;
+
+
+    // -------------------------------------------------
+    // VALIDATE PAYMENT DATA
+    // -------------------------------------------------
 
     if (
       !razorpay_payment_id ||
@@ -71,6 +87,11 @@ router.post("/verify-payment", protect, async (req, res) => {
       });
     }
 
+
+    // -------------------------------------------------
+    // VERIFY RAZORPAY SIGNATURE
+    // -------------------------------------------------
+
     const generatedSignature = crypto
       .createHmac(
         "sha256",
@@ -81,16 +102,28 @@ router.post("/verify-payment", protect, async (req, res) => {
       )
       .digest("hex");
 
-    if (generatedSignature !== razorpay_signature) {
+
+    if (
+      generatedSignature !==
+      razorpay_signature
+    ) {
       return res.status(400).json({
         success: false,
         message: "Payment verification failed",
       });
     }
 
-    const existingPayment = await Payment.findOne({
-      razorpayPaymentId: razorpay_payment_id,
-    });
+
+    // -------------------------------------------------
+    // PREVENT DUPLICATE PAYMENT
+    // -------------------------------------------------
+
+    const existingPayment =
+      await Payment.findOne({
+        razorpayPaymentId:
+          razorpay_payment_id,
+      });
+
 
     if (existingPayment) {
       return res.status(400).json({
@@ -98,41 +131,200 @@ router.post("/verify-payment", protect, async (req, res) => {
       });
     }
 
-    const payment = await Payment.create({
-      group: groupId,
 
-      from: req.user._id,
+    // -------------------------------------------------
+    // SAVE PAYMENT
+    // -------------------------------------------------
 
-      to: toUserId,
+    const payment =
+      await Payment.create({
 
-      amount: Number(amount),
+        group: groupId,
 
-      razorpayPaymentId: razorpay_payment_id,
+        from: req.user._id,
 
-      razorpayOrderId: razorpay_order_id,
+        to: toUserId,
 
-      status: "paid",
-    });
+        amount: Number(amount),
+
+        razorpayPaymentId:
+          razorpay_payment_id,
+
+        razorpayOrderId:
+          razorpay_order_id,
+
+        status: "paid",
+
+      });
+
+
+    // =================================================
+    // SEND PAYMENT NOTIFICATION
+    // =================================================
+
+    try {
+
+      const receiver =
+        await User.findById(
+          toUserId
+        ).select(
+          "name email fcmToken"
+        );
+
+
+      if (
+        receiver &&
+        receiver.fcmToken
+      ) {
+
+        const payerName =
+          req.user.name ||
+          "Someone";
+
+
+        const title =
+          "Payment received 💰";
+
+
+        const body =
+          `${payerName} paid you ₹${Number(amount).toFixed(2)}`;
+
+
+        const message = {
+
+          token:
+            receiver.fcmToken,
+
+
+          notification: {
+
+            title,
+
+            body,
+
+          },
+
+
+          webpush: {
+
+            notification: {
+
+              icon:
+                "/icons/icon-192.png",
+
+              badge:
+                "/icons/icon-192.png",
+
+            },
+
+            fcmOptions: {
+
+              link:
+                "/dashboard.html",
+
+            },
+
+          },
+
+
+          data: {
+
+            type:
+              "payment",
+
+            paymentId:
+              payment._id.toString(),
+
+            groupId:
+              groupId.toString(),
+
+            fromUserId:
+              req.user._id.toString(),
+
+            toUserId:
+              toUserId.toString(),
+
+            amount:
+              Number(amount).toFixed(2),
+
+            title,
+
+            body,
+
+          },
+
+        };
+
+
+        const response =
+          await getMessaging()
+            .send(message);
+
+
+        console.log(
+          "Payment notification sent:",
+          response
+        );
+
+      } else {
+
+        console.log(
+          "Payment notification skipped: receiver has no FCM token."
+        );
+
+      }
+
+    } catch (
+      notificationError
+    ) {
+
+      // IMPORTANT:
+      // Payment was already verified and saved.
+      // Notification failure must NOT make
+      // the payment appear unsuccessful.
+
+      console.error(
+        "Payment notification error:",
+        notificationError
+      );
+
+    }
+
+
+    // -------------------------------------------------
+    // RESPONSE
+    // -------------------------------------------------
 
     return res.status(200).json({
+
       success: true,
 
-      message: "Payment verified and recorded successfully",
+      message:
+        "Payment verified and recorded successfully",
 
       payment,
+
     });
 
+
   } catch (error) {
+
     console.error(
       "Payment verification error:",
       error
     );
 
     return res.status(500).json({
+
       success: false,
-      message: "Payment verification failed",
+
+      message:
+        "Payment verification failed",
+
     });
+
   }
+
 });
 
 

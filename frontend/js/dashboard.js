@@ -4,18 +4,36 @@ if (!requireAuth()) {
   fillUserChip();
   wireLogout();
 
-  const groupList = document.getElementById('groupList');
-  const createModal = document.getElementById('createModal');
-  const createForm = document.getElementById('createForm');
-  const createAlert = document.getElementById('createAlert');
+  const groupList =
+    document.getElementById('groupList');
 
-  const statGroups = document.getElementById('statGroups');
-  const statOwed = document.getElementById('statOwed');
-  const statOwe = document.getElementById('statOwe');
+  const createModal =
+    document.getElementById('createModal');
 
-  const netBalance = document.getElementById('netBalance');
-  const balanceStatus = document.getElementById('balanceStatus');
-  const userAvatar = document.querySelector('.user-avatar');
+  const createForm =
+    document.getElementById('createForm');
+
+  const createAlert =
+    document.getElementById('createAlert');
+
+  const statGroups =
+    document.getElementById('statGroups');
+
+  const statOwed =
+    document.getElementById('statOwed');
+
+  const statOwe =
+    document.getElementById('statOwe');
+
+  const netBalance =
+    document.getElementById('netBalance');
+
+  const balanceStatus =
+    document.getElementById('balanceStatus');
+
+  const userAvatar =
+    document.querySelector('.user-avatar');
+
 
   /* =========================================================
      USER AVATAR
@@ -52,7 +70,8 @@ if (!requireAuth()) {
 
   document
     .getElementById('openCreate')
-    .addEventListener('click', () => {
+    ?.addEventListener('click', () => {
+
       hideAlert(createAlert);
 
       createForm.reset();
@@ -64,21 +83,29 @@ if (!requireAuth()) {
   document
     .getElementById('closeCreate')
     ?.addEventListener('click', () => {
+
       createModal.classList.remove('open');
+
     });
 
 
   document
     .getElementById('closeCreateAlt')
     ?.addEventListener('click', () => {
+
       createModal.classList.remove('open');
+
     });
 
 
-  createModal.addEventListener('click', (e) => {
+  createModal?.addEventListener('click', (e) => {
+
     if (e.target === createModal) {
+
       createModal.classList.remove('open');
+
     }
+
   });
 
 
@@ -89,6 +116,7 @@ if (!requireAuth()) {
   createForm.addEventListener(
     'submit',
     async (e) => {
+
       e.preventDefault();
 
       hideAlert(createAlert);
@@ -100,46 +128,66 @@ if (!requireAuth()) {
           .filter(Boolean);
 
       try {
-        const data = await api('/groups', {
-          method: 'POST',
 
-          body: JSON.stringify({
-            name:
-              createForm.name.value.trim(),
+        const data =
+          await api('/groups', {
 
-            description:
-              createForm.description.value.trim(),
+            method: 'POST',
 
-            memberEmails:
-              emails,
-          }),
-        });
+            body: JSON.stringify({
+
+              name:
+                createForm.name.value.trim(),
+
+              description:
+                createForm.description.value.trim(),
+
+              memberEmails:
+                emails,
+
+            }),
+
+          });
+
 
         createModal.classList.remove('open');
 
+
         if (window.FX) {
+
           window.FX.toast(
             'Group created successfully!'
           );
+
         }
 
+
         setTimeout(() => {
+
           window.location.href =
             `/group.html?id=${data.group.id}`;
+
         }, 600);
 
+
       } catch (err) {
+
         showAlert(
           createAlert,
           err.message
         );
 
+
         if (window.FX) {
+
           window.FX.shake(
             createAlert
           );
+
         }
+
       }
+
     }
   );
 
@@ -152,14 +200,18 @@ if (!requireAuth()) {
     owed,
     owe
   ) {
+
     if (!netBalance || !balanceStatus) {
       return;
     }
 
+
     const net =
       owed - owe;
 
+
     if (Math.abs(net) < 0.01) {
+
       netBalance.textContent =
         '₹0.00';
 
@@ -167,9 +219,12 @@ if (!requireAuth()) {
         'All settled up';
 
       return;
+
     }
 
+
     if (net > 0) {
+
       netBalance.textContent =
         `+${formatMoney(net)}`;
 
@@ -177,7 +232,9 @@ if (!requireAuth()) {
         'You are owed overall';
 
       return;
+
     }
+
 
     netBalance.textContent =
       `−${formatMoney(
@@ -186,6 +243,7 @@ if (!requireAuth()) {
 
     balanceStatus.textContent =
       'You owe overall';
+
   }
 
 
@@ -194,7 +252,9 @@ if (!requireAuth()) {
   ========================================================= */
 
   function renderEmptyState() {
+
     groupList.innerHTML = `
+
       <div class="modern-empty">
 
         <div class="empty-icon">
@@ -219,17 +279,22 @@ if (!requireAuth()) {
         </button>
 
       </div>
+
     `;
+
 
     document
       .getElementById('emptyCreateGroup')
       ?.addEventListener('click', () => {
+
         hideAlert(createAlert);
 
         createForm.reset();
 
         createModal.classList.add('open');
+
       });
+
   }
 
 
@@ -238,6 +303,7 @@ if (!requireAuth()) {
   ========================================================= */
 
   function renderGroups(groups) {
+
     groupList.innerHTML =
       groups
         .map((g) => {
@@ -245,25 +311,35 @@ if (!requireAuth()) {
           const balance =
             Number(g.myBalance) || 0;
 
+
           const cls =
             balanceClass(balance);
 
+
           let balanceLabel;
 
+
           if (Math.abs(balance) < 0.01) {
+
             balanceLabel =
               'Settled';
+
           } else if (balance > 0) {
+
             balanceLabel =
               `Owed ${formatMoney(
                 balance
               )}`;
+
           } else {
+
             balanceLabel =
               `You owe ${formatMoney(
                 Math.abs(balance)
               )}`;
+
           }
+
 
           const initial =
             escapeHtml(
@@ -272,6 +348,7 @@ if (!requireAuth()) {
                 .charAt(0)
                 .toUpperCase()
             );
+
 
           const description =
             g.description
@@ -282,7 +359,9 @@ if (!requireAuth()) {
                   g.expenseCount || 0
                 } expenses`;
 
+
           return `
+
             <a
               class="modern-group-card group-row"
               href="/group.html?id=${g.id}"
@@ -321,16 +400,22 @@ if (!requireAuth()) {
               </div>
 
             </a>
+
           `;
+
         })
         .join('');
 
+
     if (window.FX) {
+
       window.FX.staggerReveal(
         groupList,
         '.modern-group-card'
       );
+
     }
+
   }
 
 
@@ -339,49 +424,190 @@ if (!requireAuth()) {
   ========================================================= */
 
   async function loadGroups() {
+
     try {
+
+      /*
+       * First get the user's groups.
+       */
+
       const data =
         await api('/groups');
+
 
       const groups =
         data.groups || [];
 
 
-      /* -----------------------------------------------------
+      /*
+       * IMPORTANT:
+       *
+       * Do NOT trust group.myBalance here.
+       *
+       * The /groups endpoint can contain the old
+       * expense-only balance.
+       *
+       * /balances/:groupId contains the updated
+       * payment-adjusted balance.
+       */
+
+
+      const groupsWithBalances =
+        await Promise.all(
+
+          groups.map(
+            async (group) => {
+
+              try {
+
+                const balanceData =
+                  await api(
+                    `/balances/${group.id}`
+                  );
+
+
+                /*
+                 * Find the logged-in user's
+                 * balance in this group.
+                 */
+
+                const user =
+                  getUser();
+
+
+                const userId =
+                  String(
+                    user.id ||
+                    user._id
+                  );
+
+
+                const myBalance =
+                  (
+                    balanceData.balances ||
+                    []
+                  ).find(
+                    (balance) =>
+                      String(
+                        balance.userId
+                      ) === userId
+                  );
+
+
+                return {
+
+                  ...group,
+
+                  /*
+                   * This is now the payment-adjusted
+                   * balance.
+                   */
+
+                  myBalance:
+                    myBalance
+                      ? Number(
+                          myBalance.net
+                        )
+                      : 0,
+
+                };
+
+              } catch (error) {
+
+                console.error(
+                  `Failed to load balance for group ${group.id}:`,
+                  error
+                );
+
+
+                /*
+                 * If one group's balance fails,
+                 * don't break the entire dashboard.
+                 */
+
+                return {
+
+                  ...group,
+
+                  myBalance: 0,
+
+                };
+
+              }
+
+            }
+          )
+
+        );
+
+
+      /* =====================================================
          CALCULATE TOTALS
-      ----------------------------------------------------- */
+      ===================================================== */
 
       let owed = 0;
+
       let owe = 0;
 
-      groups.forEach((group) => {
-        const balance =
-          Number(group.myBalance) || 0;
 
-        if (balance > 0) {
-          owed += balance;
+      groupsWithBalances.forEach(
+        (group) => {
+
+          const balance =
+            Number(
+              group.myBalance
+            ) || 0;
+
+
+          if (balance > 0) {
+
+            owed += balance;
+
+          }
+
+
+          if (balance < 0) {
+
+            owe +=
+              Math.abs(balance);
+
+          }
+
         }
-
-        if (balance < 0) {
-          owe += Math.abs(
-            balance
-          );
-        }
-      });
+      );
 
 
-      /* -----------------------------------------------------
+      /*
+       * Round totals to avoid floating-point
+       * garbage such as 349.999999.
+       */
+
+      owed =
+        Math.round(
+          owed * 100
+        ) / 100;
+
+
+      owe =
+        Math.round(
+          owe * 100
+        ) / 100;
+
+
+      /* =====================================================
          UPDATE STATISTICS
-      ----------------------------------------------------- */
+      ===================================================== */
 
       if (window.FX) {
+
         window.FX.animateNumber(
           statGroups,
-          groups.length,
+          groupsWithBalances.length,
           {
             decimals: 0,
           }
         );
+
 
         window.FX.animateNumber(
           statOwed,
@@ -392,6 +618,7 @@ if (!requireAuth()) {
           }
         );
 
+
         window.FX.animateNumber(
           statOwe,
           owe,
@@ -400,21 +627,28 @@ if (!requireAuth()) {
             decimals: 2,
           }
         );
+
       } else {
+
         statGroups.textContent =
-          String(groups.length);
+          String(
+            groupsWithBalances.length
+          );
+
 
         statOwed.textContent =
           formatMoney(owed);
 
+
         statOwe.textContent =
           formatMoney(owe);
+
       }
 
 
-      /* -----------------------------------------------------
+      /* =====================================================
          UPDATE MAIN BALANCE
-      ----------------------------------------------------- */
+      ===================================================== */
 
       updateOverallBalance(
         owed,
@@ -422,27 +656,38 @@ if (!requireAuth()) {
       );
 
 
-      /* -----------------------------------------------------
+      /* =====================================================
          EMPTY STATE
-      ----------------------------------------------------- */
+      ===================================================== */
 
-      if (!groups.length) {
+      if (!groupsWithBalances.length) {
+
         renderEmptyState();
 
         return;
+
       }
 
 
-      /* -----------------------------------------------------
+      /* =====================================================
          RENDER GROUP CARDS
-      ----------------------------------------------------- */
+      ===================================================== */
 
-      renderGroups(groups);
+      renderGroups(
+        groupsWithBalances
+      );
 
 
     } catch (err) {
 
+      console.error(
+        'Dashboard load error:',
+        err
+      );
+
+
       groupList.innerHTML = `
+
         <div class="modern-empty">
 
           <div class="empty-icon">
@@ -469,7 +714,9 @@ if (!requireAuth()) {
           </button>
 
         </div>
+
       `;
+
 
       document
         .getElementById('retryGroups')
@@ -477,7 +724,9 @@ if (!requireAuth()) {
           'click',
           loadGroups
         );
+
     }
+
   }
 
 
@@ -486,12 +735,34 @@ if (!requireAuth()) {
   ========================================================= */
 
   function escapeHtml(str) {
+
     return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+
+      .replace(
+        /&/g,
+        '&amp;'
+      )
+
+      .replace(
+        /</g,
+        '&lt;'
+      )
+
+      .replace(
+        />/g,
+        '&gt;'
+      )
+
+      .replace(
+        /"/g,
+        '&quot;'
+      )
+
+      .replace(
+        /'/g,
+        '&#039;'
+      );
+
   }
 
 
@@ -500,4 +771,5 @@ if (!requireAuth()) {
   ========================================================= */
 
   loadGroups();
+
 }
