@@ -1,0 +1,689 @@
+/* =========================================================
+   LENDLOCAL DESIGN SYSTEM
+   Version 2.0 — Premium Fintech Visual Language
+
+   Created: 2026-08-25
+
+   This file establishes the unified design system foundation.
+   It coexists with legacy styles during transition.
+
+   Prefix: .ds-* for all new component classes
+   Tokens: Redefines CSS custom properties for new system
+
+   Do not modify styles.css, animations.css, or game-ui.css yet.
+========================================================= */
+
+
+/* =========================================================
+   1. DESIGN TOKENS — TYPOGRAPHY
+========================================================= */
+
+:root {
+  /* Font Families */
+  --ds-font-display: 'Syne', system-ui, sans-serif;
+  --ds-font-body: 'DM Sans', system-ui, sans-serif;
+  --ds-font-mono: 'SF Mono', 'Roboto Mono', 'Consolas', monospace;
+
+  /* Type Scale — Major Third (1.250) */
+  --ds-text-xs: 0.64rem;    /* 10.24px - Tertiary labels, timestamps */
+  --ds-text-sm: 0.8rem;     /* 12.8px  - Secondary labels, metadata */
+  --ds-text-base: 1rem;     /* 16px    - Body text, descriptions */
+  --ds-text-lg: 1.25rem;    /* 20px    - Emphasized text, expense amounts */
+  --ds-text-xl: 1.563rem;   /* 25px    - Subheadings, balance totals */
+  --ds-text-2xl: 1.953rem;  /* 31.25px - Section headers */
+  --ds-text-3xl: 2.441rem;  /* 39px    - Page titles */
+  --ds-text-4xl: 3.052rem;  /* 48.83px - Large balance displays */
+  --ds-text-5xl: 3.815rem;  /* 61px    - Hero monetary values */
+
+  /* Font Weights */
+  --ds-weight-normal: 400;
+  --ds-weight-medium: 500;
+  --ds-weight-semibold: 600;
+  --ds-weight-bold: 700;
+  --ds-weight-heavy: 800;
+
+  /* Line Heights */
+  --ds-leading-tight: 1.25;
+  --ds-leading-snug: 1.375;
+  --ds-leading-normal: 1.5;
+  --ds-leading-relaxed: 1.625;
+
+  /* Letter Spacing */
+  --ds-tracking-tight: -0.02em;
+  --ds-tracking-normal: 0;
+  --ds-tracking-wide: 0.02em;
+  --ds-tracking-wider: 0.05em;
+}
+
+
+/* =========================================================
+   2. DESIGN TOKENS — COLOR SYSTEM
+========================================================= */
+
+:root {
+  /* Base */
+  --ds-white: #ffffff;
+  --ds-black: #0a1612;
+
+  /* Ink (Text) */
+  --ds-ink-100: #0d1a15;
+  --ds-ink-80: #2d3a35;
+  --ds-ink-60: #5a6862;
+  --ds-ink-40: #8a9690;
+  --ds-ink-20: #c5ccc9;
+
+  /* Surface */
+  --ds-surface-0: #ffffff;
+  --ds-surface-1: #f8faf9;
+  --ds-surface-2: #f0f4f2;
+  --ds-surface-3: #e5ebe8;
+
+  /* Brand (Teal) - Primary actions, not money-coded */
+  --ds-brand-100: #0a3d33;
+  --ds-brand-90: #0c4d40;
+  --ds-brand-80: #0f5c4c;
+  --ds-brand-60: #127360;
+  --ds-brand-40: #4a9988;
+  --ds-brand-20: #d8ebe4;
+  --ds-brand-10: #edf5f2;
+
+  /* Money Owed (Green) - Positive, receiving */
+  --ds-owed-100: #064d3c;
+  --ds-owed-80: #0f7a5f;
+  --ds-owed-60: #2a9975;
+  --ds-owed-40: #5fb899;
+  --ds-owed-20: #d9f3eb;
+  --ds-owed-10: #f0faf6;
+
+  /* Money Owe (Red) - Negative, owing */
+  --ds-owe-100: #8a1810;
+  --ds-owe-80: #c23b22;
+  --ds-owe-60: #d65c45;
+  --ds-owe-40: #e88870;
+  --ds-owe-20: #fde8e4;
+  --ds-owe-10: #fff5f3;
+
+  /* Activity (Gold) - Recency, new items */
+  --ds-activity-100: #8a6c0a;
+  --ds-activity-80: #d4a017;
+  --ds-activity-60: #e0b840;
+  --ds-activity-40: #ecd074;
+  --ds-activity-20: #f7e9c4;
+  --ds-activity-10: #fdf9ed;
+
+  /* Semantic Aliases */
+  --ds-success: var(--ds-owed-80);
+  --ds-error: var(--ds-owe-80);
+  --ds-warning: var(--ds-activity-80);
+  --ds-info: var(--ds-brand-80);
+}
+
+
+/* =========================================================
+   3. DESIGN TOKENS — SPACING
+========================================================= */
+
+:root {
+  /* Base 4px Scale */
+  --ds-space-1: 0.25rem;   /* 4px  - Tight inline spacing */
+  --ds-space-2: 0.5rem;    /* 8px  - Input padding, small gaps */
+  --ds-space-3: 0.75rem;   /* 12px - Button padding vertical */
+  --ds-space-4: 1rem;      /* 16px - Base unit, card padding */
+  --ds-space-5: 1.5rem;    /* 24px - Section gaps */
+  --ds-space-6: 2rem;      /* 32px - Large section gaps */
+  --ds-space-8: 3rem;      /* 48px - Page padding */
+  --ds-space-10: 4rem;     /* 64px - Hero spacing */
+  --ds-space-12: 6rem;     /* 96px - Large hero spacing */
+}
+
+
+/* =========================================================
+   4. DESIGN TOKENS — BORDER RADIUS
+========================================================= */
+
+:root {
+  --ds-radius-sm: 6px;     /* Badges, pills, small buttons */
+  --ds-radius-md: 10px;    /* Buttons, inputs, small cards */
+  --ds-radius-lg: 14px;    /* Cards, modals */
+  --ds-radius-xl: 20px;    /* Large cards, hero sections */
+  --ds-radius-full: 9999px; /* Pills, avatar circles */
+}
+
+
+/* =========================================================
+   5. DESIGN TOKENS — SHADOWS
+========================================================= */
+
+:root {
+  --ds-shadow-sm: 0 1px 2px rgba(10, 22, 18, 0.05);
+  --ds-shadow-md: 0 2px 8px rgba(10, 22, 18, 0.08);
+  --ds-shadow-lg: 0 8px 24px rgba(10, 22, 18, 0.12);
+  --ds-shadow-focus: 0 0 0 3px var(--ds-brand-20);
+}
+
+
+/* =========================================================
+   6. DESIGN TOKENS — MOTION
+========================================================= */
+
+:root {
+  --ds-motion-instant: 100ms;
+  --ds-motion-fast: 200ms;
+  --ds-motion-base: 400ms;
+  --ds-motion-slow: 600ms;
+
+  --ds-ease-default: cubic-bezier(0.22, 1, 0.36, 1);
+  --ds-ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+
+/* =========================================================
+   7. COMPONENT — CARDS
+========================================================= */
+
+.ds-card {
+  background: var(--ds-surface-0);
+  border: 1px solid var(--ds-surface-3);
+  border-radius: var(--ds-radius-lg);
+  padding: var(--ds-space-4);
+  transition:
+    border-color var(--ds-motion-fast) var(--ds-ease-default),
+    box-shadow var(--ds-motion-fast) var(--ds-ease-default);
+}
+
+.ds-card:hover {
+  border-color: var(--ds-brand-40);
+  box-shadow: var(--ds-shadow-md);
+}
+
+.ds-card-compact {
+  padding: var(--ds-space-3);
+}
+
+.ds-card-spacious {
+  padding: var(--ds-space-6);
+}
+
+
+/* =========================================================
+   8. COMPONENT — BUTTONS
+========================================================= */
+
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-2);
+
+  font-family: var(--ds-font-body);
+  font-size: var(--ds-text-base);
+  font-weight: var(--ds-weight-semibold);
+  line-height: var(--ds-leading-tight);
+
+  padding: var(--ds-space-3) var(--ds-space-4);
+  border: none;
+  border-radius: var(--ds-radius-md);
+
+  cursor: pointer;
+  user-select: none;
+
+  transition:
+    transform var(--ds-motion-fast) var(--ds-ease-default),
+    background-color var(--ds-motion-fast) var(--ds-ease-default),
+    box-shadow var(--ds-motion-fast) var(--ds-ease-default);
+}
+
+.ds-btn:hover {
+  transform: translateY(-2px);
+}
+
+.ds-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.ds-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ds-shadow-focus);
+}
+
+.ds-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Button Variants */
+.ds-btn-primary {
+  background: var(--ds-brand-80);
+  color: var(--ds-white);
+}
+
+.ds-btn-primary:hover {
+  background: var(--ds-brand-100);
+}
+
+.ds-btn-secondary {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink-80);
+  border: 1px solid var(--ds-surface-3);
+}
+
+.ds-btn-secondary:hover {
+  background: var(--ds-surface-3);
+}
+
+.ds-btn-danger {
+  background: var(--ds-owe-20);
+  color: var(--ds-owe-80);
+}
+
+.ds-btn-danger:hover {
+  background: var(--ds-owe-40);
+  color: var(--ds-white);
+}
+
+.ds-btn-pay {
+  background: var(--ds-owed-80);
+  color: var(--ds-white);
+  font-family: var(--ds-font-mono);
+  font-weight: var(--ds-weight-bold);
+}
+
+.ds-btn-pay:hover {
+  background: var(--ds-owed-100);
+}
+
+/* Button Sizes */
+.ds-btn-sm {
+  font-size: var(--ds-text-sm);
+  padding: var(--ds-space-2) var(--ds-space-3);
+}
+
+.ds-btn-lg {
+  font-size: var(--ds-text-lg);
+  padding: var(--ds-space-4) var(--ds-space-6);
+}
+
+.ds-btn-block {
+  width: 100%;
+}
+
+
+/* =========================================================
+   9. COMPONENT — BALANCE DISPLAYS
+========================================================= */
+
+.ds-balance {
+  font-family: var(--ds-font-mono);
+  font-weight: var(--ds-weight-bold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--ds-tracking-tight);
+  line-height: var(--ds-leading-tight);
+}
+
+.ds-balance-xs {
+  font-size: var(--ds-text-sm);
+}
+
+.ds-balance-sm {
+  font-size: var(--ds-text-base);
+}
+
+.ds-balance-md {
+  font-size: var(--ds-text-lg);
+}
+
+.ds-balance-lg {
+  font-size: var(--ds-text-xl);
+}
+
+.ds-balance-xl {
+  font-size: var(--ds-text-4xl);
+}
+
+.ds-balance-hero {
+  font-size: var(--ds-text-5xl);
+}
+
+.ds-balance-positive {
+  color: var(--ds-owed-80);
+}
+
+.ds-balance-negative {
+  color: var(--ds-owe-80);
+}
+
+.ds-balance-neutral {
+  color: var(--ds-ink-80);
+}
+
+
+/* =========================================================
+   10. COMPONENT — BADGES
+========================================================= */
+
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+
+  padding: var(--ds-space-1) var(--ds-space-3);
+  border-radius: var(--ds-radius-full);
+
+  font-size: var(--ds-text-xs);
+  font-weight: var(--ds-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--ds-tracking-wider);
+  line-height: var(--ds-leading-tight);
+}
+
+.ds-badge-owed {
+  background: var(--ds-owed-10);
+  color: var(--ds-owed-80);
+}
+
+.ds-badge-owe {
+  background: var(--ds-owe-10);
+  color: var(--ds-owe-80);
+}
+
+.ds-badge-settled {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink-60);
+}
+
+.ds-badge-new {
+  background: var(--ds-activity-10);
+  color: var(--ds-activity-80);
+}
+
+.ds-badge-lg {
+  padding: var(--ds-space-2) var(--ds-space-4);
+  font-size: var(--ds-text-sm);
+}
+
+
+/* =========================================================
+   11. COMPONENT — INPUTS
+========================================================= */
+
+.ds-input {
+  width: 100%;
+
+  font-family: var(--ds-font-body);
+  font-size: var(--ds-text-base);
+  color: var(--ds-ink-100);
+
+  padding: var(--ds-space-3) var(--ds-space-4);
+  border: 1px solid var(--ds-surface-3);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-0);
+
+  outline: none;
+
+  transition:
+    border-color var(--ds-motion-fast) var(--ds-ease-default),
+    box-shadow var(--ds-motion-fast) var(--ds-ease-default);
+}
+
+.ds-input:hover {
+  border-color: var(--ds-ink-20);
+}
+
+.ds-input:focus {
+  border-color: var(--ds-brand-80);
+  box-shadow: var(--ds-shadow-focus);
+}
+
+.ds-input:disabled {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink-40);
+  cursor: not-allowed;
+}
+
+.ds-input::placeholder {
+  color: var(--ds-ink-40);
+}
+
+.ds-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.ds-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235a6862' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--ds-space-3) center;
+  padding-right: var(--ds-space-8);
+}
+
+
+/* =========================================================
+   12. COMPONENT — EMPTY STATES
+========================================================= */
+
+.ds-empty {
+  text-align: center;
+  padding: var(--ds-space-10) var(--ds-space-6);
+
+  border: 2px dashed var(--ds-surface-3);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface-1);
+}
+
+.ds-empty-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto var(--ds-space-4);
+  color: var(--ds-ink-40);
+}
+
+.ds-empty-title {
+  font-family: var(--ds-font-display);
+  font-size: var(--ds-text-xl);
+  font-weight: var(--ds-weight-bold);
+  color: var(--ds-ink-100);
+  margin-bottom: var(--ds-space-2);
+}
+
+.ds-empty-description {
+  color: var(--ds-ink-60);
+  max-width: 42ch;
+  margin: 0 auto var(--ds-space-4);
+}
+
+
+/* =========================================================
+   13. COMPONENT — LOADING STATES
+========================================================= */
+
+.ds-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+
+  animation: ds-spin 700ms linear infinite;
+}
+
+@keyframes ds-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ds-skeleton {
+  background: var(--ds-surface-2);
+  border-radius: var(--ds-radius-sm);
+  animation: ds-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes ds-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+
+/* =========================================================
+   14. TYPOGRAPHY UTILITIES
+========================================================= */
+
+.ds-text-xs { font-size: var(--ds-text-xs); }
+.ds-text-sm { font-size: var(--ds-text-sm); }
+.ds-text-base { font-size: var(--ds-text-base); }
+.ds-text-lg { font-size: var(--ds-text-lg); }
+.ds-text-xl { font-size: var(--ds-text-xl); }
+.ds-text-2xl { font-size: var(--ds-text-2xl); }
+.ds-text-3xl { font-size: var(--ds-text-3xl); }
+.ds-text-4xl { font-size: var(--ds-text-4xl); }
+.ds-text-5xl { font-size: var(--ds-text-5xl); }
+
+.ds-weight-normal { font-weight: var(--ds-weight-normal); }
+.ds-weight-medium { font-weight: var(--ds-weight-medium); }
+.ds-weight-semibold { font-weight: var(--ds-weight-semibold); }
+.ds-weight-bold { font-weight: var(--ds-weight-bold); }
+.ds-weight-heavy { font-weight: var(--ds-weight-heavy); }
+
+.ds-font-display { font-family: var(--ds-font-display); }
+.ds-font-body { font-family: var(--ds-font-body); }
+.ds-font-mono { font-family: var(--ds-font-mono); }
+
+.ds-leading-tight { line-height: var(--ds-leading-tight); }
+.ds-leading-snug { line-height: var(--ds-leading-snug); }
+.ds-leading-normal { line-height: var(--ds-leading-normal); }
+.ds-leading-relaxed { line-height: var(--ds-leading-relaxed); }
+
+.ds-tracking-tight { letter-spacing: var(--ds-tracking-tight); }
+.ds-tracking-normal { letter-spacing: var(--ds-tracking-normal); }
+.ds-tracking-wide { letter-spacing: var(--ds-tracking-wide); }
+.ds-tracking-wider { letter-spacing: var(--ds-tracking-wider); }
+
+
+/* =========================================================
+   15. COLOR UTILITIES
+========================================================= */
+
+/* Text Colors */
+.ds-text-ink-100 { color: var(--ds-ink-100); }
+.ds-text-ink-80 { color: var(--ds-ink-80); }
+.ds-text-ink-60 { color: var(--ds-ink-60); }
+.ds-text-ink-40 { color: var(--ds-ink-40); }
+.ds-text-ink-20 { color: var(--ds-ink-20); }
+
+.ds-text-brand { color: var(--ds-brand-80); }
+.ds-text-owed { color: var(--ds-owed-80); }
+.ds-text-owe { color: var(--ds-owe-80); }
+.ds-text-activity { color: var(--ds-activity-80); }
+
+/* Background Colors */
+.ds-bg-surface-0 { background-color: var(--ds-surface-0); }
+.ds-bg-surface-1 { background-color: var(--ds-surface-1); }
+.ds-bg-surface-2 { background-color: var(--ds-surface-2); }
+.ds-bg-surface-3 { background-color: var(--ds-surface-3); }
+
+
+/* =========================================================
+   16. SPACING UTILITIES
+========================================================= */
+
+/* Padding */
+.ds-p-1 { padding: var(--ds-space-1); }
+.ds-p-2 { padding: var(--ds-space-2); }
+.ds-p-3 { padding: var(--ds-space-3); }
+.ds-p-4 { padding: var(--ds-space-4); }
+.ds-p-5 { padding: var(--ds-space-5); }
+.ds-p-6 { padding: var(--ds-space-6); }
+.ds-p-8 { padding: var(--ds-space-8); }
+.ds-p-10 { padding: var(--ds-space-10); }
+
+/* Gap */
+.ds-gap-1 { gap: var(--ds-space-1); }
+.ds-gap-2 { gap: var(--ds-space-2); }
+.ds-gap-3 { gap: var(--ds-space-3); }
+.ds-gap-4 { gap: var(--ds-space-4); }
+.ds-gap-5 { gap: var(--ds-space-5); }
+.ds-gap-6 { gap: var(--ds-space-6); }
+
+
+/* =========================================================
+   17. FOCUS & ACCESSIBILITY
+========================================================= */
+
+/* Universal Focus Styles */
+.ds-btn:focus-visible,
+.ds-input:focus-visible,
+.ds-card:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--ds-shadow-focus);
+}
+
+/* Skip to Content Link */
+.ds-skip-link {
+  position: absolute;
+  top: var(--ds-space-4);
+  left: var(--ds-space-4);
+
+  padding: var(--ds-space-3) var(--ds-space-4);
+  background: var(--ds-brand-80);
+  color: var(--ds-white);
+
+  border-radius: var(--ds-radius-md);
+
+  transform: translateY(-200%);
+  transition: transform var(--ds-motion-fast) var(--ds-ease-default);
+
+  z-index: 9999;
+}
+
+.ds-skip-link:focus {
+  transform: translateY(0);
+}
+
+
+/* =========================================================
+   18. RESPONSIVE UTILITIES
+========================================================= */
+
+@media (max-width: 640px) {
+  .ds-mobile-hidden {
+    display: none;
+  }
+
+  .ds-mobile-stack {
+    flex-direction: column;
+  }
+
+  .ds-mobile-full {
+    width: 100%;
+  }
+}
+
+@media (min-width: 641px) {
+  .ds-desktop-hidden {
+    display: none;
+  }
+}
+
+
+/* =========================================================
+   19. REDUCED MOTION SUPPORT
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-btn,
+  .ds-card,
+  .ds-input,
+  .ds-spinner {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
