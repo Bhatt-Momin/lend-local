@@ -15,7 +15,6 @@ const groupRoutes = require("./routes/groups");
 const expenseRoutes = require("./routes/expenses");
 const balanceRoutes = require("./routes/balances");
 const paymentRoutes = require("./routes/payment");
-const notificationRoutes = require("./routes/notifications");
 
 const app = express();
 
@@ -55,8 +54,6 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/balances", balanceRoutes);
 
 app.use("/api/payment", paymentRoutes);
-
-app.use("/api/notifications", notificationRoutes);
 
 // =====================================================
 // API 404 HANDLER

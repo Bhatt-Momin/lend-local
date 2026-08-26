@@ -119,7 +119,6 @@ The backend serves frontend files from the `frontend/` directory via Express sta
 - `GET /api/balances/:groupId` - Calculate balances and settlements (protected)
 - `POST /api/payment/create-order` - Create Razorpay order (protected)
 - `POST /api/payment/verify-payment` - Verify payment signature, save to DB, send FCM notification (protected)
-- `POST /api/notifications/test` - Test FCM notification with token (for debugging)
 
 ### Frontend Pages
 
