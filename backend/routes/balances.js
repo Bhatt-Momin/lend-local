@@ -1,11 +1,6 @@
 const express = require('express');
-
-const Expense = require('../models/Expense');
-const Payment = require('../models/payment');
-const Group = require('../models/Group');
-
 const { protect } = require('../middleware/auth');
-const { computeBalances } = require('../utils/helpers');
+const { getGroupLedger, checkParticipation } = require('../utils/helpers');
 
 const router = express.Router();
 
@@ -13,371 +8,35 @@ router.use(protect);
 
 router.get('/:groupId', async (req, res) => {
   try {
-    const group = await Group.findById(req.params.groupId)
-      .populate('members', 'name email');
+    const { isActiveMember, isHistoricalParticipant } = await checkParticipation(req.user._id, req.params.groupId);
 
-    if (!group) {
-      return res.status(404).json({
-        message: 'Group not found',
-      });
+    if (!isHistoricalParticipant) {
+      return res.status(403).json({ message: 'You are not a member of this group' });
     }
 
-    if (
-      !group.members.some((m) =>
-        m._id.equals(req.user._id)
-      )
-    ) {
-      return res.status(403).json({
-        message: 'You are not a member of this group',
-      });
+    const ledger = await getGroupLedger(req.params.groupId);
+
+    let balances = ledger.balances;
+    let settlements = ledger.settlements;
+
+    if (!isActiveMember) {
+      const uIdStr = req.user._id.toString();
+      balances = balances.filter(b => b.userId === uIdStr);
+      settlements = settlements.filter(s => s.from.id === uIdStr || s.to.id === uIdStr);
     }
-
-    // =====================================================
-    // GET ALL EXPENSES
-    // =====================================================
-
-    const expenses = await Expense.find({
-      group: group._id,
-    })
-      .populate('paidBy', 'name')
-      .populate('splits.user', 'name');
-
-
-    // =====================================================
-    // GET ALL SUCCESSFUL PAYMENTS
-    // =====================================================
-
-    const payments = await Payment.find({
-      group: group._id,
-      status: 'paid',
-    })
-      .populate('from', 'name')
-      .populate('to', 'name');
-
-
-    // =====================================================
-    // CALCULATE BALANCES FROM EXPENSES
-    // =====================================================
-
-    const result = computeBalances(
-      expenses,
-      group.members
-    );
-
-    let balances = result.balances;
-
-
-    // =====================================================
-    // APPLY SETTLEMENT PAYMENTS
-    // =====================================================
-
-    payments.forEach((payment) => {
-
-      const fromId =
-        String(payment.from._id);
-
-      const toId =
-        String(payment.to._id);
-
-      const amount =
-        Number(payment.amount);
-
-
-      const fromBalance =
-        balances.find(
-          (b) =>
-            String(b.userId) === fromId
-        );
-
-
-      const toBalance =
-        balances.find(
-          (b) =>
-            String(b.userId) === toId
-        );
-
-
-      /*
-       * from = person who paid
-       *
-       * Their negative balance should increase
-       * toward zero.
-       */
-
-      if (fromBalance) {
-
-        fromBalance.net =
-          Math.round(
-            (fromBalance.net + amount) * 100
-          ) / 100;
-
-      }
-
-
-      /*
-       * to = person who received payment
-       *
-       * Their positive balance should decrease
-       * toward zero.
-       */
-
-      if (toBalance) {
-
-        toBalance.net =
-          Math.round(
-            (toBalance.net - amount) * 100
-          ) / 100;
-
-      }
-
-    });
-
-
-    // =====================================================
-    // RECALCULATE SETTLEMENTS
-    // =====================================================
-
-    const debtors = balances
-
-      .filter(
-        (b) =>
-          b.net < -0.01
-      )
-
-      .map((b) => ({
-        ...b,
-        remaining:
-          Math.abs(b.net),
-      }));
-
-
-    const creditors = balances
-
-      .filter(
-        (b) =>
-          b.net > 0.01
-      )
-
-      .map((b) => ({
-        ...b,
-        remaining:
-          b.net,
-      }));
-
-
-    const settlements = [];
-
-
-    let debtorIndex = 0;
-    let creditorIndex = 0;
-
-
-    while (
-      debtorIndex < debtors.length &&
-      creditorIndex < creditors.length
-    ) {
-
-      const debtor =
-        debtors[debtorIndex];
-
-      const creditor =
-        creditors[creditorIndex];
-
-
-      const amount =
-        Math.min(
-          debtor.remaining,
-          creditor.remaining
-        );
-
-
-      settlements.push({
-
-        from: {
-          id:
-            debtor.userId,
-
-          name:
-            debtor.name,
-        },
-
-        to: {
-          id:
-            creditor.userId,
-
-          name:
-            creditor.name,
-        },
-
-        amount:
-          Math.round(
-            amount * 100
-          ) / 100,
-
-      });
-
-
-      debtor.remaining -= amount;
-
-      creditor.remaining -= amount;
-
-
-      if (
-        debtor.remaining < 0.01
-      ) {
-
-        debtorIndex++;
-
-      }
-
-
-      if (
-        creditor.remaining < 0.01
-      ) {
-
-        creditorIndex++;
-
-      }
-
-    }
-
-
-    // =====================================================
-    // TOTAL SPENT
-    // =====================================================
-
-    const totalSpent =
-      expenses.reduce(
-        (sum, expense) =>
-          sum +
-          Number(expense.amount),
-        0
-      );
-
-
-    // =====================================================
-    // DEBUG
-    // =====================================================
-
-    console.log('');
-    console.log('===== BALANCE DEBUG =====');
-
-    console.log(
-      'Group:',
-      group.name
-    );
-
-    console.log(
-      'Current user:',
-      req.user._id.toString()
-    );
-
-
-    console.log(
-      'Balances after expenses:',
-      result.balances
-    );
-
-
-    console.log(
-      'Payments:',
-      payments.map((p) => ({
-        id:
-          p._id.toString(),
-
-        from:
-          p.from
-            ? {
-                id:
-                  p.from._id.toString(),
-
-                name:
-                  p.from.name,
-              }
-            : null,
-
-        to:
-          p.to
-            ? {
-                id:
-                  p.to._id.toString(),
-
-                name:
-                  p.to.name,
-              }
-            : null,
-
-        amount:
-          p.amount,
-
-        status:
-          p.status,
-
-      }))
-    );
-
-
-    console.log(
-      'Final balances after payments:',
-      balances
-    );
-
-
-    console.log(
-      'Final settlements:',
-      settlements
-    );
-
-    console.log(
-      '========================'
-    );
-
-    console.log('');
-
-
-    // =====================================================
-    // RESPONSE
-    // =====================================================
 
     res.json({
-
-      groupId:
-        group._id,
-
-      groupName:
-        group.name,
-
-      totalSpent:
-        Math.round(
-          totalSpent * 100
-        ) / 100,
-
-      expenseCount:
-        expenses.length,
-
+      groupId: ledger.group._id,
+      groupName: ledger.group.name,
+      totalSpent: ledger.totalSpent,
+      expenseCount: ledger.expenses.length,
       balances,
-
       settlements,
-
     });
-
   } catch (err) {
-
-    console.error(
-      'Balance error:',
-      err
-    );
-
-    res.status(500).json({
-
-      message:
-        err.message ||
-        'Failed to compute balances',
-
-    });
-
+    console.error('Balance error:', err);
+    res.status(500).json({ message: err.message || 'Failed to compute balances' });
   }
 });
-
 
 module.exports = router;

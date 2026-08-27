@@ -9,6 +9,7 @@ const { protect } = require("../middleware/auth");
 const razorpay = require("../config/razorpay");
 
 const { getMessaging } = require("firebase-admin/messaging");
+const { getGroupLedger } = require("../utils/helpers");
 
 const router = express.Router();
 
@@ -60,30 +61,27 @@ router.post("/create-order", protect, async (req, res) => {
     }
 
     // -------------------------------------------------
-    // VERIFY PAYER IS A GROUP MEMBER
+    // VERIFY STRICT PAIRWISE SETTLEMENT FROM LEDGER
     // -------------------------------------------------
 
-    const payerIsMember = group.members.some((memberId) =>
-      memberId.equals(req.user._id)
+    const ledger = await getGroupLedger(groupId);
+
+    const validSettlement = ledger.settlements.find(
+      (s) => s.from.id === req.user._id.toString() && s.to.id === toUserId.toString()
     );
 
-    if (!payerIsMember) {
+    if (!validSettlement) {
       return res.status(403).json({
-        message: "You are not a member of this group",
+        message: "No valid payable relationship established by ledger",
       });
     }
 
-    // -------------------------------------------------
-    // VERIFY RECEIVER IS A GROUP MEMBER
-    // -------------------------------------------------
+    const requestedPaise = Math.round(numericAmount * 100);
+    const authorizedPaise = Math.round(validSettlement.amount * 100);
 
-    const receiverIsMember = group.members.some(
-      (memberId) => memberId.toString() === toUserId.toString()
-    );
-
-    if (!receiverIsMember) {
+    if (requestedPaise > authorizedPaise) {
       return res.status(400).json({
-        message: "Receiver is not a member of this group",
+        message: "Payment exceeds authorized settlement amount",
       });
     }
 
@@ -305,41 +303,28 @@ router.post("/verify-payment", protect, async (req, res) => {
     }
 
     // -------------------------------------------------
-    // 10. RECHECK GROUP MEMBERSHIP
+    // 10. RE-VERIFY STRICT PAIRWISE SETTLEMENT FROM LEDGER
     // -------------------------------------------------
 
-    const group = await Group.findById(orderGroupId);
+    const ledger = await getGroupLedger(orderGroupId);
 
-    if (!group) {
-      return res.status(404).json({
+    const validSettlement = ledger.settlements.find(
+      (s) => s.from.id === orderFromUserId.toString() && s.to.id === orderToUserId.toString()
+    );
+
+    if (!validSettlement) {
+      return res.status(403).json({
         success: false,
-        message: "Group no longer exists",
+        message: "No valid payable relationship established by ledger",
       });
     }
 
-    const payerIsMember = group.members.some(
-      (memberId) =>
-        memberId.toString() ===
-        orderFromUserId.toString()
-    );
+    const authorizedPaise = Math.round(validSettlement.amount * 100);
 
-    const receiverIsMember = group.members.some(
-      (memberId) =>
-        memberId.toString() ===
-        orderToUserId.toString()
-    );
-
-    if (!payerIsMember) {
-      return res.status(403).json({
+    if (orderAmountPaise > authorizedPaise) {
+      return res.status(400).json({
         success: false,
-        message: "Payer is no longer a member of this group",
-      });
-    }
-
-    if (!receiverIsMember) {
-      return res.status(403).json({
-        success: false,
-        message: "Receiver is no longer a member of this group",
+        message: "Payment exceeds currently authorized settlement amount",
       });
     }
 

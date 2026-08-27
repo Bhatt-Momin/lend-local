@@ -9,6 +9,8 @@ const router = express.Router();
 
 router.use(protect);
 
+const { checkParticipation } = require('../utils/helpers');
+
 async function assertMember(groupId, userId) {
   const group = await Group.findById(groupId);
 
@@ -27,6 +29,16 @@ async function assertMember(groupId, userId) {
   return group;
 }
 
+async function assertParticipant(groupId, userId) {
+  const { isActiveMember, isHistoricalParticipant } = await checkParticipation(userId, groupId);
+  if (!isHistoricalParticipant) {
+    const err = new Error('You are not a member of this group');
+    err.status = 403;
+    throw err;
+  }
+  return { isActiveMember, isHistoricalParticipant };
+}
+
 
 // =====================================================
 // LIST EXPENSES
@@ -36,22 +48,21 @@ router.get('/:groupId', async (req, res) => {
 
   try {
 
-    await assertMember(
-      req.params.groupId,
-      req.user._id
-    );
+    const { isActiveMember } = await assertParticipant(req.params.groupId, req.user._id);
 
-    const expenses =
-      await Expense.find({
-        group: req.params.groupId
-      })
+    let expenses = await Expense.find({ group: req.params.groupId })
       .populate('paidBy', 'name email')
       .populate('splits.user', 'name email')
-      .sort({
-        date: -1,
-        createdAt: -1
-      });
+      .sort({ date: -1, createdAt: -1 });
 
+    if (!isActiveMember) {
+      expenses = expenses.filter(e => {
+        const uId = req.user._id.toString();
+        const isPayer = e.paidBy && e.paidBy._id.toString() === uId;
+        const inSplits = e.splits && e.splits.some(s => s.user && s.user._id.toString() === uId);
+        return isPayer || inSplits;
+      });
+    }
 
     res.json({
 
@@ -674,53 +685,26 @@ router.post('/', async (req, res) => {
 // =====================================================
 
 router.delete('/:id', async (req, res) => {
-
   try {
-
-    const expense =
-      await Expense.findById(
-        req.params.id
-      );
-
-
+    const expense = await Expense.findById(req.params.id);
     if (!expense) {
-
-      return res.status(404).json({
-        message:
-          'Expense not found'
-      });
-
+      return res.status(404).json({ message: 'Expense not found' });
     }
 
+    const group = await Group.findById(expense.group);
+    const isPayer = expense.paidBy.equals(req.user._id);
+    const isCreator = group && group.createdBy.equals(req.user._id);
 
-    await assertMember(
-      expense.group,
-      req.user._id
-    );
-
+    if (!isPayer && !isCreator) {
+      return res.status(403).json({ message: 'Only the payer or group creator can delete this expense' });
+    }
 
     await expense.deleteOne();
-
-
-    res.json({
-      message:
-        'Expense deleted'
-    });
-
+    res.json({ message: 'Expense deleted' });
   } catch (err) {
-
-    res.status(
-      err.status || 500
-    ).json({
-
-      message:
-        err.message ||
-        'Failed to delete expense'
-
-    });
-
+    if (err.status) return res.status(err.status).json({ message: err.message });
+    res.status(500).json({ message: 'Server Error' });
   }
-
 });
 
 

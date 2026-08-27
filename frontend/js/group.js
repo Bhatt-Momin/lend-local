@@ -42,7 +42,6 @@ if (!requireAuth()) {
       'splitList'
     );
 
-
   /* =========================================================
      USER AVATAR
   ========================================================= */
@@ -53,7 +52,6 @@ if (!requireAuth()) {
     );
 
   if (userAvatar && me) {
-
     const name =
       me.name || 'U';
 
@@ -61,9 +59,7 @@ if (!requireAuth()) {
       name
         .charAt(0)
         .toUpperCase();
-
   }
-
 
   /* =========================================================
      TABS
@@ -72,64 +68,48 @@ if (!requireAuth()) {
   document
     .querySelectorAll('.tab')
     .forEach((tab) => {
-
       tab.addEventListener(
         'click',
         () => {
-
           document
             .querySelectorAll('.tab')
             .forEach((t) => {
-
               t.classList.remove(
                 'active'
               );
-
             });
-
 
           document
             .querySelectorAll('.panel')
             .forEach((panel) => {
-
               panel.classList.remove(
                 'active'
               );
-
             });
-
 
           tab.classList.add(
             'active'
           );
-
 
           const panel =
             document.getElementById(
               `panel-${tab.dataset.tab}`
             );
 
-
           if (panel) {
-
             panel.classList.add(
               'active'
             );
-
           }
-
         }
       );
-
     });
-
 
   /* =========================================================
      EXPENSE MODAL
   ========================================================= */
 
   function closeExpenseModal() {
-
     expenseModal.classList.remove(
       'open'
     );
@@ -137,41 +117,75 @@ if (!requireAuth()) {
     hideAlert(
       expenseAlert
     );
-
   }
 
+  /* =========================================================
+     LEAVE GROUP
+  ========================================================= */
+
+  window.leaveGroup = async function () {
+    if (
+      !confirm(
+        'Are you sure you want to leave this group? You will not participate in future expenses, but your existing historical balances will remain active.'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res =
+        await api(
+          `/groups/${groupId}/members/me`,
+          {
+            method: 'DELETE',
+          }
+        );
+
+      if (res.message) {
+        if (window.FX) {
+          window.FX.toast(
+            'Successfully left group'
+          );
+        }
+
+        setTimeout(() => {
+          window.location.href =
+            '/dashboard.html';
+        }, 1000);
+      }
+    } catch (err) {
+      alert(
+        err.message ||
+        'Failed to leave group'
+      );
+    }
+  };
 
   document
     .getElementById('openExpense')
     .addEventListener(
       'click',
       () => {
-
         hideAlert(
           expenseAlert
         );
 
         expenseForm.reset();
 
-
         expenseForm.date.value =
           new Date()
             .toISOString()
             .slice(0, 10);
 
-
         renderSplitInputs(
           'equal'
         );
 
-
         expenseModal.classList.add(
           'open'
         );
-
       }
     );
-
 
   /* X BUTTON */
 
@@ -180,16 +194,12 @@ if (!requireAuth()) {
       'closeExpense'
     );
 
-
   if (closeExpense) {
-
     closeExpense.addEventListener(
       'click',
       closeExpenseModal
     );
-
   }
-
 
   /* CANCEL BUTTON */
 
@@ -198,55 +208,41 @@ if (!requireAuth()) {
       'closeExpenseSecondary'
     );
 
-
   if (closeExpenseSecondary) {
-
     closeExpenseSecondary.addEventListener(
       'click',
       closeExpenseModal
     );
-
   }
-
 
   /* CLICK OUTSIDE MODAL */
 
   expenseModal.addEventListener(
     'click',
     (e) => {
-
       if (
         e.target === expenseModal
       ) {
-
         closeExpenseModal();
-
       }
-
     }
   );
-
 
   /* ESC KEY */
 
   document.addEventListener(
     'keydown',
     (e) => {
-
       if (
         e.key === 'Escape' &&
         expenseModal.classList.contains(
           'open'
         )
       ) {
-
         closeExpenseModal();
-
       }
-
     }
   );
-
 
   /* =========================================================
      SPLIT TYPE
@@ -259,14 +255,11 @@ if (!requireAuth()) {
     .addEventListener(
       'change',
       (e) => {
-
         renderSplitInputs(
           e.target.value
         );
-
       }
     );
-
 
   document
     .getElementById(
@@ -275,33 +268,26 @@ if (!requireAuth()) {
     .addEventListener(
       'input',
       () => {
-
         const splitType =
           document.getElementById(
             'expSplitType'
           ).value;
 
-
         if (
           splitType === 'equal'
         ) {
-
           renderSplitInputs(
             'equal'
           );
-
         }
-
       }
     );
-
 
   /* =========================================================
      HELPERS
   ========================================================= */
 
   function escapeHtml(str) {
-
     return String(str)
       .replace(
         /&/g,
@@ -319,9 +305,105 @@ if (!requireAuth()) {
         /"/g,
         '&quot;'
       );
-
   }
 
+  function getUserId(user) {
+    if (!user) {
+      return null;
+    }
+
+    return (
+      user.id ??
+      user._id ??
+      null
+    );
+  }
+
+  function getCreatedById(createdBy) {
+    if (!createdBy) {
+      return null;
+    }
+
+    if (
+      typeof createdBy ===
+      'object'
+    ) {
+      return (
+        createdBy.id ??
+        createdBy._id ??
+        null
+      );
+    }
+
+    return createdBy;
+  }
+
+  function isActiveMember(userId) {
+    return members.some(
+      (member) =>
+        String(
+          getUserId(member)
+        ) ===
+        String(userId)
+    );
+  }
+
+  function isCurrentUserActive() {
+    return isActiveMember(
+      getUserId(me)
+    );
+  }
+
+  function isGroupCreator() {
+    const currentUserId =
+      getUserId(me);
+
+    const creatorId =
+      getCreatedById(
+        group?.createdBy
+      );
+
+    return (
+      currentUserId !== null &&
+      creatorId !== null &&
+      String(currentUserId) ===
+        String(creatorId)
+    );
+  }
+
+  function renderDepartedName(
+    name,
+    userId
+  ) {
+    const safeName =
+      escapeHtml(name);
+
+    const departed =
+      !isActiveMember(
+        userId
+      );
+
+    if (!departed) {
+      return safeName;
+    }
+
+    return `
+      ${safeName}
+      <span
+        class="badge"
+        style="
+          background:#555;
+          color:#fff;
+          font-size:0.7rem;
+          padding:0.1rem 0.3rem;
+          border-radius:4px;
+          margin-left:5px;
+        "
+      >
+        Departed
+      </span>
+    `;
+  }
 
   /* =========================================================
      SPLIT INPUTS
@@ -330,14 +412,12 @@ if (!requireAuth()) {
   function renderSplitInputs(
     type
   ) {
-
     const amount =
       Number(
         document.getElementById(
           'expAmount'
         ).value
       ) || 0;
-
 
     const equalShare =
       members.length
@@ -349,26 +429,18 @@ if (!requireAuth()) {
           ) / 100
         : 0;
 
-
     splitList.innerHTML =
       members
         .map((member) => {
-
           const userId =
-            member.id ||
-            member._id;
-
+            getUserId(member);
 
           if (
             type === 'custom'
           ) {
-
             return `
-
               <div class="split-row">
-
                 <label>
-
                   <input
                     type="checkbox"
                     class="split-check"
@@ -379,9 +451,7 @@ if (!requireAuth()) {
                   ${escapeHtml(
                     member.name
                   )}
-
                 </label>
-
 
                 <input
                   type="number"
@@ -391,20 +461,13 @@ if (!requireAuth()) {
                   step="0.01"
                   value="${equalShare}"
                 />
-
               </div>
-
             `;
-
           }
 
-
           return `
-
             <div class="split-row">
-
               <label>
-
                 <input
                   type="checkbox"
                   class="split-check"
@@ -415,9 +478,7 @@ if (!requireAuth()) {
                 ${escapeHtml(
                   member.name
                 )}
-
               </label>
-
 
               <span
                 style="
@@ -429,47 +490,35 @@ if (!requireAuth()) {
                   equalShare
                 )} each
               </span>
-
             </div>
-
           `;
-
         })
         .join('');
-
   }
-
 
   /* =========================================================
      PAID BY
   ========================================================= */
 
   function renderPaidBy() {
-
     const select =
       document.getElementById(
         'expPaidBy'
       );
 
-
     select.innerHTML =
       members
         .map((member) => {
-
           const userId =
-            member.id ||
-            member._id;
-
+            getUserId(member);
 
           return `
-
             <option
               value="${userId}"
               ${
                 String(userId) ===
                 String(
-                  me.id ||
-                  me._id
+                  getUserId(me)
                 )
                   ? 'selected'
                   : ''
@@ -479,60 +528,47 @@ if (!requireAuth()) {
                 member.name
               )}
             </option>
-
           `;
-
         })
         .join('');
-
   }
-
 
   /* =========================================================
      LOAD GROUP DATA
   ========================================================= */
 
   async function loadAll() {
-
     const [
       groupRes,
       expenseRes,
       balanceRes,
-    ] =
-      await Promise.all([
+    ] = await Promise.all([
+      api(
+        `/groups/${groupId}`
+      ),
 
-        api(
-          `/groups/${groupId}`
-        ),
+      api(
+        `/expenses/${groupId}`
+      ),
 
-        api(
-          `/expenses/${groupId}`
-        ),
-
-        api(
-          `/balances/${groupId}`
-        ),
-
-      ]);
-
+      api(
+        `/balances/${groupId}`
+      ),
+    ]);
 
     group =
       groupRes.group;
 
-
     members =
       group.members || [];
 
-
     document.title =
       `${group.name} — LendLocal`;
-
 
     document.getElementById(
       'groupName'
     ).textContent =
       group.name;
-
 
     document.getElementById(
       'groupDesc'
@@ -540,24 +576,20 @@ if (!requireAuth()) {
       group.description ||
       `${members.length} members`;
 
-
     const statTotal =
       document.getElementById(
         'statTotal'
       );
-
 
     const statCount =
       document.getElementById(
         'statCount'
       );
 
-
     const mineEl =
       document.getElementById(
         'statMine'
       );
-
 
     const mine =
       (
@@ -569,22 +601,18 @@ if (!requireAuth()) {
             balance.userId
           ) ===
           String(
-            me.id ||
-            me._id
+            getUserId(me)
           )
       );
-
 
     const myNet =
       mine
         ? mine.net
         : 0;
 
-
     /* Statistics */
 
     if (window.FX) {
-
       window.FX.animateNumber(
         statTotal,
         balanceRes.totalSpent ||
@@ -595,7 +623,6 @@ if (!requireAuth()) {
         }
       );
 
-
       window.FX.animateNumber(
         statCount,
         balanceRes.expenseCount ||
@@ -604,74 +631,54 @@ if (!requireAuth()) {
           decimals: 0,
         }
       );
-
     } else {
-
       statTotal.textContent =
         formatMoney(
           balanceRes.totalSpent ||
-          0
+            0
         );
-
 
       statCount.textContent =
         String(
           balanceRes.expenseCount ||
-          0
+            0
         );
-
     }
-
 
     /* Your balance */
 
     mineEl.textContent =
       Math.abs(myNet) < 0.01
-
         ? 'Settled'
-
         : myNet > 0
-
           ? `+${formatMoney(
               myNet
             )}`
-
           : `−${formatMoney(
               Math.abs(myNet)
             )}`;
 
-
     mineEl.className =
       `value ${
         myNet > 0.01
-
           ? 'positive'
-
           : myNet < -0.01
-
             ? 'negative'
-
             : ''
       }`;
-
 
     renderExpenses(
       expenseRes.expenses || []
     );
 
-
     renderBalances(
       balanceRes
     );
 
-
     renderMembers();
 
-
     renderPaidBy();
-
   }
-
 
   /* =========================================================
      EXPENSES
@@ -680,55 +687,41 @@ if (!requireAuth()) {
   function renderExpenses(
     expenses
   ) {
-
     const list =
       document.getElementById(
         'expenseList'
       );
 
-
     if (!expenses.length) {
-
       list.innerHTML = `
-
         <div class="empty">
-
           <strong>
             No expenses yet
           </strong>
 
           Add the first shared cost
           for this group.
-
         </div>
-
       `;
 
       return;
-
     }
-
 
     list.innerHTML =
       expenses
         .map(
           (expense) => `
-
             <article
               class="expense-item"
             >
-
               <div>
-
                 <h4>
                   ${escapeHtml(
                     expense.description
                   )}
                 </h4>
 
-
                 <div class="meta">
-
                   ${escapeHtml(
                     expense.category
                   )}
@@ -744,23 +737,16 @@ if (!requireAuth()) {
                   ${formatDate(
                     expense.date
                   )}
-
                 </div>
-
               </div>
 
-
               <div class="amount">
-
                 ${formatMoney(
                   expense.amount
                 )}
-
               </div>
 
-
               <div class="actions">
-
                 <button
                   class="btn btn-danger"
                   type="button"
@@ -768,54 +754,40 @@ if (!requireAuth()) {
                 >
                   Delete
                 </button>
-
               </div>
-
             </article>
-
           `
         )
         .join('');
 
-
     if (window.FX) {
-
       window.FX.staggerReveal(
         list,
         '.expense-item'
       );
-
     }
-
 
     list
       .querySelectorAll(
         '[data-delete]'
       )
       .forEach((btn) => {
-
         btn.addEventListener(
           'click',
           async () => {
-
             if (
               !confirm(
                 'Delete this expense?'
               )
             ) {
-
               return;
-
             }
 
-
             try {
-
               const expenseItem =
                 btn.closest(
                   '.expense-item'
                 );
-
 
               await api(
                 `/expenses/${btn.dataset.delete}`,
@@ -825,57 +797,38 @@ if (!requireAuth()) {
                 }
               );
 
-
               if (
                 window.FX &&
                 expenseItem
               ) {
-
                 window.FX.removeWithAnimation(
                   expenseItem,
                   async () => {
-
                     window.FX.toast(
                       'Expense deleted'
                     );
 
-
                     await loadAll();
-
                   }
                 );
-
               } else {
-
                 await loadAll();
-
               }
-
-
             } catch (err) {
-
               alert(
                 err.message
               );
 
-
               if (window.FX) {
-
                 window.FX.shake(
                   list
                 );
-
               }
-
             }
-
           }
         );
-
       });
-
   }
-
 
   /* =========================================================
      BALANCES
@@ -884,86 +837,56 @@ if (!requireAuth()) {
   function renderBalances(
     data
   ) {
-
     const settlements =
       data.settlements || [];
 
-
     const balances =
       data.balances || [];
-
 
     const sList =
       document.getElementById(
         'settlementList'
       );
 
-
     if (!settlements.length) {
-
       sList.innerHTML = `
-
         <div class="empty">
-
           <strong>
             All settled
           </strong>
 
           No outstanding debts
           in this group.
-
         </div>
-
       `;
-
     } else {
-
       sList.innerHTML =
         settlements
           .map(
             (settlement) => {
-
-              /*
-               * Determine who is paying
-               * and who is receiving.
-               */
-
               const fromId =
                 settlement.from.id ||
                 settlement.from.userId ||
                 settlement.from._id;
-
 
               const toId =
                 settlement.to.id ||
                 settlement.to.userId ||
                 settlement.to._id;
 
-
               const myId =
-                me.id ||
-                me._id;
-
-
-              /*
-               * from = debtor
-               *
-               * to = creditor
-               */
+                getUserId(me);
 
               const isMyDebt =
                 String(fromId) ===
                 String(myId);
 
-
               const isMyCredit =
                 String(toId) ===
                 String(myId);
 
-
               let paymentAction =
                 '';
-
 
               /*
                * ONLY THE DEBTOR
@@ -971,38 +894,23 @@ if (!requireAuth()) {
                */
 
               if (isMyDebt) {
-
                 paymentAction = `
-
                   <button
                     class="pay-btn"
                     type="button"
                     data-pay="${settlement.amount}"
                     data-to="${toId}"
                   >
-
                     Pay
                     ${formatMoney(
                       settlement.amount
                     )}
-
                   </button>
-
                 `;
-
-              }
-
-
-              /*
-               * If the logged-in user is
-               * the creditor, show status
-               * instead of Pay.
-               */
-
-              else if (isMyCredit) {
-
+              } else if (
+                isMyCredit
+              ) {
                 paymentAction = `
-
                   <span
                     class="payment-status"
                     style="
@@ -1012,106 +920,73 @@ if (!requireAuth()) {
                   >
                     Awaiting payment
                   </span>
-
                 `;
-
               }
 
-
               return `
-
                 <div
                   class="settlement-item"
                 >
-
                   <div class="flow">
-
-                    ${escapeHtml(
-                      settlement
-                        .from
-                        .name
+                    ${renderDepartedName(
+                      settlement.from.name,
+                      fromId
                     )}
 
                     <span>
                       owes
                     </span>
 
-                    ${escapeHtml(
-                      settlement
-                        .to
-                        .name
+                    ${renderDepartedName(
+                      settlement.to.name,
+                      toId
                     )}
-
                   </div>
 
-
                   <strong>
-
                     ${formatMoney(
                       settlement.amount
                     )}
-
                   </strong>
 
-
                   ${paymentAction}
-
                 </div>
-
               `;
-
             }
           )
           .join('');
 
-
       if (window.FX) {
-
         window.FX.staggerReveal(
           sList,
           '.settlement-item'
         );
-
       }
-
-
-      /*
-       * Attach payment handlers
-       * only to actual Pay buttons.
-       */
 
       sList
         .querySelectorAll(
           '[data-pay]'
         )
         .forEach((button) => {
-
           button.addEventListener(
             'click',
             () => {
-
               const amount =
                 Number(
                   button.dataset.pay
                 );
 
-
               const toUserId =
                 button.dataset.to;
-
 
               startPayment(
                 amount,
                 toUserId
               );
-
             }
           );
-
         });
-
     }
-
 
     /* =======================================================
        NET BALANCES
@@ -1122,58 +997,49 @@ if (!requireAuth()) {
         'balanceList'
       );
 
-
     balanceList.innerHTML =
       balances
         .map(
           (balance) => {
+            const displayName =
+              renderDepartedName(
+                balance.name,
+                balance.userId
+              );
 
             const label =
               Math.abs(
                 balance.net
               ) < 0.01
-
                 ? 'Settled'
-
                 : balance.net > 0
-
                   ? `owed ${formatMoney(
                       balance.net
                     )}`
-
                   : `owes ${formatMoney(
                       Math.abs(
                         balance.net
                       )
                     )}`;
 
-
             return `
-
               <div
                 class="balance-item"
               >
-
                 <div>
-
-                  ${escapeHtml(
-                    balance.name
-                  )}
+                  ${displayName}
 
                   ${
                     String(
                       balance.userId
                     ) ===
                     String(
-                      me.id ||
-                      me._id
+                      getUserId(me)
                     )
                       ? ' (you)'
                       : ''
                   }
-
                 </div>
-
 
                 <span
                   class="balance-pill
@@ -1181,64 +1047,59 @@ if (!requireAuth()) {
                     balance.net
                   )}"
                 >
-
                   ${label}
-
                 </span>
-
               </div>
-
             `;
-
           }
         )
         .join('');
 
-
     if (window.FX) {
-
       window.FX.staggerReveal(
         balanceList,
         '.balance-item'
       );
-
     }
-
   }
-
 
   /* =========================================================
      MEMBERS
   ========================================================= */
 
   function renderMembers() {
-
     const memberList =
       document.getElementById(
         'memberList'
       );
 
-
     memberList.innerHTML =
       members
         .map(
           (member) => {
-
             const userId =
-              member.id ||
-              member._id;
+              getUserId(member);
 
+            const currentUserId =
+              getUserId(me);
+
+            const creatorId =
+              getCreatedById(
+                group?.createdBy
+              );
+
+            const canLeave =
+              String(userId) ===
+                String(currentUserId) &&
+              String(userId) !==
+                String(creatorId);
 
             return `
-
               <div
                 class="member-item"
               >
-
                 <div>
-
                   <strong>
-
                     ${escapeHtml(
                       member.name
                     )}
@@ -1248,46 +1109,51 @@ if (!requireAuth()) {
                         userId
                       ) ===
                       String(
-                        me.id ||
-                        me._id
+                        currentUserId
                       )
                         ? ' (you)'
                         : ''
                     }
-
                   </strong>
 
-
                   <div class="email">
-
                     ${escapeHtml(
                       member.email
                     )}
 
+                    ${
+                      canLeave
+                        ? `
+                          <button
+                            class="btn btn-sm btn-danger"
+                            style="
+                              margin-left: 1rem;
+                              padding: 0.2rem 0.5rem;
+                              font-size: 0.8rem;
+                            "
+                            type="button"
+                            onclick="leaveGroup()"
+                          >
+                            Leave Group
+                          </button>
+                        `
+                        : ''
+                    }
                   </div>
-
                 </div>
-
               </div>
-
             `;
-
           }
         )
         .join('');
 
-
     if (window.FX) {
-
       window.FX.staggerReveal(
         memberList,
         '.member-item'
       );
-
     }
-
   }
-
 
   /* =========================================================
      PAYMENT
@@ -1297,33 +1163,23 @@ if (!requireAuth()) {
     amount,
     toUserId
   ) {
-
     try {
-
       const order =
         await api(
           '/payment/create-order',
           {
-
             method: 'POST',
 
             body:
               JSON.stringify({
-
                 amount,
-
                 groupId,
-
                 toUserId,
-
               }),
-
           }
         );
 
-
       const options = {
-
         key:
           'rzp_test_TPv7QuxyBVkM0D',
 
@@ -1342,25 +1198,20 @@ if (!requireAuth()) {
         order_id:
           order.id,
 
-
         handler:
           async function (
             response
           ) {
-
             try {
-
               const verification =
                 await api(
                   '/payment/verify-payment',
                   {
-
                     method:
                       'POST',
 
                     body:
                       JSON.stringify({
-
                         razorpay_payment_id:
                           response
                             .razorpay_payment_id,
@@ -1378,128 +1229,87 @@ if (!requireAuth()) {
                         groupId,
 
                         toUserId,
-
                       }),
-
                   }
                 );
-
 
               if (
                 verification.success
               ) {
-
                 if (window.FX) {
-
                   window.FX.toast(
                     'Payment verified successfully!'
                   );
 
-
                   window.FX.confettiBurst();
-
                 } else {
-
                   alert(
                     'Payment verified successfully!'
                   );
-
                 }
-
 
                 setTimeout(
                   async () => {
-
                     await loadAll();
-
                   },
                   500
                 );
-
-
               } else {
-
                 alert(
                   'Payment verification failed.'
                 );
 
-
                 if (window.FX) {
-
                   window.FX.toast(
                     'Payment verification failed'
                   );
-
                 }
-
               }
-
-
             } catch (error) {
-
               console.error(
                 'Verification error:',
                 error
               );
 
-
               alert(
                 error.message ||
                 'Payment verification failed'
               );
-
             }
-
           },
 
-
         prefill: {
-
           name:
             me.name || '',
 
           email:
             me.email || '',
-
         },
-
 
         theme: {
-
           color:
             '#0f5c4e',
-
         },
-
       };
-
 
       const razorpay =
         new Razorpay(
           options
         );
 
-
       razorpay.open();
-
-
     } catch (err) {
-
       console.error(
         'Payment error:',
         err
       );
 
-
       alert(
         err.message ||
         'Could not start payment. Please try again.'
       );
-
     }
-
   }
-
 
   /* =========================================================
      ADD MEMBER
@@ -1512,20 +1322,16 @@ if (!requireAuth()) {
     .addEventListener(
       'submit',
       async (e) => {
-
         e.preventDefault();
-
 
         const alertEl =
           document.getElementById(
             'memberAlert'
           );
 
-
         hideAlert(
           alertEl
         );
-
 
         const email =
           document
@@ -1535,14 +1341,11 @@ if (!requireAuth()) {
             .value
             .trim();
 
-
         try {
-
           const data =
             await api(
               `/groups/${groupId}/members`,
               {
-
                 method:
                   'POST',
 
@@ -1550,19 +1353,15 @@ if (!requireAuth()) {
                   JSON.stringify({
                     email,
                   }),
-
               }
             );
-
 
           members =
             data.members || [];
 
-
           document.getElementById(
             'memberEmail'
           ).value = '';
-
 
           showAlert(
             alertEl,
@@ -1570,40 +1369,27 @@ if (!requireAuth()) {
             'success'
           );
 
-
           if (window.FX) {
-
             window.FX.toast(
               'Member added successfully!'
             );
-
           }
 
-
           await loadAll();
-
-
         } catch (err) {
-
           showAlert(
             alertEl,
             err.message
           );
 
-
           if (window.FX) {
-
             window.FX.shake(
               alertEl
             );
-
           }
-
         }
-
       }
     );
-
 
   /* =========================================================
      ADD EXPENSE
@@ -1612,18 +1398,14 @@ if (!requireAuth()) {
   expenseForm.addEventListener(
     'submit',
     async (e) => {
-
       e.preventDefault();
-
 
       hideAlert(
         expenseAlert
       );
 
-
       const splitType =
         expenseForm.splitType.value;
-
 
       const checked =
         [
@@ -1632,60 +1414,43 @@ if (!requireAuth()) {
           ),
         ];
 
-
       if (!checked.length) {
-
         showAlert(
           expenseAlert,
           'Select at least one participant'
         );
 
-
         if (window.FX) {
-
           window.FX.shake(
             expenseAlert
           );
-
         }
 
-
         return;
-
       }
 
-
       let splits;
-
 
       if (
         splitType === 'equal'
       ) {
-
         splits =
           checked.map(
             (checkbox) => ({
-
               user:
                 checkbox.dataset.user,
-
             })
           );
-
       } else {
-
         splits =
           checked.map(
             (checkbox) => {
-
               const input =
                 document.querySelector(
                   `.split-share[data-user="${checkbox.dataset.user}"]`
                 );
 
-
               return {
-
                 user:
                   checkbox.dataset.user,
 
@@ -1693,27 +1458,19 @@ if (!requireAuth()) {
                   Number(
                     input.value
                   ),
-
               };
-
             }
           );
-
       }
 
-
       try {
-
         await api(
           '/expenses',
           {
-
-            method:
-              'POST',
+            method: 'POST',
 
             body:
               JSON.stringify({
-
                 groupId,
 
                 description:
@@ -1748,49 +1505,33 @@ if (!requireAuth()) {
                     .date
                     .value ||
                   undefined,
-
               }),
-
           }
         );
 
-
         closeExpenseModal();
 
-
         if (window.FX) {
-
           window.FX.toast(
             'Expense added successfully!'
           );
-
         }
 
-
         await loadAll();
-
-
       } catch (err) {
-
         showAlert(
           expenseAlert,
           err.message
         );
 
-
         if (window.FX) {
-
           window.FX.shake(
             expenseAlert
           );
-
         }
-
       }
-
     }
   );
-
 
   /* =========================================================
      INITIAL LOAD
@@ -1798,13 +1539,10 @@ if (!requireAuth()) {
 
   loadAll()
     .catch((err) => {
-
       document.getElementById(
         'expenseList'
       ).innerHTML = `
-
         <div class="empty">
-
           <strong>
             Could not load group
           </strong>
@@ -1812,11 +1550,7 @@ if (!requireAuth()) {
           ${escapeHtml(
             err.message
           )}
-
         </div>
-
       `;
-
     });
-
 }

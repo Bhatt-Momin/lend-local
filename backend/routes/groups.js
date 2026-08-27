@@ -3,7 +3,8 @@ const Group = require('../models/Group');
 const User = require('../models/User');
 const Expense = require('../models/Expense');
 const { protect } = require('../middleware/auth');
-const { computeBalances } = require('../utils/helpers');
+const { getGroupLedger, checkParticipation } = require('../utils/helpers');
+const Payment = require('../models/payment');
 
 const router = express.Router();
 
@@ -12,37 +13,67 @@ router.use(protect);
 // List groups for current user (with summary balances)
 router.get('/', async (req, res) => {
   try {
-    const groups = await Group.find({ members: req.user._id })
+    const expenseGroupIds = await Expense.distinct('group', { $or: [{ paidBy: req.user._id }, { 'splits.user': req.user._id }] });
+    const paymentGroupIds = await Payment.distinct('group', { $or: [{ from: req.user._id }, { to: req.user._id }] });
+
+    const groups = await Group.find({
+      $or: [
+        { members: req.user._id },
+        { _id: { $in: [...expenseGroupIds, ...paymentGroupIds] } }
+      ]
+    })
       .populate('members', 'name email')
       .populate('createdBy', 'name email')
       .sort({ updatedAt: -1 });
 
     const enriched = await Promise.all(
       groups.map(async (g) => {
-        const expenses = await Expense.find({ group: g._id }).populate('paidBy', 'name');
-        const { balances, settlements } = computeBalances(expenses, g.members);
-        const mine = balances.find((b) => b.userId === req.user._id.toString());
+        const ledger = await getGroupLedger(g._id);
+        const mine = ledger.balances.find((b) => b.userId === req.user._id.toString());
+        const isActiveMember = g.members.some(m => m._id.equals(req.user._id));
+
+        const myBalance = mine ? mine.net : 0;
+
+        if (!isActiveMember && Math.abs(myBalance) < 0.01) {
+          return null; // Skip if departed and no outstanding balance
+        }
+
+        const uIdStr = req.user._id.toString();
+        const settlements = isActiveMember
+          ? ledger.settlements
+          : ledger.settlements.filter(s => s.from.id === uIdStr || s.to.id === uIdStr);
+
         return {
           id: g._id,
           name: g.name,
           description: g.description,
           memberCount: g.members.length,
-          members: g.members.map((m) => ({
-            id: m._id,
-            name: m.name,
-            email: m.email,
-          })),
-          createdBy: g.createdBy,
-          myBalance: mine ? mine.net : 0,
+          members: g.members.map((m) => {
+            const memberObj = {
+              id: m._id,
+              name: m.name,
+            };
+            if (isActiveMember) {
+              memberObj.email = m.email;
+            }
+            return memberObj;
+          }),
+          createdBy: isActiveMember ? g.createdBy : {
+            _id: g.createdBy._id,
+            name: g.createdBy.name
+          },
+          myBalance,
           settlements,
-          expenseCount: expenses.length,
+          expenseCount: ledger.expenses.length,
           updatedAt: g.updatedAt,
           createdAt: g.createdAt,
+          isActiveMember,
+          hasOutstandingBalance: Math.abs(myBalance) >= 0.01
         };
       })
     );
 
-    res.json({ groups: enriched });
+    res.json({ groups: enriched.filter(g => g !== null) });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Failed to load groups' });
   }
@@ -117,9 +148,30 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Group not found' });
     }
 
-    const isMember = group.members.some((m) => m._id.equals(req.user._id));
-    if (!isMember) {
+    const { isActiveMember, isHistoricalParticipant } = await checkParticipation(req.user._id, req.params.id);
+
+    if (!isHistoricalParticipant) {
       return res.status(403).json({ message: 'You are not a member of this group' });
+    }
+
+    let membersData = group.members.map((m) => ({
+      id: m._id,
+      name: m.name,
+      email: m.email,
+    }));
+
+    let createdByData = {
+      id: group.createdBy._id,
+      name: group.createdBy.name,
+      email: group.createdBy.email,
+    };
+
+    if (!isActiveMember) {
+      membersData = group.members.map(m => ({ id: m._id, name: m.name, email: "" }));
+      createdByData = {
+        id: group.createdBy._id,
+        name: group.createdBy.name
+      };
     }
 
     res.json({
@@ -127,21 +179,15 @@ router.get('/:id', async (req, res) => {
         id: group._id,
         name: group.name,
         description: group.description,
-        members: group.members.map((m) => ({
-          id: m._id,
-          name: m.name,
-          email: m.email,
-        })),
-        createdBy: {
-          id: group.createdBy._id,
-          name: group.createdBy.name,
-          email: group.createdBy.email,
-        },
+        members: membersData,
+        createdBy: createdByData,
+        updatedAt: group.updatedAt,
         createdAt: group.createdAt,
+        isActiveMember
       },
     });
   } catch (err) {
-    res.status(500).json({ message: err.message || 'Failed to load group' });
+    res.status(500).json({ message: err.message || 'Server Error' });
   }
 });
 
@@ -174,17 +220,45 @@ router.post('/:id/members', async (req, res) => {
     group.members.push(user._id);
     await group.save();
 
-    const populated = await Group.findById(group._id).populate('members', 'name email');
-
     res.json({
-      members: populated.members.map((m) => ({
-        id: m._id,
-        name: m.name,
-        email: m.email,
-      })),
+      message: 'Member added successfully',
+      member: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+      },
     });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Failed to add member' });
+  }
+});
+
+// =====================================================
+// LEAVE GROUP
+// =====================================================
+
+router.delete('/:id/members/me', async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id);
+
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+
+    if (!group.members.some((m) => m.equals(req.user._id))) {
+      return res.status(403).json({ message: 'You are not a member of this group' });
+    }
+
+    if (group.createdBy.equals(req.user._id)) {
+      return res.status(400).json({ message: 'Group creator cannot leave' });
+    }
+
+    group.members.pull(req.user._id);
+    await group.save();
+
+    res.json({ message: 'Successfully left the group' });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Failed to leave group' });
   }
 });
 
