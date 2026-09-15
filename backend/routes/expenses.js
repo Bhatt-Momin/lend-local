@@ -83,7 +83,7 @@ router.get('/:groupId', async (req, res) => {
         paidBy: {
           id: e.paidBy._id,
           name: e.paidBy.name,
-          email: e.paidBy.email,
+          ...(isActiveMember && e.paidBy.email ? { email: e.paidBy.email } : {})
         },
 
         splits: e.splits.map((s) => ({
@@ -91,7 +91,7 @@ router.get('/:groupId', async (req, res) => {
           user: {
             id: s.user._id,
             name: s.user.name,
-            email: s.user.email
+            ...(isActiveMember && s.user.email ? { email: s.user.email } : {})
           },
 
           share: s.share,
@@ -157,14 +157,18 @@ router.post('/', async (req, res) => {
       Number(amount);
 
 
+    const envMax = Number(process.env.MAX_EXPENSE_AMOUNT);
+    const MAX_AMOUNT = (Number.isFinite(envMax) && envMax > 0) ? envMax : 10000000;
+
     if (
-      Number.isNaN(numericAmount) ||
-      numericAmount <= 0
+      !Number.isFinite(numericAmount) ||
+      numericAmount <= 0 ||
+      numericAmount > MAX_AMOUNT
     ) {
 
       return res.status(400).json({
         message:
-          'Amount must be a positive number'
+          'Valid finite amount required'
       });
 
     }
@@ -359,8 +363,9 @@ router.post('/', async (req, res) => {
 
 
         if (
-          Number.isNaN(s.share) ||
-          s.share < 0
+          !Number.isFinite(s.share) ||
+          s.share < 0 ||
+          s.share > MAX_AMOUNT
         ) {
 
           return res.status(400).json({
@@ -416,6 +421,9 @@ router.post('/', async (req, res) => {
 
         paidBy:
           payerId,
+
+        createdBy:
+          req.user._id,
 
         splitType:
           type,
@@ -692,11 +700,19 @@ router.delete('/:id', async (req, res) => {
     }
 
     const group = await Group.findById(expense.group);
-    const isPayer = expense.paidBy.equals(req.user._id);
     const isCreator = group && group.createdBy.equals(req.user._id);
+    const isExpenseCreator = expense.createdBy && expense.createdBy.equals(req.user._id);
+    const isPayer = expense.paidBy.equals(req.user._id);
 
-    if (!isPayer && !isCreator) {
-      return res.status(403).json({ message: 'Only the payer or group creator can delete this expense' });
+    let authorized = false;
+    if (expense.createdBy) {
+      authorized = isExpenseCreator || isCreator;
+    } else {
+      authorized = isPayer || isCreator;
+    }
+
+    if (!authorized) {
+      return res.status(403).json({ message: 'Only the expense creator or group creator can delete this expense' });
     }
 
     await expense.deleteOne();

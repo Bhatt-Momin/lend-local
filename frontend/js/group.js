@@ -746,6 +746,32 @@ if (!requireAuth()) {
                 )}
               </div>
 
+              ${(() => {
+                const myId = String(
+                  getUserId(me)
+                );
+                const exId = expense.createdBy
+                  ? String(
+                      getCreatedById(
+                        expense.createdBy
+                      )
+                    )
+                  : null;
+                const grpId =
+                  group &&
+                  group.createdBy
+                    ? String(
+                        getCreatedById(
+                          group.createdBy
+                        )
+                      )
+                    : null;
+
+                if (
+                  myId === exId ||
+                  myId === grpId
+                ) {
+                  return `
               <div class="actions">
                 <button
                   class="btn btn-danger"
@@ -755,6 +781,11 @@ if (!requireAuth()) {
                   Delete
                 </button>
               </div>
+              </div>`;
+                }
+
+                return '';
+              })()}
             </article>
           `
         )

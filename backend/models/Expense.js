@@ -60,6 +60,11 @@ const expenseSchema = new mongoose.Schema(
       default: 'General',
       maxlength: 40,
     },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: false,
+    },
     date: {
       type: Date,
       default: Date.now,
