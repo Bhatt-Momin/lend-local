@@ -43,6 +43,14 @@ router.get('/', async (req, res) => {
           ? ledger.settlements
           : ledger.settlements.filter(s => s.from.id === uIdStr || s.to.id === uIdStr);
 
+        let visibleExpenseCount = ledger.expenses.length;
+        if (!isActiveMember) {
+          visibleExpenseCount = ledger.expenses.filter(e =>
+            (e.paidBy && e.paidBy._id.toString() === uIdStr) ||
+            (e.splits && e.splits.some(s => s.user && s.user._id.toString() === uIdStr))
+          ).length;
+        }
+
         return {
           id: g._id,
           name: g.name,
@@ -64,7 +72,7 @@ router.get('/', async (req, res) => {
           },
           myBalance,
           settlements,
-          expenseCount: ledger.expenses.length,
+          expenseCount: visibleExpenseCount,
           updatedAt: g.updatedAt,
           createdAt: g.createdAt,
           isActiveMember,

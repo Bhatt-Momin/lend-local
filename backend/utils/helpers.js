@@ -139,8 +139,6 @@ async function getGroupLedger(groupId) {
     const tId = p.to._id.toString();
     const amt = p.amount;
 
-    if (net[fId] !== undefined) net[fId] = Math.round((net[fId] + amt) * 100) / 100;
-    if (net[tId] !== undefined) net[tId] = Math.round((net[tId] - amt) * 100) / 100;
     if (net[fId] === undefined) net[fId] = 0;
     if (net[tId] === undefined) net[tId] = 0;
 
@@ -234,6 +232,7 @@ async function checkParticipation(userId, groupId) {
 
   const hasPayment = await Payment.exists({
     group: groupId,
+    status: 'paid',
     $or: [{ from: userId }, { to: userId }]
   });
   if (hasPayment) {

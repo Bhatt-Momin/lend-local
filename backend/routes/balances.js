@@ -18,18 +18,28 @@ router.get('/:groupId', async (req, res) => {
 
     let balances = ledger.balances;
     let settlements = ledger.settlements;
+    let visibleTotalSpent = ledger.totalSpent;
+    let visibleExpenseCount = ledger.expenses.length;
 
     if (!isActiveMember) {
       const uIdStr = req.user._id.toString();
       balances = balances.filter(b => b.userId === uIdStr);
       settlements = settlements.filter(s => s.from.id === uIdStr || s.to.id === uIdStr);
+
+      const visibleExpenses = ledger.expenses.filter(e =>
+        (e.paidBy && e.paidBy._id.toString() === uIdStr) ||
+        (e.splits && e.splits.some(s => s.user && s.user._id.toString() === uIdStr))
+      );
+
+      visibleExpenseCount = visibleExpenses.length;
+      visibleTotalSpent = visibleExpenses.reduce((sum, ex) => sum + Number(ex.amount), 0);
     }
 
     res.json({
       groupId: ledger.group._id,
       groupName: ledger.group.name,
-      totalSpent: ledger.totalSpent,
-      expenseCount: ledger.expenses.length,
+      totalSpent: visibleTotalSpent,
+      expenseCount: visibleExpenseCount,
       balances,
       settlements,
     });
