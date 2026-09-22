@@ -134,6 +134,11 @@ router.post('/fcm-token', protect, async (req, res) => {
 
     }
 
+    await User.updateMany(
+      { fcmToken: token, _id: { $ne: req.user._id } },
+      { $set: { fcmToken: null } }
+    );
+
     req.user.fcmToken = token;
 
     await req.user.save();
