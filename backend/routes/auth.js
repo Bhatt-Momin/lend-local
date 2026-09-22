@@ -3,9 +3,23 @@ const User = require('../models/User');
 const { signToken } = require('../utils/helpers');
 const { protect } = require('../middleware/auth');
 
+
+const rateLimit = require('express-rate-limit');
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: 'Too many authentication attempts, please try again later.'
+  }
+});
+
 const router = express.Router();
 
-router.post('/register', async (req, res) => {
+
+router.post('/register', authLimiter, async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
@@ -63,7 +77,7 @@ router.post('/register', async (req, res) => {
 });
 
 
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
