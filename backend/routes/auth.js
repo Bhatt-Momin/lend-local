@@ -23,6 +23,14 @@ router.post('/register', authLimiter, async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
+    if (
+      typeof name !== 'string' ||
+      typeof email !== 'string' ||
+      typeof password !== 'string'
+    ) {
+      return res.status(400).json({ message: 'Invalid input' });
+    }
+
     if (!name || !email || !password) {
       return res.status(400).json({
         message: 'Name, email, and password are required'
@@ -80,6 +88,10 @@ router.post('/register', authLimiter, async (req, res) => {
 router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ message: 'Invalid input' });
+    }
 
     if (!email || !password) {
       return res.status(400).json({
