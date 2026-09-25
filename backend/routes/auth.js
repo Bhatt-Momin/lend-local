@@ -195,4 +195,40 @@ router.post('/fcm-token', protect, async (req, res) => {
 });
 
 
+/* =====================================================
+   SAVE UPI ID
+===================================================== */
+router.post('/upi-id', protect, async (req, res) => {
+  try {
+    const { upiId } = req.body;
+
+    if (typeof upiId !== 'string') {
+      return res.status(400).json({ message: 'UPI ID must be a string' });
+    }
+
+    const trimmedUpiId = upiId.trim();
+
+    if (!trimmedUpiId) {
+      return res.status(400).json({ message: 'UPI ID is required' });
+    }
+
+    // Basic conservative validation for UPI ID (e.g., username@bank)
+    const upiRegex = /^[\w.-]+@[a-zA-Z]+$/;
+    if (!upiRegex.test(trimmedUpiId)) {
+      return res.status(400).json({ message: 'Invalid UPI ID format' });
+    }
+
+    req.user.upiId = trimmedUpiId;
+    await req.user.save();
+
+    res.json({
+      message: 'UPI ID saved successfully (Note: this does not verify ownership of the VPA)',
+      upiId: req.user.upiId
+    });
+
+  } catch (err) {
+    console.error('UPI ID save error:', err);
+    res.status(500).json({ message: err.message || 'Failed to save UPI ID' });
+  }
+});
 module.exports = router;

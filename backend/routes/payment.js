@@ -460,4 +460,120 @@ router.post("/verify-payment", protect, async (req, res) => {
   }
 });
 
+
+// =====================================================
+// CREATE DIRECT UPI INTENT
+// =====================================================
+router.post("/intent", protect, async (req, res) => {
+  try {
+    const { groupId, toUserId, amount } = req.body;
+
+    if (
+      typeof groupId !== 'string' ||
+      typeof toUserId !== 'string' ||
+      !/^[0-9a-fA-F]{24}$/.test(groupId) ||
+      !/^[0-9a-fA-F]{24}$/.test(toUserId)
+    ) {
+      return res.status(400).json({ message: "Valid group and receiver IDs are required" });
+    }
+
+    const numericAmount = Number(amount);
+
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return res.status(400).json({ message: "Valid amount is required" });
+    }
+
+    if (toUserId.toString() === req.user._id.toString()) {
+      return res.status(400).json({ message: "You cannot pay yourself" });
+    }
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    const isActiveMember = group.members.some(m => m.toString() === req.user._id.toString());
+    if (!isActiveMember) {
+      return res.status(403).json({ message: "You are not an active member of this group" });
+    }
+
+    const recipient = await User.findById(toUserId);
+    if (!recipient) {
+      return res.status(404).json({ message: "Recipient not found" });
+    }
+
+    if (!recipient.upiId) {
+      return res.status(400).json({ message: "Recipient has not configured a UPI payment method" });
+    }
+
+    const ledger = await getGroupLedger(groupId);
+    const validSettlement = ledger.settlements.find(
+      (s) => s.from.id === req.user._id.toString() && s.to.id === toUserId.toString()
+    );
+
+    if (!validSettlement) {
+      return res.status(403).json({ message: "No valid payable relationship established by ledger" });
+    }
+
+    const requestedPaise = Math.round(numericAmount * 100);
+
+    if (!Number.isFinite(requestedPaise) || requestedPaise < 1 || numericAmount < 0.01) {
+      return res.status(400).json({ message: "Amount must be at least ₹0.01" });
+    }
+
+    const authorizedPaise = Math.round(validSettlement.amount * 100);
+
+    if (requestedPaise > authorizedPaise) {
+      return res.status(400).json({ message: "Payment exceeds authorized settlement amount" });
+    }
+
+    const paymentAmount = requestedPaise / 100;
+
+    // Check for existing pending intent
+    let payment = await Payment.findOne({
+      group: groupId,
+      from: req.user._id,
+      to: toUserId,
+      amount: paymentAmount,
+      method: "upi_direct",
+      status: "pending"
+    });
+
+    if (!payment) {
+      payment = await Payment.create({
+        group: groupId,
+        from: req.user._id,
+        to: toUserId,
+        amount: paymentAmount,
+        method: "upi_direct",
+        status: "pending",
+        payeeUpiId: recipient.upiId,
+        payeeName: recipient.name,
+      });
+      payment.upiTransactionRef = payment._id.toString();
+      await payment.save();
+    }
+
+    const pa = encodeURIComponent(payment.payeeUpiId);
+    const pn = encodeURIComponent(payment.payeeName);
+    const tr = encodeURIComponent(payment.upiTransactionRef);
+    const am = encodeURIComponent(paymentAmount.toFixed(2));
+    const cu = encodeURIComponent("INR");
+    const tn = encodeURIComponent("LendLocal Settlement");
+
+    const upiUri = `upi://pay?pa=${pa}&pn=${pn}&tr=${tr}&am=${am}&cu=${cu}&tn=${tn}`;
+
+    res.status(201).json({
+      intentId: payment._id,
+      upiUri,
+      payeeName: payment.payeeName,
+      payeeUpiId: payment.payeeUpiId,
+      amount: paymentAmount
+    });
+  } catch (error) {
+    console.error("Direct UPI Intent creation error:", error);
+    res.status(500).json({ message: "Failed to create payment intent" });
+  }
+});
+
 module.exports = router;

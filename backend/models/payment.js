@@ -27,20 +27,40 @@ const paymentSchema = new mongoose.Schema(
 
     razorpayPaymentId: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
     },
 
     razorpayOrderId: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
+    },
+
+    method: {
+      type: String,
+      enum: ['razorpay', 'upi_direct'],
+      default: 'razorpay',
+    },
+
+    payeeUpiId: {
+      type: String,
+    },
+
+    payeeName: {
+      type: String,
+    },
+
+    upiTransactionRef: {
+      type: String,
+      unique: true,
+      sparse: true,
     },
 
     status: {
       type: String,
-      enum: ['paid', 'failed'],
-      default: 'paid',
+      enum: ['pending', 'payer_claimed', 'recipient_confirmed', 'recipient_rejected', 'cancelled', 'paid', 'failed', 'reversed'],
+      default: 'pending',
     },
   },
   {
