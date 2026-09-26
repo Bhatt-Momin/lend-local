@@ -497,6 +497,54 @@ router.post("/intent", protect, async (req, res) => {
       return res.status(403).json({ message: "You are not an active member of this group" });
     }
 
+    const requestedPaise = Math.round(numericAmount * 100);
+
+    if (!Number.isFinite(requestedPaise) || requestedPaise < 1 || numericAmount < 0.01) {
+      return res.status(400).json({ message: "Amount must be at least ₹0.01" });
+    }
+
+    const paymentAmount = requestedPaise / 100;
+
+    // Helper: build intent response with UPI deep-link URI
+    const buildIntentResponse = (payment, statusCode) => {
+      const pa = encodeURIComponent(payment.payeeUpiId);
+      const pn = encodeURIComponent(payment.payeeName);
+      const tr = encodeURIComponent(payment.upiTransactionRef);
+      const am = encodeURIComponent(payment.amount.toFixed(2));
+      const cu = encodeURIComponent("INR");
+      const tn = encodeURIComponent("LendLocal Settlement");
+      const upiUri = `upi://pay?pa=${pa}&pn=${pn}&tr=${tr}&am=${am}&cu=${cu}&tn=${tn}`;
+      return res.status(statusCode).json({
+        intentId: payment._id,
+        upiUri,
+        payeeName: payment.payeeName,
+        payeeUpiId: payment.payeeUpiId,
+        amount: payment.amount,
+        status: payment.status,
+      });
+    };
+
+    // One-active-intent guard: check BEFORE ledger cap check
+    const existingActive = await Payment.findOne({
+      group: groupId,
+      from: req.user._id,
+      to: toUserId,
+      method: "upi_direct",
+      status: { $in: ["pending", "payer_claimed"] },
+    });
+
+    if (existingActive) {
+      if (Math.round(existingActive.amount * 100) === requestedPaise) {
+        return buildIntentResponse(existingActive, 200);
+      }
+      return res.status(409).json({
+        message: "An active UPI payment already exists for this recipient. Complete or cancel it first.",
+        intentId: existingActive._id,
+        status: existingActive.status,
+      });
+    }
+
+    // New intent flow -> check recipient UPI and ledger cap
     const recipient = await User.findById(toUserId);
     if (!recipient) {
       return res.status(404).json({ message: "Recipient not found" });
@@ -515,31 +563,15 @@ router.post("/intent", protect, async (req, res) => {
       return res.status(403).json({ message: "No valid payable relationship established by ledger" });
     }
 
-    const requestedPaise = Math.round(numericAmount * 100);
-
-    if (!Number.isFinite(requestedPaise) || requestedPaise < 1 || numericAmount < 0.01) {
-      return res.status(400).json({ message: "Amount must be at least ₹0.01" });
-    }
-
     const authorizedPaise = Math.round(validSettlement.amount * 100);
 
     if (requestedPaise > authorizedPaise) {
       return res.status(400).json({ message: "Payment exceeds authorized settlement amount" });
     }
 
-    const paymentAmount = requestedPaise / 100;
-
-    // Check for existing pending intent
-    let payment = await Payment.findOne({
-      group: groupId,
-      from: req.user._id,
-      to: toUserId,
-      amount: paymentAmount,
-      method: "upi_direct",
-      status: "pending"
-    });
-
-    if (!payment) {
+    // Create new intent — partial unique index is the concurrency backstop
+    let payment;
+    try {
       payment = await Payment.create({
         group: groupId,
         from: req.user._id,
@@ -552,27 +584,310 @@ router.post("/intent", protect, async (req, res) => {
       });
       payment.upiTransactionRef = payment._id.toString();
       await payment.save();
+    } catch (createError) {
+      // Race: concurrent request hit the partial unique index before us
+      if (createError.code === 11000) {
+        const racedIntent = await Payment.findOne({
+          group: groupId,
+          from: req.user._id,
+          to: toUserId,
+          method: "upi_direct",
+          status: { $in: ["pending", "payer_claimed"] },
+        });
+        if (racedIntent) {
+          if (Math.round(racedIntent.amount * 100) === requestedPaise) {
+            return buildIntentResponse(racedIntent, 200);
+          }
+          return res.status(409).json({
+            message: "An active UPI payment already exists for this recipient. Complete or cancel it first.",
+            intentId: racedIntent._id,
+            status: racedIntent.status,
+          });
+        }
+      }
+      throw createError;
     }
 
-    const pa = encodeURIComponent(payment.payeeUpiId);
-    const pn = encodeURIComponent(payment.payeeName);
-    const tr = encodeURIComponent(payment.upiTransactionRef);
-    const am = encodeURIComponent(paymentAmount.toFixed(2));
-    const cu = encodeURIComponent("INR");
-    const tn = encodeURIComponent("LendLocal Settlement");
-
-    const upiUri = `upi://pay?pa=${pa}&pn=${pn}&tr=${tr}&am=${am}&cu=${cu}&tn=${tn}`;
-
-    res.status(201).json({
-      intentId: payment._id,
-      upiUri,
-      payeeName: payment.payeeName,
-      payeeUpiId: payment.payeeUpiId,
-      amount: paymentAmount
-    });
+    return buildIntentResponse(payment, 201);
   } catch (error) {
     console.error("Direct UPI Intent creation error:", error);
     res.status(500).json({ message: "Failed to create payment intent" });
+  }
+});
+
+// =====================================================
+// HELPER: send FCM notification — non-blocking, never throws
+// =====================================================
+async function sendFcm(userId, title, bodyStr, data) {
+  try {
+    const user = await User.findById(userId).select("fcmToken");
+    if (!user || !user.fcmToken) {
+      console.log(`FCM skipped for user ${userId}: no token.`);
+      return false;
+    }
+    const message = {
+      token: user.fcmToken,
+      notification: { title, body: bodyStr },
+      webpush: {
+        notification: { icon: "/icons/icon-192.png", badge: "/icons/icon-192.png" },
+        fcmOptions: { link: "/dashboard.html" },
+      },
+      data: Object.fromEntries(
+        Object.entries(data || {}).map(([k, v]) => [k, String(v)])
+      ),
+    };
+    const response = await getMessaging().send(message);
+    console.log(`FCM sent to user ${userId}:`, response);
+    return true;
+  } catch (err) {
+    console.error(`FCM delivery failed for user ${userId}:`, err.message);
+    return false;
+  }
+}
+
+// =====================================================
+// HELPER: validate intentId from request body
+// =====================================================
+function parseIntentId(body) {
+  const { intentId } = body || {};
+  if (typeof intentId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(intentId)) {
+    return null;
+  }
+  return intentId;
+}
+
+// =====================================================
+// CLAIM  pending -> payer_claimed  (payer only)
+// =====================================================
+router.post("/claim", protect, async (req, res) => {
+  try {
+    const intentId = parseIntentId(req.body);
+    if (!intentId) {
+      return res.status(400).json({ message: "Valid intentId is required" });
+    }
+
+    const updated = await Payment.findOneAndUpdate(
+      { _id: intentId, method: "upi_direct", from: req.user._id, status: "pending" },
+      { $set: { status: "payer_claimed", claimedAt: new Date() } },
+      { new: true }
+    );
+
+    if (updated) {
+      const notificationSent = await sendFcm(
+        updated.to,
+        "Payment claim 💸",
+        `${req.user.name || "Someone"} says they paid ₹${updated.amount.toFixed(2)}. Check your UPI/bank app and confirm receipt.`,
+        { type: "payment_claim", paymentId: String(updated._id), amount: updated.amount.toFixed(2) }
+      );
+      return res.status(200).json({
+        message: "Payment claimed successfully",
+        intentId: updated._id,
+        status: updated.status,
+        amount: updated.amount,
+        notificationSent,
+      });
+    }
+
+    const payment = await Payment.findOne({ _id: intentId, method: "upi_direct" });
+    if (!payment) return res.status(404).json({ message: "Payment not found" });
+
+    if (payment.from.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "You are not authorized to claim this payment" });
+    }
+
+    if (payment.status === "payer_claimed") {
+      return res.status(200).json({
+        message: "Payment was already claimed",
+        intentId: payment._id,
+        status: payment.status,
+        amount: payment.amount,
+        notificationSent: false,
+      });
+    }
+
+    return res.status(409).json({
+      message: `Cannot claim a payment with status: ${payment.status}`,
+      intentId: payment._id,
+      status: payment.status,
+    });
+  } catch (error) {
+    console.error("Payment claim error:", error);
+    res.status(500).json({ message: "Failed to claim payment" });
+  }
+});
+
+// =====================================================
+// CONFIRM  payer_claimed -> recipient_confirmed  (recipient only)
+// =====================================================
+router.post("/confirm", protect, async (req, res) => {
+  try {
+    const intentId = parseIntentId(req.body);
+    if (!intentId) {
+      return res.status(400).json({ message: "Valid intentId is required" });
+    }
+
+    const updated = await Payment.findOneAndUpdate(
+      { _id: intentId, method: "upi_direct", to: req.user._id, status: "payer_claimed" },
+      { $set: { status: "recipient_confirmed", confirmedAt: new Date() } },
+      { new: true }
+    );
+
+    if (updated) {
+      const notificationSent = await sendFcm(
+        updated.from,
+        "Payment confirmed ✅",
+        `${req.user.name || "Someone"} confirmed receiving ₹${updated.amount.toFixed(2)}.`,
+        { type: "payment_confirmed", paymentId: String(updated._id), amount: updated.amount.toFixed(2) }
+      );
+      return res.status(200).json({
+        message: "Payment confirmed. The settlement has been applied to the ledger.",
+        intentId: updated._id,
+        status: updated.status,
+        amount: updated.amount,
+        notificationSent,
+      });
+    }
+
+    const payment = await Payment.findOne({ _id: intentId, method: "upi_direct" });
+    if (!payment) return res.status(404).json({ message: "Payment not found" });
+
+    if (payment.to.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "You are not authorized to confirm this payment" });
+    }
+
+    if (payment.status === "recipient_confirmed") {
+      return res.status(200).json({
+        message: "Payment was already confirmed",
+        intentId: payment._id,
+        status: payment.status,
+        amount: payment.amount,
+        notificationSent: false,
+      });
+    }
+
+    return res.status(409).json({
+      message: `Cannot confirm a payment with status: ${payment.status}`,
+      intentId: payment._id,
+      status: payment.status,
+    });
+  } catch (error) {
+    console.error("Payment confirm error:", error);
+    res.status(500).json({ message: "Failed to confirm payment" });
+  }
+});
+
+// =====================================================
+// REJECT  payer_claimed -> recipient_rejected  (recipient only)
+// =====================================================
+router.post("/reject", protect, async (req, res) => {
+  try {
+    const intentId = parseIntentId(req.body);
+    if (!intentId) {
+      return res.status(400).json({ message: "Valid intentId is required" });
+    }
+
+    const updated = await Payment.findOneAndUpdate(
+      { _id: intentId, method: "upi_direct", to: req.user._id, status: "payer_claimed" },
+      { $set: { status: "recipient_rejected", rejectedAt: new Date() } },
+      { new: true }
+    );
+
+    if (updated) {
+      const notificationSent = await sendFcm(
+        updated.from,
+        "Payment rejected ❌",
+        `${req.user.name || "Someone"} rejected your payment of ₹${updated.amount.toFixed(2)}. Please verify.`,
+        { type: "payment_rejected", paymentId: String(updated._id), amount: updated.amount.toFixed(2) }
+      );
+      return res.status(200).json({
+        message: "Payment rejected. No ledger change has been made.",
+        intentId: updated._id,
+        status: updated.status,
+        amount: updated.amount,
+        notificationSent,
+      });
+    }
+
+    const payment = await Payment.findOne({ _id: intentId, method: "upi_direct" });
+    if (!payment) return res.status(404).json({ message: "Payment not found" });
+
+    if (payment.to.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "You are not authorized to reject this payment" });
+    }
+
+    if (payment.status === "recipient_rejected") {
+      return res.status(200).json({
+        message: "Payment was already rejected",
+        intentId: payment._id,
+        status: payment.status,
+        amount: payment.amount,
+        notificationSent: false,
+      });
+    }
+
+    return res.status(409).json({
+      message: `Cannot reject a payment with status: ${payment.status}`,
+      intentId: payment._id,
+      status: payment.status,
+    });
+  } catch (error) {
+    console.error("Payment reject error:", error);
+    res.status(500).json({ message: "Failed to reject payment" });
+  }
+});
+
+// =====================================================
+// CANCEL  pending -> cancelled  (payer only)
+// payer_claimed may NOT be cancelled: financial ambiguity risk
+// =====================================================
+router.post("/cancel", protect, async (req, res) => {
+  try {
+    const intentId = parseIntentId(req.body);
+    if (!intentId) {
+      return res.status(400).json({ message: "Valid intentId is required" });
+    }
+
+    const updated = await Payment.findOneAndUpdate(
+      { _id: intentId, method: "upi_direct", from: req.user._id, status: "pending" },
+      { $set: { status: "cancelled", cancelledAt: new Date() } },
+      { new: true }
+    );
+
+    if (updated) {
+      return res.status(200).json({
+        message: "Payment intent cancelled. No ledger change has been made.",
+        intentId: updated._id,
+        status: updated.status,
+        amount: updated.amount,
+        notificationSent: false,
+      });
+    }
+
+    const payment = await Payment.findOne({ _id: intentId, method: "upi_direct" });
+    if (!payment) return res.status(404).json({ message: "Payment not found" });
+
+    if (payment.from.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "You are not authorized to cancel this payment" });
+    }
+
+    if (payment.status === "cancelled") {
+      return res.status(200).json({
+        message: "Payment was already cancelled",
+        intentId: payment._id,
+        status: payment.status,
+        amount: payment.amount,
+        notificationSent: false,
+      });
+    }
+
+    return res.status(409).json({
+      message: `Cannot cancel a payment with status: ${payment.status}. Once claimed, a payment cannot be cancelled.`,
+      intentId: payment._id,
+      status: payment.status,
+    });
+  } catch (error) {
+    console.error("Payment cancel error:", error);
+    res.status(500).json({ message: "Failed to cancel payment" });
   }
 });
 

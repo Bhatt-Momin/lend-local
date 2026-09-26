@@ -94,7 +94,7 @@ async function getGroupLedger(groupId) {
     .populate('paidBy', 'name')
     .populate('splits.user', 'name');
 
-  const payments = await Payment.find({ group: groupId, status: 'paid' })
+  const payments = await Payment.find({ group: groupId, status: { $in: ['paid', 'recipient_confirmed'] } })
     .populate('from to');
 
   // Build a name dictionary fixing the departed member "Unknown" issue
@@ -232,7 +232,7 @@ async function checkParticipation(userId, groupId) {
 
   const hasPayment = await Payment.exists({
     group: groupId,
-    status: 'paid',
+    status: { $in: ['paid', 'recipient_confirmed'] },
     $or: [{ from: userId }, { to: userId }]
   });
   if (hasPayment) {

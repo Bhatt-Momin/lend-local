@@ -62,9 +62,41 @@ const paymentSchema = new mongoose.Schema(
       enum: ['pending', 'payer_claimed', 'recipient_confirmed', 'recipient_rejected', 'cancelled', 'paid', 'failed', 'reversed'],
       default: 'pending',
     },
+
+    claimedAt: {
+      type: Date,
+      default: null,
+    },
+
+    confirmedAt: {
+      type: Date,
+      default: null,
+    },
+
+    rejectedAt: {
+      type: Date,
+      default: null,
+    },
+
+    cancelledAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
+  }
+);
+
+paymentSchema.index(
+  { group: 1, from: 1, to: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      method: 'upi_direct',
+      status: { $in: ['pending', 'payer_claimed'] },
+    },
+    name: 'one_active_upi_direct_per_pair',
   }
 );
 
