@@ -9,7 +9,7 @@ const { protect } = require("../middleware/auth");
 const razorpay = require("../config/razorpay");
 
 const { getMessaging } = require("firebase-admin/messaging");
-const { getGroupLedger } = require("../utils/helpers");
+const { getGroupLedger, checkParticipation } = require("../utils/helpers");
 
 const router = express.Router();
 
@@ -677,7 +677,13 @@ router.post("/claim", protect, async (req, res) => {
         updated.to,
         "Payment claim 💸",
         `${req.user.name || "Someone"} says they paid ₹${updated.amount.toFixed(2)}. Check your UPI/bank app and confirm receipt.`,
-        { type: "payment_claim", paymentId: String(updated._id), amount: updated.amount.toFixed(2) }
+        {
+          type: "payment_claim",
+          paymentId: String(updated._id),
+          groupId: String(updated.group),
+          amount: updated.amount.toFixed(2),
+          payerName: req.user.name || "Someone"
+        }
       );
       return res.status(200).json({
         message: "Payment claimed successfully",
@@ -737,7 +743,13 @@ router.post("/confirm", protect, async (req, res) => {
         updated.from,
         "Payment confirmed ✅",
         `${req.user.name || "Someone"} confirmed receiving ₹${updated.amount.toFixed(2)}.`,
-        { type: "payment_confirmed", paymentId: String(updated._id), amount: updated.amount.toFixed(2) }
+        {
+          type: "payment_confirmed",
+          paymentId: String(updated._id),
+          groupId: String(updated.group),
+          amount: updated.amount.toFixed(2),
+          recipientName: req.user.name || "Someone"
+        }
       );
       return res.status(200).json({
         message: "Payment confirmed. The settlement has been applied to the ledger.",
@@ -797,7 +809,13 @@ router.post("/reject", protect, async (req, res) => {
         updated.from,
         "Payment rejected ❌",
         `${req.user.name || "Someone"} rejected your payment of ₹${updated.amount.toFixed(2)}. Please verify.`,
-        { type: "payment_rejected", paymentId: String(updated._id), amount: updated.amount.toFixed(2) }
+        {
+          type: "payment_rejected",
+          paymentId: String(updated._id),
+          groupId: String(updated.group),
+          amount: updated.amount.toFixed(2),
+          recipientName: req.user.name || "Someone"
+        }
       );
       return res.status(200).json({
         message: "Payment rejected. No ledger change has been made.",
@@ -888,6 +906,51 @@ router.post("/cancel", protect, async (req, res) => {
   } catch (error) {
     console.error("Payment cancel error:", error);
     res.status(500).json({ message: "Failed to cancel payment" });
+  }
+});
+
+
+// =====================================================
+// GET ACTIVE DIRECT UPI INTENTS
+// =====================================================
+router.get("/active/:groupId", protect, async (req, res) => {
+  try {
+    const groupId = req.params.groupId;
+
+    // Validate groupId format
+    if (!groupId || !groupId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: "Invalid group ID format" });
+    }
+
+    const { isHistoricalParticipant } = await checkParticipation(req.user._id, groupId);
+    if (!isHistoricalParticipant) {
+      return res.status(403).json({ message: "You are not authorized to view this group's payments" });
+    }
+
+    const intents = await Payment.find({
+      group: groupId,
+      method: "upi_direct",
+      status: { $in: ["pending", "payer_claimed"] },
+      $or: [{ from: req.user._id }, { to: req.user._id }]
+    }).populate("from", "name").populate("to", "name");
+
+    const mappedIntents = intents.map(intent => ({
+      intentId: intent._id,
+      groupId: intent.group,
+      from: intent.from._id,
+      to: intent.to._id,
+      payerName: intent.from.name || "Unknown",
+      payeeName: intent.to.name || "Unknown",
+      amount: intent.amount,
+      status: intent.status,
+      createdAt: intent.createdAt,
+      claimedAt: intent.claimedAt
+    }));
+
+    return res.status(200).json({ intents: mappedIntents });
+  } catch (error) {
+    console.error("Fetch active intents error:", error);
+    res.status(500).json({ message: "Failed to fetch active intents" });
   }
 });
 
