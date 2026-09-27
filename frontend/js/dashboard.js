@@ -766,6 +766,67 @@ if (!requireAuth()) {
   }
 
 
+
+  /* =========================================================
+     SETTINGS
+  ========================================================= */
+  const settingsModal = document.getElementById('settingsModal');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+  const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
+  const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+  const upiIdInput = document.getElementById('upiIdInput');
+  const settingsAlert = document.getElementById('settingsAlert');
+
+  function openSettingsModal() {
+    hideAlert(settingsAlert);
+    upiIdInput.value = '';
+    settingsModal.classList.add('open');
+    upiIdInput.placeholder = 'Loading...';
+
+    api('/auth/me', { method: 'GET' })
+      .then(data => {
+        upiIdInput.placeholder = 'username@bank';
+        if (data && data.user && data.user.upiId) {
+          upiIdInput.value = data.user.upiId;
+        }
+      })
+      .catch(err => {
+        upiIdInput.placeholder = 'username@bank';
+        console.error('Failed to fetch profile:', err);
+      });
+  }
+
+  function closeSettings() {
+    settingsModal.classList.remove('open');
+  }
+
+  if (settingsBtn) settingsBtn.addEventListener('click', openSettingsModal);
+  if (closeSettingsBtn) closeSettingsBtn.addEventListener('click', closeSettings);
+  if (cancelSettingsBtn) cancelSettingsBtn.addEventListener('click', closeSettings);
+
+  if (saveSettingsBtn) {
+    saveSettingsBtn.addEventListener('click', async () => {
+      try {
+        hideAlert(settingsAlert);
+        saveSettingsBtn.disabled = true;
+        saveSettingsBtn.textContent = 'Saving...';
+
+        const res = await api('/auth/upi-id', {
+          method: 'POST',
+          body: JSON.stringify({ upiId: upiIdInput.value })
+        });
+
+        showAlert(settingsAlert, res.message || 'Settings saved successfully', 'success');
+      } catch (err) {
+        showAlert(settingsAlert, err.message, 'error');
+      } finally {
+        saveSettingsBtn.disabled = false;
+        saveSettingsBtn.textContent = 'Save Settings';
+      }
+    });
+  }
+
   /* =========================================================
      INITIAL LOAD
   ========================================================= */

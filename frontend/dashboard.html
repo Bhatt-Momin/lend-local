@@ -88,6 +88,14 @@
         </button>
 
         <button
+          id="settingsBtn"
+          class="btn btn-ghost modern-logout"
+          type="button"
+        >
+          ⚙️ Settings
+        </button>
+
+        <button
           id="logoutBtn"
           class="btn btn-ghost modern-logout"
           type="button"
@@ -462,6 +470,33 @@
 
   <script src="/js/effects.js"></script>
 
+<!-- =========================================
+       SETTINGS MODAL
+  ========================================== -->
+  <div id="settingsModal" class="modal-backdrop modern-modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal modern-modal">
+      <div class="modal-header">
+        <div>
+          <h2>Account Settings</h2>
+          <p>Configure your payment methods.</p>
+        </div>
+        <button type="button" class="close-modal" id="closeSettingsBtn">×</button>
+      </div>
+      <div id="settingsAlert" class="alert"></div>
+
+      <div class="form-group" style="margin-top: 15px;">
+        <label for="upiIdInput">UPI ID</label>
+        <input id="upiIdInput" type="text" placeholder="username@bank" />
+        <p class="field-hint">Required to receive direct UPI payments.</p>
+      </div>
+
+      <div class="modern-modal-actions" style="margin-top: 20px;">
+        <button type="button" class="btn btn-ghost" id="cancelSettingsBtn">Cancel</button>
+        <button type="button" class="btn" id="saveSettingsBtn">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/js/dashboard.js"></script>
 
 
@@ -533,6 +568,7 @@
       });
 
   </script>
+
 
 </body>
 </html>
