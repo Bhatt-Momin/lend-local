@@ -229,6 +229,17 @@ async function initializeFirebaseMessaging() {
           payload
         );
 
+        if (payload.data) {
+          if (payload.data.type === "payment_claim") {
+            window.dispatchEvent(new CustomEvent('paymentClaim', { detail: payload.data }));
+          } else if (payload.data.type === "payment_confirmed") {
+            window.dispatchEvent(new CustomEvent('paymentConfirmed', { detail: payload.data }));
+          } else if (payload.data.type === "payment_rejected") {
+            window.dispatchEvent(new CustomEvent('paymentRejected', { detail: payload.data }));
+          }
+        }
+
+
 
         const title =
           payload.notification?.title ||

@@ -934,18 +934,32 @@ router.get("/active/:groupId", protect, async (req, res) => {
       $or: [{ from: req.user._id }, { to: req.user._id }]
     }).populate("from", "name").populate("to", "name");
 
-    const mappedIntents = intents.map(intent => ({
-      intentId: intent._id,
-      groupId: intent.group,
-      from: intent.from._id,
-      to: intent.to._id,
-      payerName: intent.from.name || "Unknown",
-      payeeName: intent.to.name || "Unknown",
-      amount: intent.amount,
-      status: intent.status,
-      createdAt: intent.createdAt,
-      claimedAt: intent.claimedAt
-    }));
+    const mappedIntents = intents.map(intent => {
+      let upiUri = null;
+      if (intent.method === 'upi_direct' && intent.payeeUpiId && intent.upiTransactionRef) {
+        const pa = encodeURIComponent(intent.payeeUpiId);
+        const pn = encodeURIComponent(intent.payeeName || "Unknown");
+        const tr = encodeURIComponent(intent.upiTransactionRef);
+        const am = encodeURIComponent(intent.amount.toFixed(2));
+        const cu = encodeURIComponent("INR");
+        const tn = encodeURIComponent("LendLocal Settlement");
+        upiUri = `upi://pay?pa=${pa}&pn=${pn}&tr=${tr}&am=${am}&cu=${cu}&tn=${tn}`;
+      }
+
+      return {
+        intentId: intent._id,
+        groupId: intent.group,
+        from: intent.from._id,
+        to: intent.to._id,
+        payerName: intent.from.name || "Unknown",
+        payeeName: intent.to.name || intent.payeeName || "Unknown",
+        amount: intent.amount,
+        status: intent.status,
+        upiUri,
+        createdAt: intent.createdAt,
+        claimedAt: intent.claimedAt
+      };
+    });
 
     return res.status(200).json({ intents: mappedIntents });
   } catch (error) {

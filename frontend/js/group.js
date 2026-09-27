@@ -542,6 +542,7 @@ if (!requireAuth()) {
       groupRes,
       expenseRes,
       balanceRes,
+      activeIntentsRes
     ] = await Promise.all([
       api(
         `/groups/${groupId}`
@@ -554,6 +555,10 @@ if (!requireAuth()) {
       api(
         `/balances/${groupId}`
       ),
+
+      api(
+        `/payment/active/${groupId}`
+      ).catch((err) => ({ error: true, message: err.message || "Failed to load active intents" }))
     ]);
 
     group =
@@ -672,7 +677,8 @@ if (!requireAuth()) {
     );
 
     renderBalances(
-      balanceRes
+      balanceRes,
+      activeIntentsRes
     );
 
     renderMembers();
@@ -866,7 +872,8 @@ if (!requireAuth()) {
   ========================================================= */
 
   function renderBalances(
-    data
+    data,
+    activeIntentsRes = { intents: [] }
   ) {
     const settlements =
       data.settlements || [];
@@ -925,33 +932,94 @@ if (!requireAuth()) {
                */
 
               if (isMyDebt) {
-                paymentAction = `
-                  <button
-                    class="pay-btn"
-                    type="button"
-                    data-pay="${settlement.amount}"
-                    data-to="${toId}"
-                  >
-                    Pay
-                    ${formatMoney(
-                      settlement.amount
-                    )}
-                  </button>
-                `;
+                if (activeIntentsRes.error) {
+                  paymentAction = `
+                    <span style="color: var(--danger); font-size: 0.9rem;">
+                      Intent sync failed
+                    </span>
+                  `;
+                } else {
+                  const activeIntents = activeIntentsRes.intents || [];
+                  const activeIntent = activeIntents.find(i =>
+                    String(i.from._id || i.from.id || i.from) === String(myId) &&
+                    String(i.to._id || i.to.id || i.to) === String(toId) &&
+                    (i.status === 'pending' || i.status === 'payer_claimed')
+                  );
+
+                  if (activeIntent) {
+                    paymentAction = `
+                      <button
+                        class="btn btn-ghost"
+                        type="button"
+                        data-resume-intent-id="${activeIntent.intentId}"
+                        style="font-size: 0.9rem;"
+                      >
+                        Payment in progress
+                      </button>
+                    `;
+                  } else {
+                    paymentAction = `
+                      <button
+                        class="pay-btn"
+                        type="button"
+                        data-pay="${settlement.amount}"
+                        data-to="${toId}"
+                      >
+                        Pay
+                        ${formatMoney(
+                          settlement.amount
+                        )}
+                      </button>
+                    `;
+                  }
+                }
               } else if (
                 isMyCredit
               ) {
-                paymentAction = `
-                  <span
-                    class="payment-status"
-                    style="
-                      color: var(--muted);
-                      font-size: 0.9rem;
-                    "
-                  >
-                    Awaiting payment
-                  </span>
-                `;
+                if (activeIntentsRes.error) {
+                  paymentAction = `
+                    <span style="color: var(--danger); font-size: 0.9rem;">
+                      Intent sync failed
+                    </span>
+                  `;
+                } else {
+                  const activeIntents = activeIntentsRes.intents || [];
+                  const claimIntent = activeIntents.find(i =>
+                    String(i.from._id || i.from.id || i.from) === String(fromId) &&
+                    String(i.to._id || i.to.id || i.to) === String(myId) &&
+                    i.status === 'payer_claimed'
+                  );
+
+                  if (claimIntent) {
+                    paymentAction = `
+                      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 5px;">
+                        <span style="color: var(--warning); font-size: 0.85rem; text-align: right;">
+                          Payment claim awaiting confirmation
+                        </span>
+                        <button
+                          class="btn btn-ghost"
+                          type="button"
+                          data-review-intent-id="${claimIntent.intentId}"
+                          style="font-size: 0.9rem; padding: 4px 10px;"
+                        >
+                          Review payment
+                        </button>
+                      </div>
+                    `;
+                  } else {
+                    paymentAction = `
+                      <span
+                        class="payment-status"
+                        style="
+                          color: var(--muted);
+                          font-size: 0.9rem;
+                        "
+                      >
+                        Awaiting payment
+                      </span>
+                    `;
+                  }
+                }
               }
 
               return `
@@ -1010,12 +1078,54 @@ if (!requireAuth()) {
               const toUserId =
                 button.dataset.to;
 
-              startPayment(
-                amount,
-                toUserId
-              );
+              openPaymentMethodModal(amount, toUserId);
             }
           );
+        });
+
+      sList
+        .querySelectorAll('[data-review-intent-id]')
+        .forEach((button) => {
+          button.addEventListener('click', () => {
+            const intentId = button.dataset.reviewIntentId;
+            const originalText = button.textContent;
+            button.textContent = 'Loading...';
+            button.disabled = true;
+            handleRecipientClaim(intentId).finally(() => {
+              button.textContent = originalText;
+              button.disabled = false;
+            });
+          });
+        });
+
+      sList
+        .querySelectorAll('[data-resume-intent-id]')
+        .forEach((button) => {
+          button.addEventListener('click', async () => {
+            const originalText = button.textContent;
+            button.textContent = 'Loading...';
+            button.disabled = true;
+
+            try {
+              const res = await api(`/payment/active/${groupId}`);
+              const intentId = button.dataset.resumeIntentId;
+
+              const activeIntent = (res.intents || []).find(i => i.intentId === intentId);
+
+              if (activeIntent && (activeIntent.status === 'pending' || activeIntent.status === 'payer_claimed')) {
+                currentPayerIntentId = intentId;
+                openUpiPayerModal(activeIntent);
+              } else {
+                alert('Payment intent no longer active or state changed. Refreshing...');
+                window.location.reload();
+              }
+            } catch (err) {
+              alert(err.message || 'Failed to fetch intent state.');
+            } finally {
+              button.textContent = originalText;
+              button.disabled = false;
+            }
+          });
         });
     }
 
@@ -1584,4 +1694,202 @@ if (!requireAuth()) {
         </div>
       `;
     });
+
+  /* =========================================================
+     DIRECT UPI FRONTEND LOGIC
+  ========================================================= */
+  let currentPayerIntentId = null;
+  let currentRecipientIntentId = null;
+
+  function openPaymentMethodModal(amount, toUserId) {
+    const modal = document.getElementById('paymentMethodModal');
+    modal.classList.add('open');
+
+    document.getElementById('closePaymentMethodBtn').onclick = () => modal.classList.remove('open');
+
+    document.getElementById('btnPayRazorpay').onclick = () => {
+      modal.classList.remove('open');
+      startPayment(amount, toUserId);
+    };
+
+    document.getElementById('btnPayUpi').onclick = () => {
+      modal.classList.remove('open');
+      startUpiPayment(amount, toUserId);
+    };
+  }
+
+  async function startUpiPayment(amount, toUserId) {
+    try {
+      const res = await api('/payment/intent', {
+        method: 'POST',
+        body: JSON.stringify({ groupId, toUserId, amount })
+      });
+
+      currentPayerIntentId = res.intentId;
+      openUpiPayerModal(res);
+    } catch (err) {
+      alert(err.message || "Failed to initiate UPI payment");
+    }
+  }
+
+  function openUpiPayerModal(intentData) {
+    const modal = document.getElementById('upiPayerModal');
+    const alertBox = document.getElementById('upiPayerAlert');
+    const linkContainer = document.getElementById('upiLinkContainer');
+    const btnCancel = document.getElementById('btnUpiCancel');
+    const btnClaim = document.getElementById('btnUpiClaim');
+    const statusText = document.getElementById('upiPayerStatusText');
+
+    hideAlert(alertBox);
+    modal.classList.add('open');
+    document.getElementById('closeUpiPayerBtn').onclick = () => modal.classList.remove('open');
+
+    if (intentData.status === 'pending') {
+      statusText.textContent = "Complete your payment using any UPI app.";
+      linkContainer.style.display = 'block';
+      btnCancel.style.display = 'block';
+      btnClaim.style.display = 'block';
+
+      const upiLink = document.getElementById('upiDeepLink');
+      const desktopMsg = document.getElementById('upiDesktopMessage');
+
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      if (isMobile) {
+        upiLink.style.display = 'block';
+        desktopMsg.style.display = 'none';
+        if (intentData.upiUri) upiLink.href = intentData.upiUri;
+      } else {
+        upiLink.style.display = 'none';
+        desktopMsg.style.display = 'block';
+      }
+
+    } else if (intentData.status === 'payer_claimed') {
+      statusText.textContent = "Payment claimed. Awaiting confirmation from the recipient.";
+      linkContainer.style.display = 'none';
+      btnCancel.style.display = 'none';
+      btnClaim.style.display = 'none';
+    }
+
+    btnClaim.onclick = async () => {
+      try {
+        const res = await api('/payment/claim', {
+          method: 'POST',
+          body: JSON.stringify({ intentId: currentPayerIntentId })
+        });
+        openUpiPayerModal(res);
+      } catch (err) {
+        showAlert(alertBox, err.message);
+      }
+    };
+
+    btnCancel.onclick = async () => {
+      try {
+        await api('/payment/cancel', {
+          method: 'POST',
+          body: JSON.stringify({ intentId: currentPayerIntentId })
+        });
+        modal.classList.remove('open');
+        window.location.reload();
+      } catch (err) {
+        showAlert(alertBox, err.message);
+      }
+    };
+  }
+
+  async function handleRecipientClaim(intentId) {
+    try {
+      const res = await api(`/payment/active/${groupId}`);
+      const intent = res.intents.find(i => i.intentId === intentId);
+
+      if (!intent) {
+        alert("Payment intent not found or already processed.");
+        window.location.href = `/group.html?id=${groupId}`;
+        return;
+      }
+
+      const myId = getUserId(me);
+      if (String(intent.to._id || intent.to.id || intent.to) !== String(myId)) {
+        alert("Payment claim is not available for your account.");
+        return; // UI stays on the page
+      }
+
+      if (intent.status !== 'payer_claimed') {
+        alert("This payment is not in a claimed state.");
+        window.location.reload();
+        return;
+      }
+
+      currentRecipientIntentId = intent.intentId;
+      const modal = document.getElementById('upiRecipientModal');
+      const alertBox = document.getElementById('upiRecipientAlert');
+      const statusText = document.getElementById('upiRecipientStatusText');
+
+      hideAlert(alertBox);
+      statusText.textContent = `${intent.payerName} claims they paid you ₹${intent.amount}. Please confirm if you received it.`;
+      modal.classList.add('open');
+
+      document.getElementById('closeUpiRecipientBtn').onclick = () => modal.classList.remove('open');
+
+      document.getElementById('btnUpiConfirm').onclick = async () => {
+        try {
+          await api('/payment/confirm', {
+            method: 'POST',
+            body: JSON.stringify({ intentId: currentRecipientIntentId })
+          });
+          window.location.href = `/group.html?id=${groupId}`;
+        } catch (err) {
+          showAlert(alertBox, err.message);
+        }
+      };
+
+      document.getElementById('btnUpiReject').onclick = async () => {
+        if (!confirm("Are you sure you want to reject this payment claim?")) return;
+        try {
+          await api('/payment/reject', {
+            method: 'POST',
+            body: JSON.stringify({ intentId: currentRecipientIntentId })
+          });
+          window.location.href = `/group.html?id=${groupId}`;
+        } catch (err) {
+          showAlert(alertBox, err.message);
+        }
+      };
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load active intent details.");
+    }
+  }
+
+  // Init recipient flow if URL param exists
+  const claimIntentId = params.get('claimIntentId');
+  if (claimIntentId) {
+    handleRecipientClaim(claimIntentId);
+  }
+
+  // Listen for FCM foreground claims
+  window.addEventListener('paymentClaim', (e) => {
+    if (e.detail && e.detail.paymentId && e.detail.groupId) {
+      if (e.detail.groupId === groupId) {
+        handleRecipientClaim(e.detail.paymentId);
+      } else {
+        window.location.href = `/group.html?id=${e.detail.groupId}&claimIntentId=${e.detail.paymentId}`;
+      }
+    }
+  });
+
+  window.addEventListener('paymentConfirmed', (e) => {
+    if (e.detail && e.detail.groupId === groupId) {
+      alert(`Payment confirmed by ${e.detail.recipientName || 'recipient'}! Ledger updated.`);
+      window.location.reload();
+    }
+  });
+
+  window.addEventListener('paymentRejected', (e) => {
+    if (e.detail && e.detail.groupId === groupId) {
+      alert(`Payment claim was rejected by ${e.detail.recipientName || 'recipient'}.`);
+      window.location.reload();
+    }
+  });
+
 }

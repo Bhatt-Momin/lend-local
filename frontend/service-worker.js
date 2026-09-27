@@ -103,12 +103,20 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle =
     payload.notification?.title || "LendLocal";
 
+  let url = "/dashboard.html";
+  if (payload.data?.groupId) {
+    if (payload.data.type === "payment_claim" && payload.data.paymentId) {
+      url = "/group.html?id=" + payload.data.groupId + "&claimIntentId=" + payload.data.paymentId;
+    } else if (payload.data.type === "payment_confirmed" || payload.data.type === "payment_rejected") {
+      url = "/group.html?id=" + payload.data.groupId;
+    }
+  }
   const notificationOptions = {
     body: payload.notification?.body || "",
     icon: "/icons/icon-192.png",
     badge: "/icons/icon-192.png",
     data: {
-      url: "/dashboard.html"
+      url: url
     }
   };
 
@@ -137,7 +145,7 @@ self.addEventListener("notificationclick", (event) => {
       }
 
       if (clients.openWindow) {
-        return clients.openWindow("/dashboard.html");
+        return clients.openWindow(event.notification.data.url || "/dashboard.html");
       }
     })
   );

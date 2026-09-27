@@ -650,6 +650,73 @@
 
   <!-- SCRIPTS -->
 
+
+  <!-- =========================================
+       PAYMENT METHOD MODAL
+  ========================================== -->
+  <div id="paymentMethodModal" class="modal-backdrop modern-modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal modern-modal">
+      <div class="modal-header">
+        <div>
+          <h2>Choose Payment Method</h2>
+          <p>Select how you want to settle this debt.</p>
+        </div>
+        <button type="button" class="close-modal" id="closePaymentMethodBtn">×</button>
+      </div>
+      <div class="modern-modal-actions" style="flex-direction: column; gap: 10px; margin-top: 20px;">
+        <button type="button" class="btn" id="btnPayUpi" style="width: 100%;">Pay directly via UPI</button>
+        <button type="button" class="btn btn-ghost" id="btnPayRazorpay" style="width: 100%;">Pay via Razorpay</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       UPI PAYER MODAL
+  ========================================== -->
+  <div id="upiPayerModal" class="modal-backdrop modern-modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal modern-modal">
+      <div class="modal-header">
+        <div>
+          <h2>Direct UPI Payment</h2>
+          <p id="upiPayerStatusText">Complete your payment using any UPI app.</p>
+        </div>
+        <button type="button" class="close-modal" id="closeUpiPayerBtn">×</button>
+      </div>
+      <div id="upiPayerAlert" class="alert"></div>
+
+      <div style="margin: 20px 0; text-align: center;" id="upiLinkContainer">
+        <a href="#" id="upiDeepLink" class="btn" style="display: none; text-decoration: none; padding: 12px; font-size: 1.1rem;" target="_blank">Open UPI App</a>
+        <p id="upiDesktopMessage" style="display: none; font-size: 1rem; color: var(--text-color); margin-top: 10px; font-weight: bold;">Open LendLocal on your phone to pay directly via UPI.</p>
+      </div>
+
+      <div class="modern-modal-actions" style="margin-top: 20px;">
+        <button type="button" class="btn btn-ghost" id="btnUpiCancel">Cancel Payment</button>
+        <button type="button" class="btn" id="btnUpiClaim" style="background: var(--success); color: white;">I've paid</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       UPI RECIPIENT MODAL
+  ========================================== -->
+  <div id="upiRecipientModal" class="modal-backdrop modern-modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal modern-modal">
+      <div class="modal-header">
+        <div>
+          <h2>Payment Claimed</h2>
+          <p id="upiRecipientStatusText">Someone claims they paid you.</p>
+        </div>
+        <button type="button" class="close-modal" id="closeUpiRecipientBtn">×</button>
+      </div>
+      <div id="upiRecipientAlert" class="alert"></div>
+
+      <div class="modern-modal-actions" style="margin-top: 20px;">
+        <button type="button" class="btn btn-ghost" id="btnUpiReject" style="color: var(--danger);">Reject</button>
+        <button type="button" class="btn" id="btnUpiConfirm" style="background: var(--success); color: white;">Confirm Receipt</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
   <script src="/js/api.js"></script>
