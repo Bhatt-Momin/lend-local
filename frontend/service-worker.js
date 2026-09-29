@@ -1,4 +1,4 @@
-const CACHE_NAME = "lendlocal-v10";
+const CACHE_NAME = "lendlocal-v11";
 
 const STATIC_ASSETS = [
   "/",

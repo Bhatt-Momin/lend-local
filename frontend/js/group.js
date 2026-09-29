@@ -482,7 +482,7 @@ if (!requireAuth()) {
 
               <span
                 style="
-                  color: var(--muted);
+                  color: var(--ll-text-muted);
                   font-size: 0.9rem;
                 "
               >
@@ -934,7 +934,7 @@ if (!requireAuth()) {
               if (isMyDebt) {
                 if (activeIntentsRes.error) {
                   paymentAction = `
-                    <span style="color: var(--danger); font-size: 0.9rem;">
+                    <span style="color: var(--ll-negative); font-size: 0.9rem;">
                       Intent sync failed
                     </span>
                   `;
@@ -978,7 +978,7 @@ if (!requireAuth()) {
               ) {
                 if (activeIntentsRes.error) {
                   paymentAction = `
-                    <span style="color: var(--danger); font-size: 0.9rem;">
+                    <span style="color: var(--ll-negative); font-size: 0.9rem;">
                       Intent sync failed
                     </span>
                   `;
@@ -993,7 +993,7 @@ if (!requireAuth()) {
                   if (claimIntent) {
                     paymentAction = `
                       <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 5px;">
-                        <span style="color: var(--warning); font-size: 0.85rem; text-align: right;">
+                        <span style="color: var(--ll-warning); font-size: 0.85rem; text-align: right;">
                           Payment claim awaiting confirmation
                         </span>
                         <button
@@ -1011,7 +1011,7 @@ if (!requireAuth()) {
                       <span
                         class="payment-status"
                         style="
-                          color: var(--muted);
+                          color: var(--ll-text-muted);
                           font-size: 0.9rem;
                         "
                       >

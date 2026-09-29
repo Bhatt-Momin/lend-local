@@ -658,13 +658,13 @@ body.ll-group-page .settlement-item .pay-btn:hover {
   transform: translateY(-2px) !important;
 }
 
-body.ll-group-page .expense-item .actions button.btn-danger {
+body.ll-group-page button.btn-danger {
   color: var(--ll-negative) !important;
   background: rgba(251, 113, 133, 0.1) !important;
   border-color: rgba(251, 113, 133, 0.2) !important;
 }
 
-body.ll-group-page .expense-item .actions button.btn-danger:hover {
+body.ll-group-page button.btn-danger:hover {
   background: rgba(251, 113, 133, 0.2) !important;
 }
 
