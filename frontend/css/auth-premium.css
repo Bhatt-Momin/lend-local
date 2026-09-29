@@ -1,0 +1,127 @@
+/* ============================================================
+   auth-premium.css — Auth Pages Redesign (Login & Register)
+   ============================================================ */
+
+/* Redesign Shell to a single centered layout rather than split */
+body.ll-auth-page .auth-shell {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  min-height: 100vh !important;
+  background: transparent !important;
+  padding: 1.5rem !important;
+}
+
+/* Hide or redefine the old hero */
+body.ll-auth-page .auth-hero {
+  display: none !important; /* The old split screen hero is removed in the premium design for a central focused card */
+}
+
+/* Auth Card Premium Surface */
+body.ll-auth-page .auth-panel {
+  width: 100% !important;
+  display: flex !important;
+  justify-content: center !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  padding: 0 !important;
+}
+
+body.ll-auth-page .auth-card {
+  width: 100% !important;
+  max-width: 420px !important;
+  background: var(--ll-surface) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: var(--ll-radius-lg) !important;
+  padding: 3rem 2.5rem !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+body.ll-auth-page .auth-card::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important; left: 0 !important; right: 0 !important; height: 1px !important;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent) !important;
+}
+
+/* Typography Overrides */
+body.ll-auth-page .auth-card h1 {
+  font-family: var(--ll-font-display) !important;
+  font-weight: 800 !important;
+  font-size: 2rem !important;
+  color: var(--ll-text) !important;
+  margin-bottom: 0.5rem !important;
+  letter-spacing: -0.03em !important;
+}
+
+body.ll-auth-page .auth-card .lede {
+  color: var(--ll-text-muted) !important;
+  font-size: 0.95rem !important;
+  margin-bottom: 2rem !important;
+}
+
+/* Switch links */
+body.ll-auth-page .auth-switch {
+  text-align: center !important;
+  margin-top: 2rem !important;
+  color: var(--ll-text-muted) !important;
+  font-size: 0.9rem !important;
+}
+
+body.ll-auth-page .auth-switch a {
+  color: var(--ll-brand) !important;
+  text-decoration: none !important;
+  font-weight: 600 !important;
+  transition: all 0.2s var(--ll-ease) !important;
+}
+
+body.ll-auth-page .auth-switch a:hover {
+  color: var(--ll-positive) !important;
+}
+
+/* Inputs are handled by design-system.css, just space them properly */
+body.ll-auth-page .form-stack .field {
+  margin-bottom: 1.25rem !important;
+}
+body.ll-auth-page .form-stack .field input {
+  padding: 0.85rem 1rem !important;
+  border-radius: var(--ll-radius-sm) !important;
+  font-size: 1rem !important;
+}
+
+/* Auth Buttons */
+body.ll-auth-page .btn-primary {
+  padding: 0.85rem 1.5rem !important;
+  font-size: 1rem !important;
+  margin-top: 1rem !important;
+}
+
+
+/* Auth Branding Header */
+body.ll-auth-page .auth-brand {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.75rem !important;
+  margin-bottom: 2rem !important;
+  text-decoration: none !important;
+}
+
+body.ll-auth-page .auth-brand img {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 8px !important;
+  object-fit: contain !important;
+}
+
+body.ll-auth-page .auth-brand strong {
+  font-family: var(--ll-font-display) !important;
+  font-size: 1.5rem !important;
+  font-weight: 800 !important;
+  color: var(--ll-text) !important;
+  letter-spacing: -0.02em !important;
+}
