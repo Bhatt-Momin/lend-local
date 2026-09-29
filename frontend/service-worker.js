@@ -1,4 +1,4 @@
-const CACHE_NAME = "lendlocal-v7";
+const CACHE_NAME = "lendlocal-v9";
 
 const STATIC_ASSETS = [
   "/",
@@ -10,6 +10,9 @@ const STATIC_ASSETS = [
   "/css/styles.css",
   "/css/animations.css",
   "/css/game-ui.css",
+  "/css/design-system.css",
+  "/css/dashboard-premium.css",
+  "/css/group-premium.css",
   "/js/api.js",
   "/js/dashboard.js",
   "/js/effects.js",

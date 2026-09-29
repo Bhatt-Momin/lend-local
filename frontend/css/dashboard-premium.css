@@ -1,0 +1,165 @@
+/* ============================================================
+   dashboard-premium.css — Dashboard Redesign
+   ============================================================ */
+
+/* Balance Card (Financial Centerpiece) */
+body.ll-dashboard-page .balance-card {
+  background: var(--ll-surface) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 24px !important;
+  padding: 3rem !important;
+  text-align: center !important;
+  position: relative !important;
+  overflow: hidden !important;
+  margin-bottom: 3rem !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4) !important;
+  display: block !important;
+}
+
+body.ll-dashboard-page .balance-card::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important; left: 0 !important; right: 0 !important; height: 1px !important;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent) !important;
+}
+
+body.ll-dashboard-page .balance-label {
+  font-size: 0.75rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 2px !important;
+  color: var(--ll-text-muted) !important;
+  margin-bottom: 1rem !important;
+  font-weight: 600 !important;
+  display: block !important;
+}
+
+body.ll-dashboard-page .net-balance {
+  font-family: var(--ll-font-mono) !important;
+  font-size: clamp(3rem, 8vw, 4.5rem) !important;
+  font-weight: 300 !important;
+  color: var(--ll-text) !important; /* Not always positive, it should inherit its own color based on class in JS, wait, JS sets color? Let's check JS */
+  letter-spacing: -0.05em !important;
+  line-height: 1 !important;
+  margin-bottom: 0.5rem !important;
+}
+/* If the JS doesn't add positive/negative classes to #netBalance, we'll just keep it text color or positive based on JS class. Let's provide classes just in case */
+body.ll-dashboard-page .net-balance.positive {
+  color: var(--ll-positive) !important;
+  text-shadow: 0 0 30px rgba(52, 211, 153, 0.2) !important;
+}
+body.ll-dashboard-page .net-balance.negative {
+  color: var(--ll-negative) !important;
+  text-shadow: 0 0 30px rgba(251, 113, 133, 0.2) !important;
+}
+
+body.ll-dashboard-page .balance-status {
+  color: var(--ll-text-muted) !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  margin-bottom: 0 !important;
+  letter-spacing: 1px !important;
+  text-transform: uppercase !important;
+}
+body.ll-dashboard-page .balance-status.positive { color: var(--ll-positive) !important; }
+body.ll-dashboard-page .balance-status.negative { color: var(--ll-negative) !important; }
+
+/* Redecorate the circles in balance card to look like subtle glows */
+body.ll-dashboard-page .balance-decoration .circle {
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Groups Section Header */
+body.ll-dashboard-page .section-header {
+  background: transparent !important;
+  border: none !important;
+  margin-bottom: 1.5rem !important;
+}
+
+body.ll-dashboard-page .section-header h2 {
+  color: var(--ll-text) !important;
+}
+
+body.ll-dashboard-page .section-header p {
+  color: var(--ll-text-muted) !important;
+}
+
+body.ll-dashboard-page .activity-indicator {
+  color: var(--ll-text-subtle) !important;
+  background: transparent !important;
+}
+body.ll-dashboard-page .activity-indicator span {
+  background: var(--ll-brand) !important;
+  box-shadow: 0 0 6px var(--ll-brand-glow) !important;
+}
+
+/* Group Cards */
+body.ll-dashboard-page .modern-group-card {
+  background: rgba(255,255,255,0.01) !important;
+  border: 1px solid transparent !important;
+  border-radius: 16px !important;
+  transition: all 0.3s var(--ll-ease) !important;
+  box-shadow: none !important;
+  color: var(--ll-text) !important;
+  margin-bottom: 0.75rem !important;
+}
+
+body.ll-dashboard-page .modern-group-card:hover {
+  background: var(--ll-surface-raised) !important;
+  border-color: var(--ll-border) !important;
+  transform: translateX(4px) !important;
+}
+
+body.ll-dashboard-page .group-icon {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), transparent) !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  color: var(--ll-brand) !important;
+  border-radius: 12px !important;
+  font-family: var(--ll-font-display) !important;
+  font-weight: 700 !important;
+  font-size: 1.25rem !important;
+}
+
+body.ll-dashboard-page .group-main h3 {
+  font-weight: 600 !important;
+  font-size: 1.125rem !important;
+  margin-bottom: 0.25rem !important;
+  color: var(--ll-text) !important;
+}
+
+body.ll-dashboard-page .group-main .meta {
+  font-size: 0.875rem !important;
+  color: var(--ll-text-muted) !important;
+}
+
+body.ll-dashboard-page .group-balance-label {
+  color: var(--ll-text-muted) !important;
+  text-transform: uppercase !important;
+  font-size: 0.7rem !important;
+  letter-spacing: 1px !important;
+}
+
+body.ll-dashboard-page .group-balance .value {
+  font-family: var(--ll-font-mono) !important;
+  font-size: 1.25rem !important;
+  font-weight: 500 !important;
+  margin-top: 0.2rem !important;
+}
+
+body.ll-dashboard-page .group-balance .value.positive {
+  color: var(--ll-positive) !important;
+}
+
+body.ll-dashboard-page .group-balance .value.negative {
+  color: var(--ll-negative) !important;
+}
+
+/* Empty State */
+body.ll-dashboard-page .modern-empty {
+  background: rgba(255,255,255,0.02) !important;
+  border: 1px dashed var(--ll-border) !important;
+  border-radius: 16px !important;
+  color: var(--ll-text-muted) !important;
+}
+body.ll-dashboard-page .modern-empty h3 {
+  color: var(--ll-text) !important;
+}

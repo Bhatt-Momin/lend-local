@@ -1,0 +1,859 @@
+/*
+ * group-premium.css — Stage 1: Dark Foundation + Ambient Background
+ *
+ * ALL rules scoped under body.ll-group-page so Dashboard and
+ * other pages are completely unaffected.
+ *
+ * Zero JS changes required. Zero class/ID renames.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+
+/* ============================================================
+   DESIGN TOKENS — only active when body.ll-group-page is present
+   ============================================================ */
+
+body.ll-group-page {
+  --ll-bg:            #030507 !important;
+  --ll-surface:       #0a0e14 !important;
+  --ll-surface-mid:   #0f1520 !important;
+  --ll-surface-raised: rgba(255, 255, 255, 0.03) !important;
+  --ll-surface-glass: rgba(10, 14, 20, 0.7) !important;
+  --ll-border:        rgba(255, 255, 255, 0.07) !important;
+  --ll-border-bright: rgba(255, 255, 255, 0.13) !important;
+
+  --ll-text:          #f0f4f8 !important;
+  --ll-text-muted:    #7a93a6 !important;
+  --ll-text-subtle:   rgba(122, 147, 166, 0.5) !important;
+
+  --ll-brand:         #10B981 !important;
+  --ll-brand-dim:     rgba(16, 185, 129, 0.15) !important;
+  --ll-brand-glow:    rgba(16, 185, 129, 0.25) !important;
+  --ll-positive:      #34D399 !important;
+  --ll-negative:      #FB7185 !important;
+  --ll-warning:       #FBBF24 !important;
+
+  --ll-ambient-1:     rgba(16, 185, 129, 0.07);
+  --ll-ambient-2:     rgba(79, 70, 229, 0.05);
+  --ll-ambient-3:     rgba(139, 92, 246, 0.035);
+
+  --ll-font-display:  'Manrope', system-ui, sans-serif !important;
+  --ll-font-body:     'Manrope', system-ui, sans-serif !important;
+  --ll-font-mono:     'JetBrains Mono', 'SF Mono', monospace !important;
+
+  --ll-ease:          cubic-bezier(0.16, 1, 0.3, 1) !important;
+  --ll-radius-sm:     10px !important;
+  --ll-radius-md:     16px !important;
+  --ll-radius-lg:     22px !important;
+}
+
+/* ============================================================
+   AMBIENT BACKGROUND
+   ============================================================ */
+
+.ll-ambient-bg {
+  position: fixed;
+  inset: -40%;
+  z-index: -1;
+  background-image:
+    radial-gradient(circle at 18% 28%,  var(--ll-ambient-1) 0%, transparent 42%),
+    radial-gradient(circle at 82% 68%,  var(--ll-ambient-2) 0%, transparent 42%),
+    radial-gradient(circle at 50% 95%,  var(--ll-ambient-3) 0%, transparent 50%);
+  filter: blur(90px);
+  animation: llAmbientBreathe 22s infinite alternate ease-in-out;
+  pointer-events: none;
+  will-change: transform;
+}
+
+@keyframes llAmbientBreathe {
+  0%   { transform: scale(1)    translate(0,    0);    }
+  100% { transform: scale(1.08) translate(2.5%, 2.5%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ll-ambient-bg { animation: none; }
+}
+
+/* ============================================================
+   PAGE ENTRANCE
+   ============================================================ */
+
+body.ll-group-page {
+  animation: llPageFadeIn 0.7s var(--ll-ease) both;
+}
+
+@keyframes llPageFadeIn {
+  from { opacity: 0; filter: blur(6px); }
+  to   { opacity: 1; filter: blur(0);   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.ll-group-page { animation: none; }
+}
+
+/* ============================================================
+   GLOBAL DARK RESET — scoped to Group page
+   ============================================================ */
+
+/* Background & text */
+body.ll-group-page {
+  background: var(--ll-bg) !important;
+  background-attachment: unset !important;
+  color: var(--ll-text) !important;
+  font-family: var(--ll-font-body) !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Kill the grid overlay (body::before) */
+body.ll-group-page::before {
+  display: none !important;
+}
+
+/* Kill leftover light gradients on modern-page wrapper */
+body.ll-group-page .modern-page {
+  background: transparent !important;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+body.ll-group-page .modern-header {
+  background: rgba(3, 5, 7, 0.85) !important;
+  border-bottom: 1px solid var(--ll-border) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+body.ll-group-page .app-header-inner {
+  background: transparent !important;
+}
+
+body.ll-group-page .modern-logo {
+  color: var(--ll-text) !important;
+}
+
+body.ll-group-page .modern-logo strong {
+  color: var(--ll-text) !important;
+  font-family: var(--ll-font-display) !important;
+}
+
+body.ll-group-page .modern-logo small {
+  color: var(--ll-text-muted) !important;
+}
+
+body.ll-group-page .logo-icon {
+  background: linear-gradient(135deg, var(--ll-brand), #3b82f6) !important;
+  color: #000 !important;
+}
+
+/* User avatar */
+body.ll-group-page .user-avatar {
+  background: var(--ll-brand-dim) !important;
+  color: var(--ll-brand) !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+  font-family: var(--ll-font-display) !important;
+}
+
+/* User chip text */
+body.ll-group-page .user-chip {
+  color: var(--ll-text-muted) !important;
+}
+
+/* Logout button */
+body.ll-group-page .modern-logout {
+  color: var(--ll-text-muted) !important;
+  background: transparent !important;
+  border: 1px solid var(--ll-border) !important;
+}
+
+body.ll-group-page .modern-logout:hover {
+  color: var(--ll-text) !important;
+  border-color: var(--ll-border-bright) !important;
+  background: var(--ll-surface-raised) !important;
+}
+
+/* ============================================================
+   MAIN CONTAINER
+   ============================================================ */
+
+body.ll-group-page .modern-container,
+body.ll-group-page .container {
+  background: transparent !important;
+}
+
+/* Back link */
+body.ll-group-page .back-link {
+  color: var(--ll-text-muted) !important;
+  background: transparent !important;
+  border: none !important;
+  text-decoration: none !important;
+  transition: color 0.2s !important;
+}
+
+body.ll-group-page .back-link:hover {
+  color: var(--ll-text) !important;
+  text-decoration: none !important;
+}
+
+/* ============================================================
+   GROUP INTRO (name + add-expense button)
+   ============================================================ */
+
+body.ll-group-page .dashboard-intro.group-intro {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+body.ll-group-page .welcome-label {
+  color: var(--ll-brand) !important;
+  letter-spacing: 2px !important;
+}
+
+body.ll-group-page .dashboard-intro h1,
+body.ll-group-page #groupName {
+  color: var(--ll-text) !important;
+  font-family: var(--ll-font-display) !important;
+}
+
+body.ll-group-page #groupDesc {
+  color: var(--ll-text-muted) !important;
+}
+
+/* Add Expense button */
+body.ll-group-page #openExpense,
+body.ll-group-page .add-group-btn {
+  background: var(--ll-brand-dim) !important;
+  color: var(--ll-brand) !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.08) !important;
+  transition: background 0.2s var(--ll-ease), box-shadow 0.2s var(--ll-ease), transform 0.15s var(--ll-ease) !important;
+}
+
+body.ll-group-page #openExpense:hover,
+body.ll-group-page .add-group-btn:hover {
+  background: rgba(16, 185, 129, 0.22) !important;
+  border-color: rgba(16, 185, 129, 0.5) !important;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.18) !important;
+  transform: translateY(-2px) !important;
+}
+
+body.ll-group-page #openExpense:active,
+body.ll-group-page .add-group-btn:active {
+  transform: scale(0.96) !important;
+}
+
+/* ============================================================
+   GROUP HERO CARD (decorative section — no JS deps)
+   ============================================================ */
+
+body.ll-group-page .group-hero-card {
+  display: none !important; /* hidden in dark design — no data, purely decorative */
+}
+
+/* ============================================================
+   STAT CARDS
+   ============================================================ */
+
+body.ll-group-page .dashboard-stats {
+  background: transparent !important;
+}
+
+body.ll-group-page .modern-stat {
+  background: var(--ll-surface) !important;
+  border: 1px solid var(--ll-border) !important;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.3) !important;
+}
+
+body.ll-group-page .modern-stat::before,
+body.ll-group-page .modern-stat::after {
+  display: none !important;
+}
+
+body.ll-group-page .modern-stat:hover {
+  background: var(--ll-surface-mid) !important;
+  border-color: var(--ll-border-bright) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4) !important;
+  transform: translateY(-2px) !important;
+}
+
+body.ll-group-page .modern-stat .label {
+  color: var(--ll-text-muted) !important;
+}
+
+body.ll-group-page .modern-stat .value {
+  color: var(--ll-text) !important;
+  font-family: var(--ll-font-mono) !important;
+}
+
+body.ll-group-page .modern-stat .value.positive {
+  color: var(--ll-positive) !important;
+}
+
+body.ll-group-page .modern-stat .value.negative {
+  color: var(--ll-negative) !important;
+}
+
+body.ll-group-page .stat-icon {
+  background: var(--ll-brand-dim) !important;
+  color: var(--ll-brand) !important;
+  border: 1px solid rgba(16, 185, 129, 0.2) !important;
+}
+
+/* ============================================================
+   SECTION HEADERS + ACTIVITY INDICATOR
+   ============================================================ */
+
+body.ll-group-page .section-header {
+  background: transparent !important;
+  border: none !important;
+}
+
+body.ll-group-page .section-header h2 {
+  color: var(--ll-text) !important;
+  font-family: var(--ll-font-display) !important;
+}
+
+body.ll-group-page .section-header p {
+  color: var(--ll-text-muted) !important;
+}
+
+body.ll-group-page .activity-indicator {
+  color: var(--ll-text-subtle) !important;
+  background: transparent !important;
+}
+
+body.ll-group-page .activity-indicator span {
+  background: var(--ll-brand) !important;
+  box-shadow: 0 0 6px var(--ll-brand-glow) !important;
+}
+
+/* ============================================================
+   FOCUS STATES (accessibility)
+   ============================================================ */
+
+body.ll-group-page :focus-visible {
+  outline: 2px solid var(--ll-brand) !important;
+  outline-offset: 3px !important;
+  border-radius: 4px !important;
+}
+
+/* ============================================================
+   STAGE 2: TYPOGRAPHY, HERO, STATS
+   ============================================================ */
+
+body.ll-group-page h1,
+body.ll-group-page h2,
+body.ll-group-page h3,
+body.ll-group-page h4 {
+  font-family: var(--ll-font-display) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+}
+
+body.ll-group-page .dashboard-intro.group-intro {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: flex-end !important;
+  margin-bottom: 3.5rem !important;
+  padding-top: 1rem !important;
+  gap: 1.5rem !important;
+  flex-direction: row !important;
+}
+
+@media (max-width: 640px) {
+  body.ll-group-page .dashboard-intro.group-intro {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+}
+
+body.ll-group-page .welcome-label {
+  color: var(--ll-brand) !important;
+  font-size: 0.75rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 2px !important;
+  font-weight: 600 !important;
+  margin-bottom: 0.75rem !important;
+  display: block !important;
+}
+
+body.ll-group-page #groupName {
+  font-size: clamp(2rem, 6vw, 3.5rem) !important;
+  font-weight: 800 !important;
+  margin: 0 0 0.5rem !important;
+  letter-spacing: -0.04em !important;
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255,255,255,0.7) 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  line-height: 1.1 !important;
+}
+
+body.ll-group-page #groupDesc {
+  color: var(--ll-text-muted) !important;
+  font-size: 0.95rem !important;
+  margin: 0 !important;
+}
+
+body.ll-group-page #openExpense,
+body.ll-group-page .add-group-btn {
+  min-height: 48px !important;
+  padding: 0 1.75rem !important;
+  border-radius: 99px !important;
+  font-family: var(--ll-font-body) !important;
+  font-weight: 600 !important;
+  font-size: 0.9rem !important;
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: var(--ll-brand) !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.05) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  transition: all 0.3s var(--ll-ease) !important;
+}
+
+body.ll-group-page #openExpense:hover,
+body.ll-group-page .add-group-btn:hover {
+  background: rgba(16, 185, 129, 0.25) !important;
+  border-color: rgba(16, 185, 129, 0.5) !important;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15), 0 0 20px rgba(16, 185, 129, 0.2) inset !important;
+  transform: translateY(-2px) !important;
+  color: #fff !important;
+}
+
+body.ll-group-page .dashboard-stats {
+  gap: 1.5rem !important;
+  margin-bottom: 3rem !important;
+  display: flex !important;
+  flex-direction: row !important;
+}
+
+@media (max-width: 768px) {
+  body.ll-group-page .dashboard-stats {
+    flex-direction: column !important;
+  }
+}
+
+body.ll-group-page .modern-stat {
+  background: var(--ll-surface) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 20px !important;
+  padding: 1.5rem 1.75rem !important;
+  position: relative !important;
+  overflow: hidden !important;
+  box-shadow: 0 12px 24px rgba(0,0,0,0.4) !important;
+  transition: all 0.4s var(--ll-ease) !important;
+  align-items: flex-start !important;
+  gap: 1.25rem !important;
+  flex: 1 !important;
+}
+
+body.ll-group-page .modern-stat::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 1px !important;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent) !important;
+  display: block !important;
+}
+
+body.ll-group-page .modern-stat:hover {
+  background: var(--ll-surface-mid) !important;
+  border-color: var(--ll-border-bright) !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 40px rgba(16, 185, 129, 0.05) inset !important;
+  transform: translateY(-4px) !important;
+}
+
+body.ll-group-page .modern-stat .stat-icon {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, var(--ll-brand-glow), transparent) !important;
+  border: 1px solid rgba(16, 185, 129, 0.2) !important;
+  color: var(--ll-brand) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.25rem !important;
+  font-family: var(--ll-font-display) !important;
+  font-weight: 600 !important;
+  flex-shrink: 0 !important;
+}
+
+body.ll-group-page .modern-stat > div {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+}
+
+body.ll-group-page .modern-stat .label {
+  font-size: 0.75rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1.5px !important;
+  color: var(--ll-text-muted) !important;
+  margin-bottom: 0.5rem !important;
+  font-weight: 600 !important;
+}
+
+body.ll-group-page .modern-stat .value {
+  font-family: var(--ll-font-mono) !important;
+  font-size: 1.75rem !important;
+  font-weight: 500 !important;
+  color: var(--ll-text) !important;
+  line-height: 1 !important;
+  letter-spacing: -0.02em !important;
+}
+
+body.ll-group-page .modern-stat .value.positive {
+  color: var(--ll-positive) !important;
+  text-shadow: 0 0 20px rgba(52, 211, 153, 0.2) !important;
+}
+
+body.ll-group-page .modern-stat .value.negative {
+  color: var(--ll-negative) !important;
+  text-shadow: 0 0 20px rgba(251, 113, 133, 0.2) !important;
+}
+
+
+/* ============================================================
+   STAGE 3: TABS & CONTENT PANELS (Fixing the white elements)
+   ============================================================ */
+
+/* Tabs */
+body.ll-group-page .modern-tabs {
+  display: flex !important;
+  gap: 2rem !important;
+  border-bottom: 1px solid var(--ll-border) !important;
+  margin-bottom: 2rem !important;
+  position: relative !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+body.ll-group-page .modern-tabs .tab {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 1rem 0 !important;
+  font-size: 1rem !important;
+  font-weight: 500 !important;
+  font-family: var(--ll-font-body) !important;
+  color: var(--ll-text-muted) !important;
+  cursor: pointer !important;
+  transition: color 0.3s !important;
+  position: relative !important;
+}
+
+body.ll-group-page .modern-tabs .tab:hover {
+  color: var(--ll-text) !important;
+  background: transparent !important;
+}
+
+body.ll-group-page .modern-tabs .tab.active {
+  color: var(--ll-text) !important;
+  background: transparent !important;
+}
+
+body.ll-group-page .modern-tabs .tab.active::after {
+  content: '' !important;
+  position: absolute !important;
+  bottom: -1px !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 2px !important;
+  background: var(--ll-brand) !important;
+  border-radius: 2px 2px 0 0 !important;
+  box-shadow: 0 -2px 10px var(--ll-brand-glow) !important;
+}
+
+
+/* Empty States */
+body.ll-group-page .empty {
+  background: rgba(255,255,255,0.02) !important;
+  border: 1px dashed var(--ll-border) !important;
+  border-radius: 16px !important;
+  color: var(--ll-text-muted) !important;
+}
+body.ll-group-page .empty strong {
+  color: var(--ll-text) !important;
+}
+
+
+/* FEED ROWS: Expenses, Settlements, Balances, Members */
+body.ll-group-page .expense-item,
+body.ll-group-page .settlement-item,
+body.ll-group-page .balance-item,
+body.ll-group-page .member-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 1rem !important;
+  padding: 1.25rem !important;
+  background: rgba(255,255,255,0.01) !important;
+  border: 1px solid transparent !important;
+  border-radius: 16px !important;
+  transition: all 0.3s var(--ll-ease) !important;
+  box-shadow: none !important;
+  color: var(--ll-text) !important;
+  margin-bottom: 0.75rem !important;
+}
+
+body.ll-group-page .expense-item:hover,
+body.ll-group-page .settlement-item:hover,
+body.ll-group-page .balance-item:hover,
+body.ll-group-page .member-item:hover {
+  background: var(--ll-surface-raised) !important;
+  border-color: var(--ll-border) !important;
+  transform: translateX(4px) !important;
+}
+
+/* Typography inside rows */
+body.ll-group-page .expense-item h4 {
+  font-weight: 600 !important;
+  font-size: 1.125rem !important;
+  margin-bottom: 0.25rem !important;
+  color: var(--ll-text) !important;
+}
+
+body.ll-group-page .expense-item .meta,
+body.ll-group-page .member-item .email,
+body.ll-group-page .settlement-item .flow {
+  font-size: 0.875rem !important;
+  color: var(--ll-text-muted) !important;
+}
+
+body.ll-group-page .expense-item .amount,
+body.ll-group-page .settlement-item strong {
+  font-family: var(--ll-font-mono) !important;
+  font-size: 1.25rem !important;
+  font-weight: 500 !important;
+  color: var(--ll-text) !important;
+  margin-left: auto !important;
+}
+
+/* Buttons inside rows */
+body.ll-group-page .expense-item .actions button,
+body.ll-group-page .member-item button,
+body.ll-group-page .settlement-item .pay-btn {
+  background: var(--ll-surface-raised) !important;
+  color: var(--ll-text) !important;
+  border: 1px solid var(--ll-border) !important;
+  padding: 0.4rem 1rem !important;
+  border-radius: 99px !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s var(--ll-ease) !important;
+}
+
+body.ll-group-page .expense-item .actions button:hover,
+body.ll-group-page .member-item button:hover,
+body.ll-group-page .settlement-item .pay-btn:hover {
+  background: rgba(255,255,255,0.06) !important;
+  border-color: rgba(255,255,255,0.1) !important;
+  transform: translateY(-2px) !important;
+}
+
+body.ll-group-page .expense-item .actions button.btn-danger {
+  color: var(--ll-negative) !important;
+  background: rgba(251, 113, 133, 0.1) !important;
+  border-color: rgba(251, 113, 133, 0.2) !important;
+}
+
+body.ll-group-page .expense-item .actions button.btn-danger:hover {
+  background: rgba(251, 113, 133, 0.2) !important;
+}
+
+/* Balance Pills */
+body.ll-group-page .balance-pill {
+  font-family: var(--ll-font-mono) !important;
+  font-size: 0.9rem !important;
+  padding: 0.3rem 0.8rem !important;
+  border-radius: 8px !important;
+  background: rgba(255,255,255,0.05) !important;
+  color: var(--ll-text) !important;
+  margin-left: auto !important;
+}
+
+body.ll-group-page .balance-pill.positive {
+  background: rgba(52, 211, 153, 0.1) !important;
+  color: var(--ll-positive) !important;
+  border: 1px solid rgba(52, 211, 153, 0.2) !important;
+}
+
+body.ll-group-page .balance-pill.negative {
+  background: rgba(251, 113, 133, 0.1) !important;
+  color: var(--ll-negative) !important;
+  border: 1px solid rgba(251, 113, 133, 0.2) !important;
+}
+
+/* Add Member Section */
+body.ll-group-page .add-member-card {
+  background: var(--ll-surface) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 24px !important;
+  padding: 2rem !important;
+  margin-top: 2rem !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+}
+
+body.ll-group-page .add-member-card strong {
+  color: var(--ll-text) !important;
+}
+
+body.ll-group-page .add-member-card p {
+  color: var(--ll-text-muted) !important;
+}
+
+body.ll-group-page .add-member-card input {
+  background: rgba(0,0,0,0.5) !important;
+  border: 1px solid var(--ll-border) !important;
+  color: var(--ll-text) !important;
+  padding: 0.75rem 1rem !important;
+  border-radius: 12px !important;
+}
+
+body.ll-group-page .add-member-card input::placeholder {
+  color: var(--ll-text-subtle) !important;
+}
+
+body.ll-group-page .add-member-card .btn-secondary {
+  background: var(--ll-surface-raised) !important;
+  color: var(--ll-text) !important;
+  border: 1px solid var(--ll-border) !important;
+  padding: 0.75rem 1.5rem !important;
+  border-radius: 12px !important;
+}
+
+body.ll-group-page .add-member-card .btn-secondary:hover {
+  background: rgba(255,255,255,0.06) !important;
+  border-color: rgba(255,255,255,0.1) !important;
+}
+
+/* ============================================================
+   STAGE 5: POLISH PASS (Hierarchy & Consistency)
+   ============================================================ */
+
+/* 1. Back to groups */
+body.ll-group-page .back-link {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  height: 36px !important;
+  padding: 0 1rem 0 0.5rem !important;
+  background: var(--ll-surface-raised) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 99px !important;
+  color: var(--ll-text-muted) !important;
+  font-family: var(--ll-font-body) !important;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+  transition: all 0.2s var(--ll-ease) !important;
+  margin-bottom: 2rem !important;
+}
+
+body.ll-group-page .back-link .back-icon {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 26px !important;
+  height: 26px !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  border-radius: 50% !important;
+  font-size: 1.1rem !important;
+}
+
+body.ll-group-page .back-link:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: var(--ll-text) !important;
+  transform: translateX(-4px) !important;
+}
+
+body.ll-group-page .back-link:hover .back-icon {
+  color: var(--ll-brand) !important;
+}
+
+
+/* 2. Tighten Hero Spacing */
+body.ll-group-page .dashboard-intro.group-intro {
+  margin-bottom: 1.5rem !important; /* Reduced from 3.5rem */
+  padding-top: 0 !important;      /* Reduced */
+}
+body.ll-group-page .dashboard-stats {
+  margin-bottom: 2.5rem !important; /* Reduced from 3rem */
+}
+
+
+/* 3. Polish Tabs */
+body.ll-group-page .modern-tabs {
+  margin-bottom: 1.5rem !important;
+}
+body.ll-group-page .modern-tabs .tab {
+  padding: 0.75rem 1.5rem !important;
+}
+body.ll-group-page .modern-tabs .tab.active {
+  color: var(--ll-brand) !important;
+  background: linear-gradient(180deg, transparent, rgba(16, 185, 129, 0.05)) !important;
+}
+body.ll-group-page .modern-tabs .tab:hover {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-radius: 6px 6px 0 0 !important;
+}
+
+
+/* 4. Improve Member Rows & Net Balances */
+body.ll-group-page .member-item,
+body.ll-group-page .expense-item,
+body.ll-group-page .settlement-item,
+body.ll-group-page .balance-item {
+  background: var(--ll-surface-raised) !important; /* increased contrast from 0.01 */
+  border-color: var(--ll-border) !important;
+}
+body.ll-group-page .member-item:hover,
+body.ll-group-page .expense-item:hover,
+body.ll-group-page .settlement-item:hover,
+body.ll-group-page .balance-item:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+
+/* 5. Polish Add Member */
+body.ll-group-page .add-member-heading {
+  display: flex !important;
+  align-items: center !important;
+  gap: 1rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+body.ll-group-page .add-member-icon {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), transparent) !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  color: var(--ll-brand) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.5rem !important;
+  flex-shrink: 0 !important;
+  margin: 0 !important; /* overriding old margin */
+}
+
+body.ll-group-page .add-member-heading strong {
+  display: block !important;
+  font-size: 1.1rem !important;
+  margin-bottom: 0.2rem !important;
+  font-family: var(--ll-font-display) !important;
+}
+body.ll-group-page .add-member-heading p {
+  margin: 0 !important;
+  font-size: 0.85rem !important;
+}
