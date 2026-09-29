@@ -5,7 +5,3 @@ node_modules/
 npm-debug.log*
 backend/config/firebase-service-account.json
 
-# AI tools config
-.claude/
-.codex/
-.cursor/
