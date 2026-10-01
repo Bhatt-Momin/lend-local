@@ -123,6 +123,34 @@ if (!requireAuth()) {
      LEAVE GROUP
   ========================================================= */
 
+  window.deleteGroup = async function () {
+    if (
+      !confirm(
+        'Are you sure you want to permanently delete this group? All expenses and payment records will be permanently deleted. This action cannot be undone.'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await api(`/groups/${groupId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.message) {
+        if (window.FX) {
+          window.FX.toast('Group permanently deleted');
+        }
+
+        setTimeout(() => {
+          window.location.href = '/dashboard.html';
+        }, 1000);
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to delete group');
+    }
+  };
+
   window.leaveGroup = async function () {
     if (
       !confirm(
@@ -1229,57 +1257,29 @@ if (!requireAuth()) {
                 group?.createdBy
               );
 
-            const canLeave =
-              String(userId) ===
-                String(currentUserId) &&
-              String(userId) !==
-                String(creatorId);
+            const isMe = String(userId) === String(currentUserId);
+            const isOwner = isMe && String(userId) === String(creatorId);
+            const canLeave = isMe && !isOwner;
 
             return `
-              <div
-                class="member-item"
-              >
+              <div class="member-item">
                 <div>
                   <strong>
-                    ${escapeHtml(
-                      member.name
-                    )}
-
-                    ${
-                      String(
-                        userId
-                      ) ===
-                      String(
-                        currentUserId
-                      )
-                        ? ' (you)'
-                        : ''
-                    }
+                    ${escapeHtml(member.name)}
+                    ${isMe ? ' (you)' : ''}
                   </strong>
-
                   <div class="email">
-                    ${escapeHtml(
-                      member.email
-                    )}
-
-                    ${
-                      canLeave
-                        ? `
-                          <button
-                            class="btn btn-sm btn-danger"
-                            style="
-                              margin-left: 1rem;
-                              padding: 0.2rem 0.5rem;
-                              font-size: 0.8rem;
-                            "
-                            type="button"
-                            onclick="leaveGroup()"
-                          >
-                            Leave Group
-                          </button>
-                        `
-                        : ''
-                    }
+                    ${escapeHtml(member.email)}
+                    ${canLeave ? `
+                      <button class="btn btn-danger" style="margin-left:1rem; padding:0.2rem 0.5rem; font-size:0.8rem;" type="button" onclick="leaveGroup()">
+                        Leave Group
+                      </button>
+                    ` : ''}
+                    ${isOwner ? `
+                      <button class="btn btn-danger" style="margin-left:1rem; padding:0.2rem 0.5rem; font-size:0.8rem;" type="button" onclick="deleteGroup()">
+                        Delete Group
+                      </button>
+                    ` : ''}
                   </div>
                 </div>
               </div>

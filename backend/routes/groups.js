@@ -261,12 +261,53 @@ router.delete('/:id/members/me', async (req, res) => {
       return res.status(400).json({ message: 'Group creator cannot leave' });
     }
 
+    const ledger = await getGroupLedger(group._id);
+    const myBalance = ledger.balances.find((b) => b.userId === req.user._id.toString());
+
+    if (myBalance && Math.abs(myBalance.net) >= 0.01) {
+      return res.status(400).json({ message: 'You must settle your balance before leaving the group.' });
+    }
+
     group.members.pull(req.user._id);
     await group.save();
 
     res.json({ message: 'Successfully left the group' });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Failed to leave group' });
+  }
+});
+
+
+// =====================================================
+// DELETE GROUP
+// =====================================================
+
+router.delete('/:id', async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id);
+
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+
+    if (!group.createdBy.equals(req.user._id)) {
+      return res.status(403).json({ message: 'Only the group creator can delete this group.' });
+    }
+
+    const ledger = await getGroupLedger(group._id);
+    const hasUnsettled = ledger.balances.some((b) => Math.abs(b.net) >= 0.01);
+
+    if (hasUnsettled) {
+      return res.status(400).json({ message: 'All balances must be settled before deleting the group.' });
+    }
+
+    await Expense.deleteMany({ group: group._id });
+    await Payment.deleteMany({ group: group._id });
+    await Group.findByIdAndDelete(group._id);
+
+    res.json({ message: 'Group and all associated records permanently deleted.' });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Failed to delete group' });
   }
 });
 
