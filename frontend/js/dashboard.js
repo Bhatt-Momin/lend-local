@@ -320,24 +320,11 @@ if (!requireAuth()) {
 
 
           if (Math.abs(balance) < 0.01) {
-
-            balanceLabel =
-              'Settled';
-
+            balanceLabel = '<span class="bal-status">Settled</span>';
           } else if (balance > 0) {
-
-            balanceLabel =
-              `Owed ${formatMoney(
-                balance
-              )}`;
-
+            balanceLabel = `<span class="bal-status">You are owed</span> <strong class="bal-amount">${formatMoney(balance)}</strong>`;
           } else {
-
-            balanceLabel =
-              `You owe ${formatMoney(
-                Math.abs(balance)
-              )}`;
-
+            balanceLabel = `<span class="bal-status">You owe</span> <strong class="bal-amount">${formatMoney(Math.abs(balance))}</strong>`;
           }
 
 

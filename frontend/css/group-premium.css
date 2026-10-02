@@ -857,3 +857,45 @@ body.ll-group-page .add-member-heading p {
   margin: 0 !important;
   font-size: 0.85rem !important;
 }
+
+@media (max-width: 640px) {
+  body.ll-group-page .expense-item,
+  body.ll-group-page .settlement-item,
+  body.ll-group-page .balance-item,
+  body.ll-group-page .member-item {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+  }
+  body.ll-group-page .expense-item .amount,
+  body.ll-group-page .settlement-item strong {
+    margin-left: 0 !important;
+  }
+  body.ll-group-page .expense-item .actions,
+  body.ll-group-page .member-item .actions,
+  body.ll-group-page .settlement-item .actions {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: flex-start !important;
+    margin-top: 0.5rem !important;
+  }
+  body.ll-group-page .modern-header {
+    padding: 1rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  body.ll-group-page .modern-tabs {
+    flex-wrap: nowrap !important;
+    gap: 0.25rem !important;
+  }
+  body.ll-group-page .modern-tabs .tab {
+    flex: 1 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 0.75rem 0.25rem !important;
+    font-size: 0.85rem !important;
+    text-align: center !important;
+  }
+}

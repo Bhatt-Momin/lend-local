@@ -713,3 +713,50 @@ textarea {
     opacity: 1;
   }
 }
+
+/* ============================================================
+   Responsive Base Rules
+   ============================================================ */
+h1, h2, h3, h4, p, .value, .net-balance, .meta, .email {
+  overflow-wrap: break-word;
+}
+
+/* Ensure flex/grid items can shrink below content size */
+.expense-item > div,
+.member-item > div,
+.settlement-item > div,
+.balance-item > div,
+.modern-stat > div {
+  min-width: 0;
+}
+
+/* Touch targets */
+button, .btn, select, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+  min-height: 44px;
+}
+
+button, .btn {
+  min-width: 44px;
+}
+
+/* Icon buttons */
+.close-modal {
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-raised, #f2f5f3);
+  color: var(--ink-soft, #66736e);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.4rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  padding: 0;
+}
+.close-modal:hover {
+  background: var(--line, #e7ece9);
+}

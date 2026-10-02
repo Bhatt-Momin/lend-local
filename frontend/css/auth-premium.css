@@ -125,3 +125,12 @@ body.ll-auth-page .auth-brand strong {
   color: var(--ll-text) !important;
   letter-spacing: -0.02em !important;
 }
+
+@media (max-width: 480px) {
+  body.ll-auth-page .auth-shell {
+    padding: 1rem !important;
+  }
+  body.ll-auth-page .auth-card {
+    padding: 2rem 1.5rem !important;
+  }
+}

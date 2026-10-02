@@ -163,3 +163,110 @@ body.ll-dashboard-page .modern-empty {
 body.ll-dashboard-page .modern-empty h3 {
   color: var(--ll-text) !important;
 }
+
+@media (max-width: 768px) {
+  body.ll-dashboard-page .balance-card {
+    padding: 2rem 1.5rem !important;
+  }
+  body.ll-dashboard-page .net-balance {
+    font-size: clamp(2.5rem, 10vw, 3.5rem) !important;
+  }
+  body.ll-dashboard-page .modern-stat {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+  }
+}
+
+/* Polish group-card balance section */
+body.ll-dashboard-page .modern-group-card .group-balance {
+  padding-left: 1.25rem !important;
+  border-left: 1px solid var(--ll-border) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  gap: 0.5rem !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+body.ll-dashboard-page .modern-group-card .group-balance-label {
+  font-size: 0.75rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  color: var(--ll-text-muted) !important;
+  margin-bottom: 0 !important;
+}
+
+body.ll-dashboard-page .modern-group-card .balance-pill {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  gap: 0.15rem !important;
+  padding: 0.75rem 1rem !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  max-width: 100% !important;
+  white-space: normal !important;
+  word-wrap: break-word !important;
+}
+
+body.ll-dashboard-page .modern-group-card .balance-pill .bal-status {
+  font-size: 0.75rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  opacity: 0.9 !important;
+  font-family: var(--ll-font-body) !important;
+}
+
+body.ll-dashboard-page .modern-group-card .balance-pill .bal-amount {
+  font-size: 1.25rem !important;
+  font-family: var(--ll-font-mono) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.5px !important;
+  white-space: normal !important;
+  word-wrap: break-word !important;
+}
+
+/* Owe / Negative */
+body.ll-dashboard-page .modern-group-card .balance-pill.owe {
+  background: rgba(239, 68, 68, 0.08) !important;
+  border-color: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+}
+
+/* Owed / Positive */
+body.ll-dashboard-page .modern-group-card .balance-pill.owed {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border-color: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+}
+
+/* Settled */
+body.ll-dashboard-page .modern-group-card .balance-pill.settled {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: var(--ll-border) !important;
+  color: var(--ll-text-muted) !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Mobile arrangement */
+@media (max-width: 760px) {
+  body.ll-dashboard-page .modern-group-card .group-balance {
+    padding-left: 0 !important;
+    padding-top: 1rem !important;
+    border-left: none !important;
+    border-top: 1px solid var(--ll-border) !important;
+    align-items: flex-start !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    margin-top: 0.5rem !important;
+  }
+  body.ll-dashboard-page .modern-group-card .balance-pill {
+    align-items: flex-start !important;
+    text-align: left !important;
+    padding: 0.75rem 0 !important;
+  }
+}

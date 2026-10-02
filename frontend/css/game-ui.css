@@ -605,8 +605,10 @@
   }
   
   .modern-modal {
-    width: min(520px, calc(100% - 2rem));
-  
+    width: min(520px, 100%);
+    max-height: min(90vh, 760px);
+    max-height: min(90dvh, 760px);
+    overflow-y: auto;
     padding: 1.8rem;
   
     border-radius: 20px;
@@ -641,26 +643,7 @@
     font-size: 0.85rem;
   }
   
-  .close-modal {
-    width: 34px;
-    height: 34px;
   
-    border: none;
-  
-    border-radius: 50%;
-  
-    background: #f2f5f3;
-  
-    color: #66736e;
-  
-    font-size: 1.4rem;
-  
-    cursor: pointer;
-  }
-  
-  .close-modal:hover {
-    background: #e7ece9;
-  }
   
   .modern-modal .field label {
     color: #405049;
@@ -764,24 +747,34 @@
       text-align: left;
     }
   
+    .app-header-inner {
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .modern-logo {
+      width: 100%;
+      justify-content: center;
+    }
     .modern-actions {
-      gap: 0.4rem;
+      width: 100%;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.75rem;
     }
-  
+    .modern-actions .btn {
+      flex: 1 1 140px;
+    }
     .user-area {
-      max-width: 130px;
-  
-      overflow: hidden;
+      width: 100%;
+      justify-content: center;
+      max-width: none;
+      margin-bottom: 0.25rem;
     }
-  
     .user-chip {
       overflow: hidden;
-  
       text-overflow: ellipsis;
-  
       white-space: nowrap;
     }
-  
     .modern-logo small {
       display: none;
     }
