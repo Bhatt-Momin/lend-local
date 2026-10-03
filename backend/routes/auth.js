@@ -148,31 +148,59 @@ router.get('/me', protect, async (req, res) => {
 ===================================================== */
 
 router.post('/fcm-token', protect, async (req, res) => {
-
   try {
-
     const { token } = req.body;
-
     if (!token || typeof token !== 'string') {
-
-      return res.status(400).json({
-        message: 'FCM token is required',
-      });
-
+      return res.status(400).json({ message: 'FCM token is required' });
     }
 
+    if (!req.jwt.sessionId) {
+      return res.status(401).json({ message: 'Session expired. Please log in again.' });
+    }
+
+    const fcmClaim = Date.now().toString() + '-' + require('crypto').randomUUID();
+
+    const result = await User.updateOne(
+      {
+        _id: req.user._id,
+        revokedTokens: { $not: { $elemMatch: { token: token, sessionId: req.jwt.sessionId } } }
+      },
+      { $set: { fcmToken: token, fcmSessionId: req.jwt.sessionId, fcmClaim: fcmClaim } }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(403).json({ message: "Registration rejected: Token was revoked for this session" });
+    }
+
+    // Now safely clear from other users, yielding to stronger claims
     await User.updateMany(
-      { fcmToken: token, _id: { $ne: req.user._id } },
-      { $set: { fcmToken: null } }
+      {
+        fcmToken: token,
+        _id: { $ne: req.user._id },
+        $or: [
+          { fcmClaim: { $lt: fcmClaim } },
+          { fcmClaim: null },
+          { fcmClaim: { $exists: false } }
+        ]
+      },
+      { $set: { fcmToken: null, fcmSessionId: null, fcmClaim: null } }
     );
 
-    req.user.fcmToken = token;
+    // Verify we didn't lose to a stronger claim during our write
+    const strongerExists = await User.exists({
+      fcmToken: token,
+      _id: { $ne: req.user._id },
+      fcmClaim: { $gt: fcmClaim }
+    });
 
-    await req.user.save();
+    if (strongerExists) {
+      await User.updateOne(
+        { _id: req.user._id, fcmClaim: fcmClaim },
+        { $set: { fcmToken: null, fcmSessionId: null, fcmClaim: null } }
+      );
+    }
 
-    console.log(
-      `FCM token saved for user: ${req.user.email}`
-    );
+    console.log(`FCM token saved for user: ${req.user.email}`);
 
     res.json({
       message: 'FCM token saved successfully',
@@ -207,9 +235,27 @@ router.delete('/fcm-token', protect, async (req, res) => {
       return res.status(400).json({ message: 'FCM token is required' });
     }
 
+    if (!req.jwt.sessionId) {
+      return res.status(401).json({ message: 'Session expired. Please log in again.' });
+    }
+
+    await User.updateOne(
+      { _id: req.user._id },
+      {
+        $addToSet: { revokedTokens: { token, sessionId: req.jwt.sessionId, exp: req.jwt.exp } }
+      }
+    );
+
+    // Expiry-based cleanup
+    const now = Math.floor(Date.now() / 1000);
+    await User.updateOne(
+      { _id: req.user._id },
+      { $pull: { revokedTokens: { exp: { $lt: now } } } }
+    );
+
     const result = await User.updateOne(
-      { _id: req.user._id, fcmToken: token },
-      { $set: { fcmToken: null } }
+      { _id: req.user._id, fcmToken: token, fcmSessionId: req.jwt.sessionId },
+      { $set: { fcmToken: null, fcmSessionId: null, fcmClaim: null } }
     );
     if (result.modifiedCount > 0) {
       console.log(`FCM token removed atomically for user: ${req.user.email}`);

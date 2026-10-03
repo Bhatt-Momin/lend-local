@@ -47,12 +47,19 @@ const userSchema = new mongoose.Schema(
     },
 
     // Firebase Cloud Messaging token
+    revokedTokens: { type: [ new mongoose.Schema({ token: String, sessionId: String, exp: Number }, { _id: false }) ], default: [] },
+
     fcmToken: {
-
       type: String,
-
       default: null,
-
+    },
+    fcmSessionId: {
+      type: String,
+      default: null,
+    },
+    fcmClaim: {
+      type: String,
+      default: null,
     },
 
     upiId: {

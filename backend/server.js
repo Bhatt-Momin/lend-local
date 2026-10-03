@@ -81,8 +81,11 @@ app.use((err, req, res, next) => {
 // START SERVER
 // =====================================================
 
-app.listen(PORT, () => {
+if (require.main === module) {
+  app.listen(PORT, () => {
   console.log(
     `LendLocal running at http://localhost:${PORT}`
   );
 });
+}
+module.exports = app;

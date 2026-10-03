@@ -19,6 +19,8 @@ let getTokenFunction = null;
 let deleteTokenFunction = null;
 let swRegistration = null;
 window.isLoggingOut = false;
+window.fcmAbortControllers = new Set();
+window.pendingFCMRegistrations = new Set();
 
 // =====================================================
 // NOTIFICATION ONBOARDING UI
@@ -103,8 +105,9 @@ async function initializeFirebaseMessaging() {
 
     window.clearFCMToken = async () => {
       window.isLoggingOut = true;
-      if (window.pendingFCMRegistration) {
-        try { await window.pendingFCMRegistration; } catch (e) {}
+      for (const c of window.fcmAbortControllers) c.abort();
+      for (const p of window.pendingFCMRegistrations) {
+        try { await p; } catch (e) {}
       }
       if (messaging && deleteTokenFunction && getTokenFunction) {
         try {
@@ -130,7 +133,9 @@ async function initializeFirebaseMessaging() {
     };
 
     window.requestNotificationPermission = async function () {
-      window.pendingFCMRegistration = (async () => {
+      const p = (async () => {
+        const controller = new AbortController();
+        window.fcmAbortControllers.add(controller);
       if (!("Notification" in window)) {
         showToast("This browser does not support notifications.", true);
         return null;
@@ -177,7 +182,8 @@ async function initializeFirebaseMessaging() {
         const response = await fetch("/api/auth/fcm-token", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${currentAuthToken}` },
-          body: JSON.stringify({ token: token })
+          body: JSON.stringify({ token: token }),
+          signal: controller.signal
         });
 
         if (window.isLoggingOut || initialAuthToken !== localStorage.getItem("lendlocal_token")) {
@@ -186,6 +192,11 @@ async function initializeFirebaseMessaging() {
 
         const data = await response.json();
         if (!response.ok) {
+          if (response.status === 401) {
+            const err = new Error(data.message || "Session expired.");
+            err.status = 401;
+            throw err;
+          }
           throw new Error(data.message || "Failed to save FCM token.");
         }
 
@@ -195,13 +206,21 @@ async function initializeFirebaseMessaging() {
         return token;
       } catch (error) {
         console.error("FCM token setup error:", error);
-        if (confirm("Could not enable notifications due to a network or server error. Try again?")) {
+
+        if (error.status === 401) {
+          alert("Please sign in again to enable notifications.");
+          return null;
+        }
+
+        if (!window.isLoggingOut && error.name !== "AbortError" && confirm("Could not enable notifications due to a network or server error. Try again?")) {
            return window.requestNotificationPermission();
         }
         return null;
       }
     })();
-    return await window.pendingFCMRegistration;
+    p.finally(() => window.pendingFCMRegistrations.delete(p));
+    window.pendingFCMRegistrations.add(p);
+    return await p;
   };
 
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
@@ -211,7 +230,9 @@ async function initializeFirebaseMessaging() {
 
     if (isSignedin) {
       if (Notification.permission === 'granted') {
-        window.pendingFCMRegistration = (async () => {
+        const p = (async () => {
+          const controller = new AbortController();
+          window.fcmAbortControllers.add(controller);
           try {
             const initialAuthToken = localStorage.getItem("lendlocal_token");
             const token = await getTokenFunction(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swRegistration });
@@ -221,7 +242,8 @@ async function initializeFirebaseMessaging() {
              const res = await fetch("/api/auth/fcm-token", {
                method: "POST",
                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${currentAuthToken}` },
-               body: JSON.stringify({ token: token })
+               body: JSON.stringify({ token: token }),
+               signal: controller.signal
              });
              if (!res.ok) {
                console.error("Silent FCM registration failed on backend.");

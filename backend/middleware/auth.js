@@ -17,7 +17,7 @@ async function protect(req, res, next) {
       return res.status(401).json({ message: 'User no longer exists' });
     }
 
-    req.user = user;
+    req.user = user; req.jwt = decoded;
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Invalid or expired token' });
