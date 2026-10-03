@@ -196,6 +196,34 @@ router.post('/fcm-token', protect, async (req, res) => {
 });
 
 
+
+/* =====================================================
+   REMOVE FCM TOKEN
+===================================================== */
+router.delete('/fcm-token', protect, async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ message: 'FCM token is required' });
+    }
+
+    const result = await User.updateOne(
+      { _id: req.user._id, fcmToken: token },
+      { $set: { fcmToken: null } }
+    );
+    if (result.modifiedCount > 0) {
+      console.log(`FCM token removed atomically for user: ${req.user.email}`);
+    } else {
+      console.log(`FCM token removal skipped (mismatch/already removed) for user: ${req.user.email}`);
+    }
+
+    res.json({ message: 'FCM token processed successfully' });
+  } catch (err) {
+    console.error('FCM token remove error:', err);
+    res.status(500).json({ message: err.message || 'Failed to remove FCM token' });
+  }
+});
+
 /* =====================================================
    SAVE UPI ID
 ===================================================== */

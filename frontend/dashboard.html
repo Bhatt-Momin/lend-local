@@ -38,9 +38,6 @@
 <body class="modern-dashboard ll-premium ll-dashboard-page">
   <div class="ll-ambient-bg"></div>
 
-  <!-- =====================================================
-       HEADER
-  ====================================================== -->
 
   <header class="modern-header">
 
@@ -81,11 +78,13 @@
 
         <!-- TEMPORARY NOTIFICATION BUTTON -->
         <button
-          id="enableNotificationsBtn"
+        <button
+          id="installAppBtn"
           class="btn btn-ghost"
           type="button"
+          style="display: none;"
         >
-          🔔 Enable Notifications
+          ⬇️ Download app
         </button>
 
         <button
@@ -111,9 +110,6 @@
   </header>
 
 
-  <!-- =====================================================
-       MAIN
-  ====================================================== -->
 
   <main
     class="container modern-container modern-page"
@@ -325,9 +321,6 @@
 
 
 
-  <!-- =====================================================
-       CREATE GROUP MODAL
-  ====================================================== -->
 
   <div
     id="createModal"
@@ -463,9 +456,6 @@
 
 
 
-  <!-- =====================================================
-       JAVASCRIPT
-  ====================================================== -->
 
   <script src="/js/api.js"></script>
 
@@ -486,6 +476,13 @@
       <div id="settingsAlert" class="alert"></div>
 
       <div class="form-group" style="margin-top: 15px;">
+      <div class="form-group">
+        <label>Push Notifications</label>
+        <button type="button" class="btn btn-ghost" id="settingsEnableNotifBtn" style="width: 100%; justify-content: flex-start; text-align: left; margin-bottom: 1rem; border: 1px solid var(--ll-border);">
+          🔔 Enable Push Notifications
+        </button>
+      </div>
+
         <label for="upiIdInput">UPI ID</label>
         <input id="upiIdInput" type="text" placeholder="username@bank" />
         <p class="field-hint">Required to receive direct UPI payments.</p>
@@ -527,49 +524,19 @@
   ></script>
 
 
-  <!-- =====================================================
-       ENABLE NOTIFICATIONS TEST
-  ====================================================== -->
-
-  <script>
-
-    document
-      .getElementById('enableNotificationsBtn')
-      ?.addEventListener('click', async () => {
-
-        if (!window.requestNotificationPermission) {
-          alert(
-            'Firebase notification system is still loading. Please wait a moment and try again.'
-          );
-          return;
-        }
-
-        const token =
-          await window.requestNotificationPermission();
-
-        if (token) {
-
-          console.log(
-            'Notification token generated:',
-            token
-          );
-
-          alert(
-            'Notifications enabled successfully!'
-          );
-
-        } else {
-
-          alert(
-            'Could not enable notifications. Check the browser console for errors.'
-          );
-
-        }
-
-      });
-
-  </script>
-
-
+    <!-- INSTALL MANUAL MODAL -->
+    <div id="installManualModal" class="modal-backdrop modern-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="installManualTitle" style="display: none;">
+      <div class="modal modern-modal">
+        <button class="close-modal" id="closeInstallManual" aria-label="Close dialog">×</button>
+        <h2 id="installManualTitle">Install LendLocal</h2>
+        <p style="color: var(--ll-text); margin-top: 1rem; line-height: 1.6;">
+          To install this app on your device, tap the <strong>Share</strong> icon
+          at the bottom of your browser and select <strong>Add to Home Screen</strong>.
+        </p>
+        <div class="modal-actions modern-modal-actions">
+          <button class="btn btn-primary" id="gotItInstallBtn" type="button">Got it</button>
+        </div>
+      </div>
+    </div>
 </body>
 </html>

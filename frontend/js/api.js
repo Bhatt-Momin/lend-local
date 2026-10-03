@@ -120,7 +120,20 @@ function balanceLabel(net) {
 function wireLogout() {
   const btn = document.getElementById('logoutBtn');
   if (!btn) return;
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const oldText = btn.innerHTML;
+    btn.innerHTML = 'Logging out...';
+    if (typeof window.clearFCMToken === 'function') {
+      try {
+        await Promise.race([
+          window.clearFCMToken(),
+          new Promise((_, r) => setTimeout(() => r(new Error('Timeout')), 3000))
+        ]);
+      } catch (err) {
+        console.warn('FCM cleanup failed:', err);
+      }
+    }
     clearSession();
     window.location.href = '/login.html';
   });

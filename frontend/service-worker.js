@@ -137,19 +137,39 @@ messaging.onBackgroundMessage((payload) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
+  const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : "/dashboard.html";
+
+  let resolvedUrl;
+  try {
+    resolvedUrl = new URL(targetUrl, self.location.origin);
+    if (resolvedUrl.origin !== self.location.origin) {
+      resolvedUrl = new URL("/dashboard.html", self.location.origin);
+    }
+  } catch (e) {
+    resolvedUrl = new URL("/dashboard.html", self.location.origin);
+  }
+
+  const urlToOpen = resolvedUrl.href;
+
   event.waitUntil(
-    clients.matchAll({
-      type: "window",
-      includeUncontrolled: true
-    }).then((clientList) => {
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clientList) => {
       for (const client of clientList) {
-        if ("focus" in client) {
-          return client.focus();
+        if (client.url === urlToOpen && "focus" in client) {
+          return await client.focus();
         }
       }
-
+      if (clientList.length > 0) {
+        const client = clientList[0];
+        if ("navigate" in client) {
+          await client.navigate(urlToOpen);
+        }
+        if ("focus" in client) {
+          return await client.focus();
+        }
+        return;
+      }
       if (clients.openWindow) {
-        return clients.openWindow(event.notification.data.url || "/dashboard.html");
+        return await clients.openWindow(urlToOpen);
       }
     })
   );

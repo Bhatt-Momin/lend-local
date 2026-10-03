@@ -63,6 +63,15 @@
           </div>
 
           <button
+            id="installAppBtn"
+            class="btn btn-ghost"
+            type="button"
+            style="display: none;"
+          >
+            ⬇️ Download app
+          </button>
+
+          <button
             id="logoutBtn"
             class="btn btn-ghost modern-logout"
             type="button"
@@ -738,5 +747,19 @@
 
   <script src="/js/group.js"></script>
 
+    <!-- INSTALL MANUAL MODAL -->
+    <div id="installManualModal" class="modal-backdrop modern-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="installManualTitle" style="display: none;">
+      <div class="modal modern-modal">
+        <button class="close-modal" id="closeInstallManual" aria-label="Close dialog">×</button>
+        <h2 id="installManualTitle">Install LendLocal</h2>
+        <p style="color: var(--ll-text); margin-top: 1rem; line-height: 1.6;">
+          To install this app on your device, tap the <strong>Share</strong> icon
+          at the bottom of your browser and select <strong>Add to Home Screen</strong>.
+        </p>
+        <div class="modal-actions modern-modal-actions">
+          <button class="btn btn-primary" id="gotItInstallBtn" type="button">Got it</button>
+        </div>
+      </div>
+    </div>
 </body>
 </html>
