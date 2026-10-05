@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offline | LendLocal</title>
+  <link rel="stylesheet" href="/css/design-system.css">
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      text-align: center;
+      padding: 20px;
+      background-color: var(--ll-bg-primary);
+      color: var(--ll-text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .offline-icon {
+      font-size: 4rem;
+      margin-bottom: 20px;
+      opacity: 0.5;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 15px;
+    }
+    p {
+      color: var(--ll-text-secondary);
+      margin-bottom: 30px;
+      max-width: 400px;
+      line-height: 1.5;
+    }
+    .btn-retry {
+      min-width: 150px;
+    }
+  </style>
+</head>
+<body>
+  <div class="offline-icon">📡</div>
+  <h1>You’re offline</h1>
+  <p id="offlineMsg">Connect to the internet to load your groups and save changes.</p>
+  <button id="retryBtn" class="btn btn-primary btn-retry">Retry</button>
+
+  <script>
+    const retryBtn = document.getElementById('retryBtn');
+    const msg = document.getElementById('offlineMsg');
+    let isChecking = false;
+
+    async function checkAndReload() {
+      if (isChecking) return;
+      isChecking = true;
+      retryBtn.disabled = true;
+      retryBtn.textContent = "Checking...";
+      msg.textContent = "Checking connection...";
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        try {
+          const res = await fetch('/api/health', { cache: 'no-store', signal: controller.signal });
+          if (!res.ok) throw new Error("Health check failed");
+        } finally {
+          clearTimeout(timeoutId);
+        }
+        
+        msg.textContent = "Connection restored. Reloading...";
+        window.location.reload();
+      } catch (e) {
+        msg.textContent = "Connect to the internet to load your groups and save changes.";
+        retryBtn.disabled = false;
+        retryBtn.textContent = "Retry";
+      } finally {
+        isChecking = false;
+      }
+    }
+
+    // Do not auto-reload blindly. Just notify the user they can retry.
+    window.addEventListener('online', () => {
+      msg.textContent = "Connection detected. Click Retry to connect.";
+    });
+    
+    retryBtn.addEventListener('click', checkAndReload);
+  </script>
+</body>
+</html>

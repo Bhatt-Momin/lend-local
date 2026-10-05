@@ -410,8 +410,13 @@ if (!requireAuth()) {
      LOAD GROUPS
   ========================================================= */
 
+  window.reloadCurrentData = loadGroups;
   async function loadGroups() {
-
+    const retryBtn = document.getElementById('retryGroups');
+    if (retryBtn) {
+      retryBtn.disabled = true;
+      retryBtn.textContent = 'Loading...';
+    }
     try {
 
       /*
@@ -500,26 +505,8 @@ if (!requireAuth()) {
                 };
 
               } catch (error) {
-
-                console.error(
-                  `Failed to load balance for group ${group.id}:`,
-                  error
-                );
-
-
-                /*
-                 * If one group's balance fails,
-                 * don't break the entire dashboard.
-                 */
-
-                return {
-
-                  ...group,
-
-                  myBalance: 0,
-
-                };
-
+                console.error(`Failed to load balance for group ${group.id}:`, error);
+                throw error;
               }
 
             }
@@ -707,11 +694,12 @@ if (!requireAuth()) {
 
       document
         .getElementById('retryGroups')
-        ?.addEventListener(
-          'click',
-          loadGroups
-        );
-
+        ?.addEventListener('click', () => {
+          loadGroups().catch(err => {
+            console.error('Retry failed:', err);
+          });
+        });
+      throw err;
     }
 
   }
@@ -818,6 +806,8 @@ if (!requireAuth()) {
      INITIAL LOAD
   ========================================================= */
 
-  loadGroups();
+  loadGroups().catch(err => {
+    console.error('Initial load failed:', err);
+  });
 
 }

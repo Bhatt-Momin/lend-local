@@ -1678,22 +1678,35 @@ if (!requireAuth()) {
      INITIAL LOAD
   ========================================================= */
 
-  loadAll()
-    .catch((err) => {
-      document.getElementById(
-        'expenseList'
-      ).innerHTML = `
-        <div class="empty">
-          <strong>
-            Could not load group
-          </strong>
-
-          ${escapeHtml(
-            err.message
-          )}
-        </div>
-      `;
+  window.reloadCurrentData = initLoadAll;
+  function initLoadAll() {
+    const btn = document.getElementById('retryGroupBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+    }
+    return loadAll().catch((err) => {
+      const el = document.getElementById('expenseList');
+      if (el) {
+        el.innerHTML = `
+          <div class="empty">
+            <strong>Could not load group</strong>
+            <p>${escapeHtml(err.message)}</p>
+            <button id="retryGroupBtn" class="btn btn-primary" style="margin-top: 15px;" type="button">Retry</button>
+          </div>
+        `;
+        document.getElementById('retryGroupBtn')?.addEventListener('click', () => {
+          initLoadAll().catch(err => {
+            console.error('Retry failed:', err);
+          });
+        });
+      }
+      throw err;
     });
+  }
+  initLoadAll().catch(err => {
+    console.error('Initial load failed:', err);
+  });
 
   /* =========================================================
      DIRECT UPI FRONTEND LOGIC

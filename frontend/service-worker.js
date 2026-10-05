@@ -1,8 +1,9 @@
-const CACHE_NAME = "lendlocal-v12";
+const CACHE_NAME = "lendlocal-v13";
 
 const STATIC_ASSETS = [
   "/",
   "/index.html",
+  "/offline.html",
   "/login.html",
   "/register.html",
   "/dashboard.html",
@@ -44,7 +45,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
+          if (cache.startsWith("lendlocal-") && cache !== CACHE_NAME) {
             return caches.delete(cache);
           }
         })
@@ -62,14 +63,22 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/api/')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      return (
-        cachedResponse ||
-        fetch(event.request).catch(() => {
-          return caches.match("/index.html");
-        })
-      );
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(event.request).catch((err) => {
+        if (event.request.mode === 'navigate') {
+          return caches.match('/offline.html');
+        }
+        throw err;
+      });
     })
   );
 });
