@@ -899,3 +899,66 @@ body.ll-group-page .add-member-heading p {
     text-align: center !important;
   }
 }
+
+/* ============================================================
+   EXPENSE MODAL (DARK THEME OVERRIDES)
+   ============================================================ */
+
+/* Ensure the modal scrolls so title and buttons remain reachable */
+body.ll-group-page #expenseModal .modern-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden !important; /* Disable native full-modal scroll */
+}
+body.ll-group-page #expenseModal .modal-header {
+  flex-shrink: 0;
+}
+body.ll-group-page #expenseModal #expenseForm {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding-right: 5px;
+}
+body.ll-group-page #expenseModal .modern-modal-actions {
+  position: sticky;
+  bottom: 0;
+  background: var(--ll-surface) !important;
+  padding-top: 1rem;
+  margin-top: auto;
+  z-index: 10;
+}
+
+/* Select Inputs */
+body.ll-group-page #expenseModal select {
+  background: rgba(0,0,0,0.5) !important;
+  color: var(--ll-text) !important;
+  border: 1px solid var(--ll-border) !important;
+}
+body.ll-group-page #expenseModal select:focus {
+  border-color: var(--ll-brand) !important;
+  box-shadow: 0 0 0 3px var(--ll-brand-glow) !important;
+  outline: none;
+}
+
+/* Participant / Share Rows */
+body.ll-group-page #expenseModal .split-row {
+  background: var(--ll-surface-raised) !important;
+  border: 1px solid var(--ll-border) !important;
+}
+body.ll-group-page #expenseModal .split-row label {
+  color: var(--ll-text) !important;
+}
+body.ll-group-page #expenseModal .split-row input[type="checkbox"] {
+  accent-color: var(--ll-brand) !important;
+}
+body.ll-group-page #expenseModal .split-row .split-share {
+  background: rgba(0,0,0,0.5) !important;
+  color: var(--ll-text) !important;
+  border: 1px solid var(--ll-border) !important;
+}
+body.ll-group-page #expenseModal .split-row .split-share:focus {
+  border-color: var(--ll-brand) !important;
+  box-shadow: 0 0 0 3px var(--ll-brand-glow) !important;
+}
