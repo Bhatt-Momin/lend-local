@@ -64,81 +64,87 @@
   <script src="/js/effects.js"></script>
   <script>
     redirectIfAuthed();
-  
+
     const form = document.getElementById('registerForm');
     const alertEl = document.getElementById('alert');
     const submitBtn = form.querySelector('button[type="submit"]');
-  
-    function showValidationError(message) {
+
+    function showValidationError(message, fieldId) {
+      if (fieldId) {
+        const field = document.getElementById(fieldId);
+        if (field) {
+          field.setCustomValidity(message);
+          field.reportValidity();
+          field.addEventListener('input', () => field.setCustomValidity(''), { once: true });
+          return;
+        }
+      }
       showAlert(alertEl, message);
-  
       if (window.FX) {
         window.FX.shake(alertEl);
       }
     }
-  
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-  
+
       hideAlert(alertEl);
-  
-      const name = document.getElementById('name').value.trim();
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
-  
+
+      const nameField = document.getElementById('name');
+      const emailField = document.getElementById('email');
+      const passwordField = document.getElementById('password');
+
+      const name = nameField.value.trim();
+      const email = emailField.value.trim();
+      const password = passwordField.value;
+
       // Name validation
       if (name.length < 2) {
-        showValidationError('Name must be at least 2 characters.');
+        showValidationError('Name must be at least 2 characters.', 'name');
         return;
       }
-  
+
       if (!/^[A-Za-z ]+$/.test(name)) {
-        showValidationError('Name can contain only letters and spaces.');
+        showValidationError('Name can contain only letters and spaces.', 'name');
         return;
       }
-  
+
       // Email validation
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        showValidationError('Please enter a valid email address.');
+        showValidationError('Please enter a valid email address.', 'email');
         return;
       }
-  
+
       // Password validation
       if (password.length < 8) {
-        showValidationError('Password must be at least 8 characters.');
+        showValidationError('Password must be at least 8 characters.', 'password');
         return;
       }
-  
+
       if (!/[A-Z]/.test(password)) {
-        showValidationError(
-          'Password must contain at least one uppercase letter.'
-        );
+        showValidationError('Password must contain at least one uppercase letter.', 'password');
         return;
       }
-  
+
       if (!/[a-z]/.test(password)) {
-        showValidationError(
-          'Password must contain at least one lowercase letter.'
-        );
+        showValidationError('Password must contain at least one lowercase letter.', 'password');
         return;
       }
-  
+
       if (!/[0-9]/.test(password)) {
-        showValidationError(
-          'Password must contain at least one number.'
-        );
+        showValidationError('Password must contain at least one number.', 'password');
         return;
       }
-  
+
       // Prevent duplicate registration requests
       submitBtn.disabled = true;
       submitBtn.dataset.originalText = submitBtn.textContent;
-  
+
       submitBtn.innerHTML = `
         <span class="fx-spinner"></span>
         Creating account...
       `;
-  
+
       try {
         const data = await api('/auth/register', {
           method: 'POST',
@@ -148,25 +154,25 @@
             password,
           }),
         });
-  
+
         setSession(data.token, data.user);
-  
+
         if (window.FX) {
           window.FX.toast('Account created successfully!');
         }
-  
+
         // Briefly show success feedback before redirecting
         setTimeout(() => {
           window.location.href = '/dashboard.html';
         }, 500);
-  
+
       } catch (err) {
         showAlert(alertEl, err.message);
-  
+
         if (window.FX) {
           window.FX.shake(alertEl);
         }
-  
+
         // Restore button after failed registration
         submitBtn.disabled = false;
         submitBtn.textContent =

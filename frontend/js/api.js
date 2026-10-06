@@ -216,6 +216,10 @@ function showAlert(el, message, type = 'error') {
   if (!el) return;
   el.textContent = message;
   el.className = `alert alert-${type} show`;
+  if (type === 'error') {
+    el.setAttribute('tabindex', '-1');
+    el.focus();
+  }
 }
 
 function hideAlert(el) {
@@ -262,3 +266,61 @@ function fillUserChip() {
   const user = getUser();
   if (chip && user) chip.textContent = user.name;
 }
+
+function restoreFocusSafe(el) {
+  if (el && el.isConnected && (el.offsetWidth > 0 || el.offsetHeight > 0) && !el.disabled) {
+    el.focus();
+  } else {
+    let fallback = document.querySelector('main') || document.body;
+    if (fallback) {
+      if (!fallback.hasAttribute('tabindex')) {
+        fallback.setAttribute('tabindex', '-1');
+      }
+      fallback.focus();
+    }
+  }
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+
+  const installModal = document.getElementById('installManualModal');
+  if (installModal && installModal.style.display === 'flex') return;
+
+  const openModals = Array.from(
+    document.querySelectorAll('.modal-backdrop.open, .modern-modal-backdrop.open, [role="dialog"].open')
+  ).filter(el => (el.offsetWidth > 0 || el.offsetHeight > 0) && el.style.display !== 'none');
+  if (openModals.length === 0) return;
+  const backdrop = openModals[openModals.length - 1];
+  const dialogContainer = backdrop.querySelector('.modal, .modern-modal') || backdrop;
+
+  const focusable = Array.from(
+    backdrop.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')
+  ).filter(el => el.offsetWidth > 0 || el.offsetHeight > 0);
+
+  if (focusable.length === 0) {
+    if (!dialogContainer.hasAttribute('tabindex')) {
+      dialogContainer.setAttribute('tabindex', '-1');
+    }
+    dialogContainer.focus();
+    e.preventDefault();
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+  const isTabbable = focusable.includes(active);
+
+  if (e.shiftKey) {
+    if (active === first || !backdrop.contains(active) || (!isTabbable && backdrop.contains(active))) {
+      e.preventDefault();
+      last.focus();
+    }
+  } else {
+    if (active === last || !backdrop.contains(active) || (!isTabbable && backdrop.contains(active))) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+});

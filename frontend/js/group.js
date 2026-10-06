@@ -114,6 +114,9 @@ if (!requireAuth()) {
       'open'
     );
 
+    clearTimeout(expenseFocusTimeout);
+    restoreFocusSafe(expenseModalLastFocus);
+
     hideAlert(
       expenseAlert
     );
@@ -189,11 +192,15 @@ if (!requireAuth()) {
     }
   };
 
+  let expenseModalLastFocus = null;
+  let expenseFocusTimeout;
+
   document
     .getElementById('openExpense')
     .addEventListener(
       'click',
       () => {
+        expenseModalLastFocus = document.activeElement;
         hideAlert(
           expenseAlert
         );
@@ -212,6 +219,10 @@ if (!requireAuth()) {
         expenseModal.classList.add(
           'open'
         );
+        clearTimeout(expenseFocusTimeout);
+        expenseFocusTimeout = setTimeout(() => {
+          if (expenseModal.classList.contains('open')) expenseForm.querySelector('input')?.focus();
+        }, 50);
       }
     );
 
@@ -728,15 +739,28 @@ if (!requireAuth()) {
 
     if (!expenses.length) {
       list.innerHTML = `
-        <div class="empty">
-          <strong>
-            No expenses yet
-          </strong>
-
-          Add the first shared cost
-          for this group.
+        <div class="modern-empty">
+          <div class="empty-icon">💸</div>
+          <strong>No expenses yet</strong>
+          <p>Add the first shared cost for this group.</p>
+          <button class="btn btn-primary" type="button" id="emptyAddExpense" style="margin-top: 15px;">Add an expense</button>
         </div>
       `;
+
+      const emptyBtn = document.getElementById('emptyAddExpense');
+      if (emptyBtn) {
+        emptyBtn.addEventListener('click', () => {
+          expenseModalLastFocus = document.activeElement;
+          const expenseModal = document.getElementById('expenseModal');
+          if (expenseModal) {
+            expenseModal.classList.add('open');
+            clearTimeout(expenseFocusTimeout);
+            expenseFocusTimeout = setTimeout(() => {
+              if (expenseModal.classList.contains('open')) expenseForm?.querySelector('input')?.focus();
+            }, 50);
+          }
+        });
+      }
 
       return;
     }
@@ -916,13 +940,10 @@ if (!requireAuth()) {
 
     if (!settlements.length) {
       sList.innerHTML = `
-        <div class="empty">
-          <strong>
-            All settled
-          </strong>
-
-          No outstanding debts
-          in this group.
+        <div class="modern-empty">
+          <div class="empty-icon" style="color: var(--ll-positive);">🎉</div>
+          <strong>All settled</strong>
+          <p>No outstanding debts in this group.</p>
         </div>
       `;
     } else {
@@ -1465,55 +1486,30 @@ if (!requireAuth()) {
       async (e) => {
         e.preventDefault();
 
-        const alertEl =
-          document.getElementById(
-            'memberAlert'
-          );
+        const alertEl = document.getElementById('memberAlert');
+        hideAlert(alertEl);
 
-        hideAlert(
-          alertEl
-        );
+        const emailInput = document.getElementById('memberEmail');
+        const email = emailInput.value.trim();
 
-        const email =
-          document
-            .getElementById(
-              'memberEmail'
-            )
-            .value
-            .trim();
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.dataset.originalText = submitBtn.textContent;
+        submitBtn.innerHTML = `<span class="fx-spinner"></span> Adding...`;
 
         try {
-          const data =
-            await api(
-              `/groups/${groupId}/members`,
-              {
-                method:
-                  'POST',
+          const data = await api(`/groups/${groupId}/members`, {
+            method: 'POST',
+            body: JSON.stringify({ email }),
+          });
 
-                body:
-                  JSON.stringify({
-                    email,
-                  }),
-              }
-            );
+          members = data.members || [];
+          emailInput.value = '';
 
-          members =
-            data.members || [];
-
-          document.getElementById(
-            'memberEmail'
-          ).value = '';
-
-          showAlert(
-            alertEl,
-            'Member added',
-            'success'
-          );
+          showAlert(alertEl, 'Member added', 'success');
 
           if (window.FX) {
-            window.FX.toast(
-              'Member added successfully!'
-            );
+            window.FX.toast('Member added successfully!');
           }
 
           await loadAll();
@@ -1528,6 +1524,9 @@ if (!requireAuth()) {
               alertEl
             );
           }
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = submitBtn.dataset.originalText || 'Add member';
         }
       }
     );
@@ -1604,6 +1603,13 @@ if (!requireAuth()) {
           );
       }
 
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.dataset.originalText = submitBtn.textContent;
+        submitBtn.innerHTML = `<span class="fx-spinner"></span> Saving...`;
+      }
+
       try {
         await api(
           '/expenses',
@@ -1670,6 +1676,11 @@ if (!requireAuth()) {
             expenseAlert
           );
         }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = submitBtn.dataset.originalText || 'Save expense';
+        }
       }
     }
   );
@@ -1689,7 +1700,8 @@ if (!requireAuth()) {
       const el = document.getElementById('expenseList');
       if (el) {
         el.innerHTML = `
-          <div class="empty">
+          <div class="modern-empty" style="padding: 2rem;">
+            <div class="empty-icon">!</div>
             <strong>Could not load group</strong>
             <p>${escapeHtml(err.message)}</p>
             <button id="retryGroupBtn" class="btn btn-primary" style="margin-top: 15px;" type="button">Retry</button>
@@ -1714,19 +1726,34 @@ if (!requireAuth()) {
   let currentPayerIntentId = null;
   let currentRecipientIntentId = null;
 
+  let paymentModalLastFocus = null;
+  let paymentFocusTimeout;
   function openPaymentMethodModal(amount, toUserId) {
+    paymentModalLastFocus = document.activeElement;
     const modal = document.getElementById('paymentMethodModal');
     modal.classList.add('open');
+    clearTimeout(paymentFocusTimeout);
+    paymentFocusTimeout = setTimeout(() => {
+      if (modal.classList.contains('open')) modal.querySelector('button')?.focus();
+    }, 50);
 
-    document.getElementById('closePaymentMethodBtn').onclick = () => modal.classList.remove('open');
+    document.getElementById('closePaymentMethodBtn').onclick = () => {
+      modal.classList.remove('open');
+      clearTimeout(paymentFocusTimeout);
+      restoreFocusSafe(paymentModalLastFocus);
+    };
 
     document.getElementById('btnPayRazorpay').onclick = () => {
       modal.classList.remove('open');
+      clearTimeout(paymentFocusTimeout);
+      restoreFocusSafe(paymentModalLastFocus);
       startPayment(amount, toUserId);
     };
 
     document.getElementById('btnPayUpi').onclick = () => {
       modal.classList.remove('open');
+      clearTimeout(paymentFocusTimeout);
+      restoreFocusSafe(paymentModalLastFocus);
       startUpiPayment(amount, toUserId);
     };
   }
@@ -1745,7 +1772,10 @@ if (!requireAuth()) {
     }
   }
 
+  let upiPayerModalLastFocus = null;
+  let upiPayerFocusTimeout;
   function openUpiPayerModal(intentData) {
+    upiPayerModalLastFocus = document.activeElement;
     const modal = document.getElementById('upiPayerModal');
     const alertBox = document.getElementById('upiPayerAlert');
     const linkContainer = document.getElementById('upiLinkContainer');
@@ -1755,7 +1785,15 @@ if (!requireAuth()) {
 
     hideAlert(alertBox);
     modal.classList.add('open');
-    document.getElementById('closeUpiPayerBtn').onclick = () => modal.classList.remove('open');
+    clearTimeout(upiPayerFocusTimeout);
+    upiPayerFocusTimeout = setTimeout(() => {
+      if (modal.classList.contains('open')) modal.querySelector('button')?.focus();
+    }, 50);
+    document.getElementById('closeUpiPayerBtn').onclick = () => {
+      modal.classList.remove('open');
+      clearTimeout(upiPayerFocusTimeout);
+      restoreFocusSafe(upiPayerModalLastFocus);
+    };
 
     if (intentData.status === 'pending') {
       statusText.textContent = "Complete your payment using any UPI app.";
@@ -1833,6 +1871,8 @@ if (!requireAuth()) {
         return;
       }
 
+      let upiRecipientModalLastFocus = document.activeElement;
+      let upiRecipientFocusTimeout;
       currentRecipientIntentId = intent.intentId;
       const modal = document.getElementById('upiRecipientModal');
       const alertBox = document.getElementById('upiRecipientAlert');
@@ -1841,8 +1881,16 @@ if (!requireAuth()) {
       hideAlert(alertBox);
       statusText.textContent = `${intent.payerName} claims they paid you ₹${intent.amount}. Please confirm if you received it.`;
       modal.classList.add('open');
+      clearTimeout(upiRecipientFocusTimeout);
+      upiRecipientFocusTimeout = setTimeout(() => {
+        if (modal.classList.contains('open')) modal.querySelector('button')?.focus();
+      }, 50);
 
-      document.getElementById('closeUpiRecipientBtn').onclick = () => modal.classList.remove('open');
+      document.getElementById('closeUpiRecipientBtn').onclick = () => {
+        modal.classList.remove('open');
+        clearTimeout(upiRecipientFocusTimeout);
+        restoreFocusSafe(upiRecipientModalLastFocus);
+      };
 
       document.getElementById('btnUpiConfirm').onclick = async () => {
         try {

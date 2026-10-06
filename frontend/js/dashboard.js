@@ -68,44 +68,40 @@ if (!requireAuth()) {
      CREATE GROUP MODAL
   ========================================================= */
 
+  let createModalLastFocus = null;
+  let createFocusTimeout;
+
   document
     .getElementById('openCreate')
     ?.addEventListener('click', () => {
-
+      createModalLastFocus = document.activeElement;
       hideAlert(createAlert);
-
       createForm.reset();
-
       createModal.classList.add('open');
+      clearTimeout(createFocusTimeout);
+      createFocusTimeout = setTimeout(() => {
+        if (createModal.classList.contains('open')) createForm.querySelector('input')?.focus();
+      }, 50);
     });
 
+  function closeCreateModal() {
+    createModal.classList.remove('open');
+    clearTimeout(createFocusTimeout);
+    restoreFocusSafe(createModalLastFocus);
+  }
 
   document
     .getElementById('closeCreate')
-    ?.addEventListener('click', () => {
-
-      createModal.classList.remove('open');
-
-    });
-
+    ?.addEventListener('click', closeCreateModal);
 
   document
     .getElementById('closeCreateAlt')
-    ?.addEventListener('click', () => {
-
-      createModal.classList.remove('open');
-
-    });
-
+    ?.addEventListener('click', closeCreateModal);
 
   createModal?.addEventListener('click', (e) => {
-
     if (e.target === createModal) {
-
-      createModal.classList.remove('open');
-
+      closeCreateModal();
     }
-
   });
 
 
@@ -126,6 +122,13 @@ if (!requireAuth()) {
           .split(',')
           .map((email) => email.trim())
           .filter(Boolean);
+
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.dataset.originalText = submitBtn.textContent;
+        submitBtn.innerHTML = `<span class="fx-spinner"></span> Creating...`;
+      }
 
       try {
 
@@ -186,6 +189,11 @@ if (!requireAuth()) {
 
         }
 
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = submitBtn.dataset.originalText || 'Create Group';
+        }
       }
 
     }
@@ -286,13 +294,14 @@ if (!requireAuth()) {
     document
       .getElementById('emptyCreateGroup')
       ?.addEventListener('click', () => {
-
+        createModalLastFocus = document.activeElement;
         hideAlert(createAlert);
-
         createForm.reset();
-
         createModal.classList.add('open');
-
+        clearTimeout(createFocusTimeout);
+        createFocusTimeout = setTimeout(() => {
+          if (createModal.classList.contains('open')) createForm.querySelector('input')?.focus();
+        }, 50);
       });
 
   }
@@ -753,10 +762,18 @@ if (!requireAuth()) {
   const upiIdInput = document.getElementById('upiIdInput');
   const settingsAlert = document.getElementById('settingsAlert');
 
+  let settingsModalLastFocus = null;
+  let settingsFocusTimeout;
+
   function openSettingsModal() {
+    settingsModalLastFocus = document.activeElement;
     hideAlert(settingsAlert);
     upiIdInput.value = '';
     settingsModal.classList.add('open');
+    clearTimeout(settingsFocusTimeout);
+    settingsFocusTimeout = setTimeout(() => {
+      if (settingsModal.classList.contains('open')) upiIdInput.focus();
+    }, 50);
     upiIdInput.placeholder = 'Loading...';
 
     api('/auth/me', { method: 'GET' })
@@ -774,6 +791,8 @@ if (!requireAuth()) {
 
   function closeSettings() {
     settingsModal.classList.remove('open');
+    clearTimeout(settingsFocusTimeout);
+    restoreFocusSafe(settingsModalLastFocus);
   }
 
   if (settingsBtn) settingsBtn.addEventListener('click', openSettingsModal);
