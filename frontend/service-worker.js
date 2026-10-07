@@ -1,6 +1,6 @@
 importScripts("/js/helpers.js");
 
-const CACHE_NAME = "lendlocal-v14";
+const CACHE_NAME = "lendlocal-v15";
 
 const STATIC_ASSETS = [
   "/",
@@ -19,6 +19,8 @@ const STATIC_ASSETS = [
   "/css/auth-premium.css",
   "/js/helpers.js",
   "/js/api.js",
+  "/js/pwa.js",
+  "/js/firebase.js",
   "/js/dashboard.js",
   "/js/effects.js",
   "/js/group.js",
