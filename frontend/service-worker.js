@@ -1,4 +1,6 @@
-const CACHE_NAME = "lendlocal-v13";
+importScripts("/js/helpers.js");
+
+const CACHE_NAME = "lendlocal-v14";
 
 const STATIC_ASSETS = [
   "/",
@@ -89,6 +91,42 @@ self.addEventListener("fetch", (event) => {
 });
 
 // ============================================
+// NOTIFICATION CLICK
+// ============================================
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.stopImmediatePropagation();
+
+  const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : "/dashboard.html";
+  const destinationPath = typeof parseReturnUrl === 'function' ? parseReturnUrl(targetUrl, self.location.origin) : "/dashboard.html";
+  const urlToOpen = new URL(destinationPath, self.location.origin).href;
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clientList) => {
+      for (const client of clientList) {
+        if (client.url === urlToOpen && "focus" in client) {
+          return await client.focus();
+        }
+      }
+      if (clientList.length > 0) {
+        const client = clientList[0];
+        if ("navigate" in client) {
+          await client.navigate(urlToOpen);
+        }
+        if ("focus" in client) {
+          return await client.focus();
+        }
+        return;
+      }
+      if (clients.openWindow) {
+        return await clients.openWindow(urlToOpen);
+      }
+    })
+  );
+});
+
+// ============================================
 // FIREBASE CLOUD MESSAGING
 // ============================================
 
@@ -141,50 +179,5 @@ messaging.onBackgroundMessage((payload) => {
   self.registration.showNotification(
     notificationTitle,
     notificationOptions
-  );
-});
-
-// ============================================
-// NOTIFICATION CLICK
-// ============================================
-
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-
-  const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : "/dashboard.html";
-
-  let resolvedUrl;
-  try {
-    resolvedUrl = new URL(targetUrl, self.location.origin);
-    if (resolvedUrl.origin !== self.location.origin) {
-      resolvedUrl = new URL("/dashboard.html", self.location.origin);
-    }
-  } catch (e) {
-    resolvedUrl = new URL("/dashboard.html", self.location.origin);
-  }
-
-  const urlToOpen = resolvedUrl.href;
-
-  event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clientList) => {
-      for (const client of clientList) {
-        if (client.url === urlToOpen && "focus" in client) {
-          return await client.focus();
-        }
-      }
-      if (clientList.length > 0) {
-        const client = clientList[0];
-        if ("navigate" in client) {
-          await client.navigate(urlToOpen);
-        }
-        if ("focus" in client) {
-          return await client.focus();
-        }
-        return;
-      }
-      if (clients.openWindow) {
-        return await clients.openWindow(urlToOpen);
-      }
-    })
   );
 });

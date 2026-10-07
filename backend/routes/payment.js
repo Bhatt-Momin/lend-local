@@ -911,6 +911,37 @@ router.post("/cancel", protect, async (req, res) => {
 
 
 // =====================================================
+// GET INTENT STATUS
+// =====================================================
+router.get("/status/:intentId", protect, async (req, res) => {
+  try {
+    const intentId = req.params.intentId;
+    if (!intentId || !intentId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: "Invalid intent ID format" });
+    }
+
+    const intent = await Payment.findOne({ _id: intentId });
+    if (!intent) {
+      return res.status(404).json({ message: "Payment intent not found", status: "unknown" });
+    }
+
+    // Must be a participant of the payment
+    if (intent.from.toString() !== req.user._id.toString() && intent.to.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Unauthorized", status: "unknown" });
+    }
+
+    return res.status(200).json({
+      intentId: intent._id,
+      status: intent.status
+    });
+  } catch (error) {
+    console.error("Fetch intent status error:", error);
+    res.status(500).json({ message: "Failed to fetch intent status" });
+  }
+});
+
+
+// =====================================================
 // GET ACTIVE DIRECT UPI INTENTS
 // =====================================================
 router.get("/active/:groupId", protect, async (req, res) => {

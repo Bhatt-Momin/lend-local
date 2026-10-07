@@ -734,6 +734,29 @@ if (!requireAuth()) {
     renderMembers();
 
     renderPaidBy();
+
+    // Auto-close UPI modal if the intent was settled in the background
+    const upiModal = document.getElementById('upiPayerModal');
+    if (upiModal && upiModal.classList.contains('open') && currentPayerIntentId) {
+      if (!activeIntentsRes.error) {
+        const stillActive = (activeIntentsRes.intents || []).find(i => i.intentId === currentPayerIntentId);
+        if (!stillActive) {
+          // Fetch explicit status instead of inferring from absence
+          try {
+            const statusRes = await api(`/payment/status/${currentPayerIntentId}`);
+            if (['confirmed', 'recipient_rejected', 'cancelled', 'unknown'].includes(statusRes.status)) {
+              upiModal.classList.remove('open');
+              window.isPaymentActive = false;
+              if (!window.isPaymentRequestInFlight) {
+                alert(`Payment status updated to: ${statusRes.status}`);
+              }
+            }
+          } catch (err) {
+            console.warn('Failed to fetch explicit intent status, keeping modal open', err);
+          }
+        }
+      }
+    }
   }
 
   /* =========================================================
@@ -1326,6 +1349,8 @@ if (!requireAuth()) {
         '.member-item'
       );
     }
+
+
   }
 
   /* =========================================================
@@ -1354,11 +1379,6 @@ if (!requireAuth()) {
         );
 
       const options = {
-        modal: {
-          ondismiss: function() {
-            window.isPaymentActive = false;
-          }
-        },
         key:
           'rzp_test_TPv7QuxyBVkM0D',
 
@@ -1465,6 +1485,15 @@ if (!requireAuth()) {
 
           email:
             me.email || '',
+        },
+
+        modal: {
+          ondismiss: function() {
+            if (!window.isPaymentRequestInFlight) {
+              window.isPaymentActive = false;
+            }
+            initLoadAll(true).catch(() => {});
+          }
         },
 
         theme: {
@@ -1748,7 +1777,8 @@ if (!requireAuth()) {
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      if (Date.now() - lastLoadTime > STALE_MS && !isRefreshing) {
+      const isPaymentReturn = window.isPaymentActive === true;
+      if ((isPaymentReturn || Date.now() - lastLoadTime > STALE_MS) && !isRefreshing) {
         isRefreshing = true;
         initLoadAll(true)
           .catch(err => console.warn('Background refresh failed', err))
@@ -1982,29 +2012,8 @@ if (!requireAuth()) {
     handleRecipientClaim(claimIntentId);
   }
 
-  // Listen for FCM foreground claims
-  window.addEventListener('paymentClaim', (e) => {
-    if (e.detail && e.detail.paymentId && e.detail.groupId) {
-      if (e.detail.groupId === groupId) {
-        handleRecipientClaim(e.detail.paymentId);
-      } else {
-        window.location.href = `/group.html?id=${e.detail.groupId}&claimIntentId=${e.detail.paymentId}`;
-      }
-    }
-  });
-
-  window.addEventListener('paymentConfirmed', (e) => {
-    if (e.detail && e.detail.groupId === groupId) {
-      alert(`Payment confirmed by ${e.detail.recipientName || 'recipient'}! Ledger updated.`);
-      window.location.reload();
-    }
-  });
-
-  window.addEventListener('paymentRejected', (e) => {
-    if (e.detail && e.detail.groupId === groupId) {
-      alert(`Payment claim was rejected by ${e.detail.recipientName || 'recipient'}.`);
-      window.location.reload();
-    }
-  });
-
+  // Expose handlers for testing
+  window.startPayment = startPayment;
+  window.startUpiPayment = startUpiPayment;
+  window.openUpiPayerModal = openUpiPayerModal;
 }

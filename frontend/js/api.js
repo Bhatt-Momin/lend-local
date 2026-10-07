@@ -117,7 +117,8 @@ function clearSession() {
 
 function requireAuth() {
   if (!getToken()) {
-    window.location.href = '/login.html';
+    const current = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
+    window.location.href = `/login.html?next=${current}`;
     return false;
   }
   return true;
