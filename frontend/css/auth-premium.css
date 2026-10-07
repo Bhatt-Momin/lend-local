@@ -10,8 +10,9 @@ body.ll-auth-page .auth-shell {
   flex-direction: column !important;
   align-items: center !important;
   min-height: 100vh !important;
+  min-height: 100dvh !important;
   background: transparent !important;
-  padding: 1.5rem !important;
+  padding: calc(1.5rem + env(safe-area-inset-top, 0px)) calc(1.5rem + env(safe-area-inset-right, 0px)) calc(1.5rem + env(safe-area-inset-bottom, 0px)) calc(1.5rem + env(safe-area-inset-left, 0px)) !important;
 }
 
 /* Hide or redefine the old hero */
@@ -128,7 +129,7 @@ body.ll-auth-page .auth-brand strong {
 
 @media (max-width: 480px) {
   body.ll-auth-page .auth-shell {
-    padding: 1rem !important;
+    padding: calc(1rem + env(safe-area-inset-top, 0px)) calc(1rem + env(safe-area-inset-right, 0px)) calc(1rem + env(safe-area-inset-bottom, 0px)) calc(1rem + env(safe-area-inset-left, 0px)) !important;
   }
   body.ll-auth-page .auth-card {
     padding: 2rem 1.5rem !important;

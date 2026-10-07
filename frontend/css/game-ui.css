@@ -10,12 +10,14 @@
 
 .modern-dashboard {
     min-height: 100vh;
+  min-height: 100dvh;
     background: #f6f8f7;
     color: #1d2925;
   }
   
   .modern-page {
     min-height: 100vh;
+  min-height: 100dvh;
   }
   
   
@@ -685,12 +687,14 @@
   }
   
   .modern-modal-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--ll-surface, #151e1b);
+    z-index: 10;
+    padding: 1rem 0;
     display: flex;
-  
     justify-content: flex-end;
-  
     gap: 0.7rem;
-  
     margin-top: 1.5rem;
   }
   

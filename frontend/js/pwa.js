@@ -219,10 +219,102 @@ window.addEventListener('DOMContentLoaded', () => {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const registration = await navigator.serviceWorker.register(
-        '/service-worker.js'
-      );
+      const registration = await navigator.serviceWorker.register('/service-worker.js');
       console.log('Service Worker registered successfully:', registration.scope);
+
+      let refreshing = false;
+      let updateRequestedByThisTab = false;
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (updateRequestedByThisTab && !refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+
+      function showUpdateBanner(worker) {
+        if (document.getElementById('pwa-update-toast')) return;
+        const toast = document.createElement('div');
+        toast.id = 'pwa-update-toast';
+        toast.style.cssText = 'position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 20px; border-radius: 8px; z-index: 9999; display: flex; gap: 15px; align-items: center; box-shadow: var(--shadow); width: max-content; max-width: 90vw;';
+
+        const text = document.createElement('span');
+        text.textContent = 'App update available';
+
+        const actions = document.createElement('div');
+        actions.style.cssText = 'display: flex; gap: 10px;';
+
+        const ignoreBtn = document.createElement('button');
+        ignoreBtn.textContent = 'Later';
+        ignoreBtn.className = 'btn btn-ghost';
+        ignoreBtn.style.cssText = 'color: #fff; min-height: 36px; min-width: 0; padding: 0.5rem 1rem; border: 1px solid rgba(255,255,255,0.3);';
+        ignoreBtn.onclick = () => toast.remove();
+
+        const updateBtn = document.createElement('button');
+        updateBtn.textContent = 'Update';
+        updateBtn.className = 'btn';
+        updateBtn.style.cssText = 'min-height: 36px; min-width: 0; padding: 0.5rem 1rem;';
+        updateBtn.onclick = () => {
+          if (window.isPaymentActive || window.isPaymentRequestInFlight) {
+            alert('You have an active payment. Please finish or close it before updating.');
+            return;
+          }
+
+          let hasDirtyInput = false;
+          const inputs = document.querySelectorAll('input:not([type="hidden"]), textarea, select');
+          for (const i of inputs) {
+            const modal = i.closest('.modal-backdrop, [role="dialog"]');
+            if (modal && !modal.classList.contains('open') && modal.style.display !== 'flex') continue;
+
+            if (i.type === 'checkbox' || i.type === 'radio') {
+              if (i.checked !== i.defaultChecked) { hasDirtyInput = true; break; }
+            } else if (i.tagName === 'SELECT') {
+              let defaultFound = false;
+              for (const opt of i.options) {
+                if (opt.defaultSelected) {
+                  defaultFound = true;
+                  if (!opt.selected) hasDirtyInput = true;
+                }
+              }
+              if (!defaultFound && i.selectedIndex > 0) hasDirtyInput = true;
+              if (hasDirtyInput) break;
+            } else {
+              if (i.value !== i.defaultValue) { hasDirtyInput = true; break; }
+            }
+          }
+
+          if (hasDirtyInput) {
+             alert('You have unsaved form changes. Please finish or clear them before updating.');
+             return;
+          }
+
+          updateBtn.disabled = true;
+          updateBtn.textContent = 'Updating...';
+          updateRequestedByThisTab = true;
+          worker.postMessage('SKIP_WAITING');
+        };
+
+        actions.appendChild(ignoreBtn);
+        actions.appendChild(updateBtn);
+        toast.appendChild(text);
+        toast.appendChild(actions);
+        document.body.appendChild(toast);
+      }
+
+      function onUpdateFound() {
+        const newWorker = registration.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateBanner(newWorker);
+          }
+        });
+      }
+
+      registration.addEventListener('updatefound', onUpdateFound);
+      if (registration.waiting && navigator.serviceWorker.controller) {
+        showUpdateBanner(registration.waiting);
+      }
     } catch (error) {
       console.error('Service Worker registration failed:', error);
     }

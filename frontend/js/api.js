@@ -178,10 +178,11 @@ async function api(path, options = {}) {
     }
   }
 
-  if (res.status === 401 && !path.includes('/auth/login')) {
+  if (res.status === 401 && !path.includes('/auth/login') && !path.includes('/auth/register')) {
     clearSession();
-    if (!window.location.pathname.includes('login')) {
-      window.location.href = '/login.html';
+    if (!window.location.pathname.includes('login.html')) {
+      const dest = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.href = `/login.html?expired=1&next=${dest}`;
     }
   }
 

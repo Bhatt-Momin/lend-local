@@ -15,6 +15,7 @@ const STATIC_ASSETS = [
   "/css/dashboard-premium.css",
   "/css/group-premium.css",
   "/css/auth-premium.css",
+  "/js/helpers.js",
   "/js/api.js",
   "/js/dashboard.js",
   "/js/effects.js",
@@ -32,8 +33,12 @@ self.addEventListener("install", (event) => {
       return cache.addAll(STATIC_ASSETS);
     })
   );
+});
 
-  self.skipWaiting();
+self.addEventListener("message", (event) => {
+  if (event.data === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 // ============================================

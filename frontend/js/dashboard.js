@@ -420,7 +420,17 @@ if (!requireAuth()) {
   ========================================================= */
 
   window.reloadCurrentData = loadGroups;
-  async function loadGroups() {
+  const loaderQueue = createLoaderQueue(async () => {
+    const res = await _loadGroups();
+    lastLoadTime = Date.now();
+    return res;
+  });
+
+  function loadGroups(force = false) {
+    return loaderQueue.load(force);
+  }
+
+  async function _loadGroups() {
     const retryBtn = document.getElementById('retryGroups');
     if (retryBtn) {
       retryBtn.disabled = true;
@@ -822,10 +832,31 @@ if (!requireAuth()) {
   }
 
   /* =========================================================
+     BACKGROUND RESUME
+  ========================================================= */
+  let lastLoadTime = Date.now();
+  let isRefreshing = false;
+  const STALE_MS = 2 * 60 * 1000; // 2 minutes
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (Date.now() - lastLoadTime > STALE_MS && !isRefreshing) {
+        isRefreshing = true;
+        // Check if create modal or settings modal is open to avoid disrupting input?
+        // Actually, loadGroups() replaces the list but doesn't close modals.
+        // It's safe to run in background.
+        loadGroups(true)
+          .catch(err => console.warn('Background refresh failed', err))
+          .finally(() => { isRefreshing = false; });
+      }
+    }
+  });
+
+  /* =========================================================
      INITIAL LOAD
   ========================================================= */
 
-  loadGroups().catch(err => {
+  loadGroups(true).catch(err => {
     console.error('Initial load failed:', err);
   });
 

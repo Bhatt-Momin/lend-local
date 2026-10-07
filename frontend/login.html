@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Sign in — LendLocal</title>
 
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=2">
@@ -52,19 +52,27 @@
     </section>
   </div>
 
+  <script src="/js/helpers.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/effects.js"></script>
   <script>
     redirectIfAuthed();
   
+    const urlParams = new URLSearchParams(window.location.search);
     const form = document.getElementById('loginForm');
     const alertEl = document.getElementById('alert');
     const submitBtn = form.querySelector('button[type="submit"]');
+
+    if (urlParams.get('expired') === '1') {
+      showAlert(alertEl, 'Your session has expired. Please sign in again.', 'error');
+    }
   
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
   
-      hideAlert(alertEl);
+      if (urlParams.get('expired') !== '1') {
+        hideAlert(alertEl);
+      }
   
       const email = form.email.value.trim();
       const password = form.password.value;
@@ -91,7 +99,9 @@
   
         // Allow the success feedback to appear before redirecting
         setTimeout(() => {
-          window.location.href = '/dashboard.html';
+          const nextUrl = urlParams.get('next');
+          let destination = parseReturnUrl(nextUrl, window.location.origin);
+          window.location.href = destination;
         }, 500);
   
       } catch (err) {

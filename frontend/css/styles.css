@@ -36,8 +36,10 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   font-family: var(--font-body);
   color: var(--ink);
+  overflow-wrap: break-word;
   background:
     radial-gradient(1200px 600px at 10% -10%, rgba(212, 160, 23, 0.18), transparent 55%),
     radial-gradient(900px 500px at 100% 0%, rgba(15, 92, 76, 0.2), transparent 50%),
@@ -86,11 +88,13 @@ textarea {
   position: relative;
   z-index: 1;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* ——— Auth / landing ——— */
 .auth-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: 1.15fr 1fr;
 }
@@ -291,7 +295,7 @@ textarea {
 .app-header-inner {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 0.9rem 1.25rem;
+  padding: calc(0.9rem + env(safe-area-inset-top, 0px)) calc(1.25rem + env(safe-area-inset-right, 0px)) 0.9rem calc(1.25rem + env(safe-area-inset-left, 0px));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -326,7 +330,7 @@ textarea {
 .container {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 1.75rem 1.25rem 3.5rem;
+  padding: 1.75rem calc(1.25rem + env(safe-area-inset-right, 0px)) calc(3.5rem + env(safe-area-inset-bottom, 0px)) calc(1.25rem + env(safe-area-inset-left, 0px));
   animation: riseIn 0.55s var(--ease);
 }
 
@@ -487,7 +491,7 @@ textarea {
   display: none;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: calc(1rem + env(safe-area-inset-top, 0px)) calc(1rem + env(safe-area-inset-right, 0px)) calc(1rem + env(safe-area-inset-bottom, 0px)) calc(1rem + env(safe-area-inset-left, 0px));
   z-index: 50;
   backdrop-filter: blur(4px);
 }
@@ -515,10 +519,15 @@ textarea {
 }
 
 .modal-actions {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface-solid, #fff);
+  z-index: 10;
+  padding: 1rem 0;
+  margin-top: 1.25rem;
   display: flex;
   gap: 0.65rem;
   justify-content: flex-end;
-  margin-top: 1.25rem;
 }
 
 .split-list {
@@ -735,7 +744,8 @@ button, .btn, select, input:not([type="checkbox"]):not([type="radio"]):not([type
   min-height: 44px;
 }
 
-button, .btn {
+button, .btn, input:not([type="checkbox"]):not([type="radio"]), select {
+  min-height: 44px;
   min-width: 44px;
 }
 

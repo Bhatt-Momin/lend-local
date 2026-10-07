@@ -576,7 +576,18 @@ if (!requireAuth()) {
      LOAD GROUP DATA
   ========================================================= */
 
-  async function loadAll() {
+  const loaderQueue = createLoaderQueue(async () => {
+    const res = await _loadAll();
+    lastLoadTime = Date.now();
+    return res;
+  });
+
+  function loadAll(force = false) {
+    return loaderQueue.load(force);
+  }
+
+
+  async function _loadAll() {
     const [
       groupRes,
       expenseRes,
@@ -897,11 +908,11 @@ if (!requireAuth()) {
                       'Expense deleted'
                     );
 
-                    await loadAll();
+                    await initLoadAll(true);
                   }
                 );
               } else {
-                await loadAll();
+                await initLoadAll(true);
               }
             } catch (err) {
               alert(
@@ -1321,6 +1332,7 @@ if (!requireAuth()) {
      PAYMENT
   ========================================================= */
 
+  window.isPaymentActive = true;
   async function startPayment(
     amount,
     toUserId
@@ -1342,6 +1354,11 @@ if (!requireAuth()) {
         );
 
       const options = {
+        modal: {
+          ondismiss: function() {
+            window.isPaymentActive = false;
+          }
+        },
         key:
           'rzp_test_TPv7QuxyBVkM0D',
 
@@ -1360,11 +1377,10 @@ if (!requireAuth()) {
         order_id:
           order.id,
 
-        handler:
-          async function (
-            response
-          ) {
+        handler: async function (response) {
             try {
+              window.isPaymentRequestInFlight = true;
+
               const verification =
                 await api(
                   '/payment/verify-payment',
@@ -1410,12 +1426,10 @@ if (!requireAuth()) {
                   );
                 }
 
-                setTimeout(
-                  async () => {
-                    await loadAll();
-                  },
-                  500
-                );
+
+              await new Promise(r => setTimeout(r, 500));
+              await initLoadAll(true).catch(e => console.warn('Payment refresh failed', e));
+
               } else {
                 alert(
                   'Payment verification failed.'
@@ -1428,6 +1442,7 @@ if (!requireAuth()) {
                 }
               }
             } catch (error) {
+
               console.error(
                 'Verification error:',
                 error
@@ -1437,6 +1452,10 @@ if (!requireAuth()) {
                 error.message ||
                 'Payment verification failed'
               );
+
+            } finally {
+              window.isPaymentRequestInFlight = false;
+              window.isPaymentActive = false;
             }
           },
 
@@ -1461,6 +1480,7 @@ if (!requireAuth()) {
 
       razorpay.open();
     } catch (err) {
+      window.isPaymentActive = false;
       console.error(
         'Payment error:',
         err
@@ -1512,7 +1532,7 @@ if (!requireAuth()) {
             window.FX.toast('Member added successfully!');
           }
 
-          await loadAll();
+          await initLoadAll(true);
         } catch (err) {
           showAlert(
             alertEl,
@@ -1664,7 +1684,7 @@ if (!requireAuth()) {
           );
         }
 
-        await loadAll();
+        await initLoadAll(true);
       } catch (err) {
         showAlert(
           expenseAlert,
@@ -1690,34 +1710,51 @@ if (!requireAuth()) {
   ========================================================= */
 
   window.reloadCurrentData = initLoadAll;
-  function initLoadAll() {
-    const btn = document.getElementById('retryGroupBtn');
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = 'Loading...';
-    }
-    return loadAll().catch((err) => {
-      const el = document.getElementById('expenseList');
-      if (el) {
-        el.innerHTML = `
-          <div class="modern-empty" style="padding: 2rem;">
-            <div class="empty-icon">!</div>
-            <strong>Could not load group</strong>
-            <p>${escapeHtml(err.message)}</p>
-            <button id="retryGroupBtn" class="btn btn-primary" style="margin-top: 15px;" type="button">Retry</button>
-          </div>
-        `;
-        document.getElementById('retryGroupBtn')?.addEventListener('click', () => {
-          initLoadAll().catch(err => {
-            console.error('Retry failed:', err);
-          });
+  function initLoadAll(force = false) { return loadAll(force).catch(handleInitLoadError); }
+
+  function handleInitLoadError(err) {
+    const el = document.getElementById('expenseList');
+    if (el) {
+      el.innerHTML = `<div class="modern-empty" style="padding: 2rem;">
+        <div class="empty-icon">!</div>
+        <strong>Could not load group</strong>
+        <p>${escapeHtml(err.message)}</p>
+        <button id="retryGroupBtn" class="btn btn-primary" style="margin-top: 15px;" type="button">Retry</button>
+      </div>`;
+      const btn = document.getElementById('retryGroupBtn');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          btn.disabled = true;
+          btn.textContent = 'Loading...';
+          initLoadAll(true).catch(e => console.error('Retry failed:', e));
         });
       }
-      throw err;
-    });
+    }
+    throw err;
   }
-  initLoadAll().catch(err => {
-    console.error('Initial load failed:', err);
+
+
+
+  initLoadAll(true).catch(err => {
+      console.error('Initial load failed:', err);
+    });
+
+  /* =========================================================
+     BACKGROUND RESUME
+  ========================================================= */
+  let lastLoadTime = Date.now();
+  let isRefreshing = false;
+  const STALE_MS = 2 * 60 * 1000; // 2 minutes
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (Date.now() - lastLoadTime > STALE_MS && !isRefreshing) {
+        isRefreshing = true;
+        initLoadAll(true)
+          .catch(err => console.warn('Background refresh failed', err))
+          .finally(() => { isRefreshing = false; });
+      }
+    }
   });
 
   /* =========================================================
@@ -1759,6 +1796,7 @@ if (!requireAuth()) {
   }
 
   async function startUpiPayment(amount, toUserId) {
+    window.isPaymentActive = true;
     try {
       const res = await api('/payment/intent', {
         method: 'POST',
@@ -1768,6 +1806,7 @@ if (!requireAuth()) {
       currentPayerIntentId = res.intentId;
       openUpiPayerModal(res);
     } catch (err) {
+      window.isPaymentActive = false;
       alert(err.message || "Failed to initiate UPI payment");
     }
   }
@@ -1793,6 +1832,9 @@ if (!requireAuth()) {
       modal.classList.remove('open');
       clearTimeout(upiPayerFocusTimeout);
       restoreFocusSafe(upiPayerModalLastFocus);
+      if (!window.isPaymentRequestInFlight) {
+        window.isPaymentActive = false;
+      }
     };
 
     if (intentData.status === 'pending') {
@@ -1824,6 +1866,7 @@ if (!requireAuth()) {
 
     btnClaim.onclick = async () => {
       try {
+        window.isPaymentRequestInFlight = true;
         const res = await api('/payment/claim', {
           method: 'POST',
           body: JSON.stringify({ intentId: currentPayerIntentId })
@@ -1831,11 +1874,17 @@ if (!requireAuth()) {
         openUpiPayerModal(res);
       } catch (err) {
         showAlert(alertBox, err.message);
+      } finally {
+        window.isPaymentRequestInFlight = false;
+        if (!document.getElementById('upiPayerModal').classList.contains('open')) {
+          window.isPaymentActive = false;
+        }
       }
     };
 
     btnCancel.onclick = async () => {
       try {
+        window.isPaymentRequestInFlight = true;
         await api('/payment/cancel', {
           method: 'POST',
           body: JSON.stringify({ intentId: currentPayerIntentId })
@@ -1844,6 +1893,11 @@ if (!requireAuth()) {
         window.location.reload();
       } catch (err) {
         showAlert(alertBox, err.message);
+      } finally {
+        window.isPaymentRequestInFlight = false;
+        if (!document.getElementById('upiPayerModal').classList.contains('open')) {
+          window.isPaymentActive = false;
+        }
       }
     };
   }
