@@ -46,6 +46,7 @@ app.use(
 // =====================================================
 
 app.get("/api/health", (req, res) => res.status(200).json({ status: "ok" }));
+app.get("/api/config", (req, res) => res.status(200).json({ razorpayEnabled: process.env.RAZORPAY_ENABLED === 'true' }));
 app.use("/api/auth", authRoutes);
 
 app.use("/api/groups", groupRoutes);

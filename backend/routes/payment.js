@@ -19,6 +19,9 @@ const router = express.Router();
 
 router.post("/create-order", protect, async (req, res) => {
   try {
+    if (process.env.RAZORPAY_ENABLED !== 'true') {
+      return res.status(503).json({ message: "Razorpay payments will be available soon. Currently under maintenance. Please use UPI." });
+    }
     const { amount, groupId, toUserId } = req.body;
 
     const numericAmount = Number(amount);

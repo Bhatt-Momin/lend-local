@@ -713,7 +713,7 @@
       </div>
       <div class="modern-modal-actions" style="flex-direction: column; gap: 10px; margin-top: 20px;">
         <button type="button" class="btn" id="btnPayUpi" style="width: 100%;">Pay directly via UPI</button>
-        <button type="button" class="btn btn-ghost" id="btnPayRazorpay" style="width: 100%;">Pay via Razorpay</button>
+        <button type="button" class="btn btn-ghost" id="btnPayRazorpay" style="width: 100%;">Pay via Razorpay (Coming soon)</button>
       </div>
     </div>
   </div>
@@ -733,8 +733,14 @@
       <div id="upiPayerAlert" class="alert" role="alert"></div>
 
       <div style="margin: 20px 0; text-align: center;" id="upiLinkContainer">
-        <a href="#" id="upiDeepLink" class="btn" style="display: none; text-decoration: none; padding: 12px; font-size: 1.1rem;" target="_blank">Open UPI App</a>
+        <a href="#" id="upiDeepLink" class="btn" style="display: none; text-decoration: none; padding: 12px; font-size: 1.1rem;">Open UPI App</a>
         <p id="upiDesktopMessage" style="display: none; font-size: 1rem; color: var(--ll-text); margin-top: 10px; font-weight: bold;">Open LendLocal on your phone to pay directly via UPI.</p>
+      </div>
+
+      <div id="upiFallbackDetails" style="display: none; text-align: left; background: var(--ll-surface); padding: 10px; border-radius: 8px; margin-bottom: 20px; font-size: 0.9rem;">
+        <p style="margin: 0 0 5px 0;"><strong>To:</strong> <span id="upiFallbackName"></span></p>
+        <p style="margin: 0 0 5px 0;"><strong>UPI ID:</strong> <span id="upiFallbackId"></span></p>
+        <p style="margin: 0;"><strong>Amount:</strong> ₹<span id="upiFallbackAmount"></span></p>
       </div>
 
       <div class="modern-modal-actions" style="margin-top: 20px;">

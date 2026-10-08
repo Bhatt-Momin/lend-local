@@ -1461,11 +1461,11 @@ if (!requireAuth()) {
      PAYMENT
   ========================================================= */
 
-  window.isPaymentActive = true;
   async function startPayment(
     amount,
     toUserId
   ) {
+    window.isPaymentActive = true;
     try {
       const order =
         await api(
@@ -1946,11 +1946,20 @@ if (!requireAuth()) {
       restoreFocusSafe(paymentModalLastFocus);
     };
 
-    document.getElementById('btnPayRazorpay').onclick = () => {
-      modal.classList.remove('open');
-      clearTimeout(paymentFocusTimeout);
-      restoreFocusSafe(paymentModalLastFocus);
-      startPayment(amount, toUserId);
+    document.getElementById('btnPayRazorpay').onclick = async () => {
+      try {
+        const conf = await api('/config');
+        if (conf.razorpayEnabled) {
+          modal.classList.remove('open');
+          clearTimeout(paymentFocusTimeout);
+          restoreFocusSafe(paymentModalLastFocus);
+          startPayment(amount, toUserId);
+        } else {
+          alert("Razorpay payments will be available soon. Currently under maintenance. Please use UPI.");
+        }
+      } catch (err) {
+        alert("Razorpay payments will be available soon. Currently under maintenance. Please use UPI.");
+      }
     };
 
     document.getElementById('btnPayUpi').onclick = () => {
@@ -2013,6 +2022,16 @@ if (!requireAuth()) {
       const desktopMsg = document.getElementById('upiDesktopMessage');
 
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const fallbackContainer = document.getElementById('upiFallbackDetails');
+
+      if (intentData.payeeName && intentData.payeeUpiId) {
+        document.getElementById('upiFallbackName').textContent = intentData.payeeName;
+        document.getElementById('upiFallbackId').textContent = intentData.payeeUpiId;
+        document.getElementById('upiFallbackAmount').textContent = intentData.amount.toFixed(2);
+        fallbackContainer.style.display = 'block';
+      } else {
+        fallbackContainer.style.display = 'none';
+      }
 
       if (isMobile) {
         upiLink.style.display = 'block';
@@ -2026,6 +2045,7 @@ if (!requireAuth()) {
     } else if (intentData.status === 'payer_claimed') {
       statusText.textContent = "Payment claimed. Awaiting confirmation from the recipient.";
       linkContainer.style.display = 'none';
+      document.getElementById('upiFallbackDetails').style.display = 'none';
       btnCancel.style.display = 'none';
       btnClaim.style.display = 'none';
     }
