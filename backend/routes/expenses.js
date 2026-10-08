@@ -50,7 +50,43 @@ router.get('/:groupId', async (req, res) => {
 
     const { isActiveMember } = await assertParticipant(req.params.groupId, req.user._id);
 
-    let expenses = await Expense.find({ group: req.params.groupId })
+    const query = { group: req.params.groupId };
+    // Filters
+    if (req.query.search) {
+      const escapeRegex = (text) => text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+      query.description = { $regex: escapeRegex(req.query.search), $options: 'i' };
+    }
+    if (req.query.category) {
+      query.category = req.query.category;
+    }
+    if (req.query.payer) {
+      const mongoose = require('mongoose');
+      if (!mongoose.Types.ObjectId.isValid(req.query.payer)) {
+        return res.status(400).json({ message: 'Invalid payer ID format' });
+      }
+      query.paidBy = req.query.payer;
+    }
+    if (req.query.startDate || req.query.endDate) {
+      query.date = {};
+      let start, end;
+      if (req.query.startDate) {
+        start = new Date(req.query.startDate);
+        if (isNaN(start.getTime())) return res.status(400).json({ message: 'Invalid start date' });
+        query.date.$gte = start;
+      }
+      if (req.query.endDate) {
+        end = new Date(req.query.endDate);
+        if (isNaN(end.getTime())) return res.status(400).json({ message: 'Invalid end date' });
+        // Set to end of day to include all expenses on the end date
+        end.setUTCHours(23, 59, 59, 999);
+        query.date.$lte = end;
+      }
+      if (start && end && start > end) {
+        return res.status(400).json({ message: 'Start date cannot be after end date' });
+      }
+    }
+
+    let expenses = await Expense.find(query)
       .populate('paidBy', 'name email')
       .populate('splits.user', 'name email')
       .sort({ date: -1, createdAt: -1 });
@@ -85,6 +121,8 @@ router.get('/:groupId', async (req, res) => {
           name: e.paidBy.name,
           ...(isActiveMember && e.paidBy.email ? { email: e.paidBy.email } : {})
         },
+
+        createdBy: e.createdBy ? e.createdBy.toString() : null,
 
         splits: e.splits.map((s) => ({
 
@@ -142,6 +180,7 @@ router.post('/', async (req, res) => {
     if (
       !groupId ||
       !description ||
+      !description.trim() ||
       amount == null
     ) {
 
@@ -165,12 +204,15 @@ router.post('/', async (req, res) => {
       numericAmount <= 0 ||
       numericAmount > MAX_AMOUNT
     ) {
-
       return res.status(400).json({
-        message:
-          'Valid finite amount required'
+        message: 'Valid finite amount required'
       });
+    }
 
+    if (parseFloat(numericAmount.toFixed(2)) !== numericAmount) {
+      return res.status(400).json({
+        message: 'Amount must have at most two decimal places'
+      });
     }
 
 
@@ -230,10 +272,17 @@ router.post('/', async (req, res) => {
                 m.toString()
             );
 
-
+      const uniqueIds = new Set();
       for (
         const id of participantIds
       ) {
+
+        if (uniqueIds.has(id)) {
+          return res.status(400).json({
+            message: 'Duplicate split participant'
+          });
+        }
+        uniqueIds.add(id);
 
         if (
           !group.members.some(
@@ -342,10 +391,17 @@ router.post('/', async (req, res) => {
 
         }));
 
-
+      const uniqueIds = new Set();
       for (
         const s of finalSplits
       ) {
+
+        if (uniqueIds.has(s.user)) {
+          return res.status(400).json({
+            message: 'Duplicate split participant'
+          });
+        }
+        uniqueIds.add(s.user);
 
         if (
           !group.members.some(
@@ -367,38 +423,28 @@ router.post('/', async (req, res) => {
           s.share < 0 ||
           s.share > MAX_AMOUNT
         ) {
-
           return res.status(400).json({
-            message:
-              'Invalid share amount'
+            message: 'Invalid share amount'
           });
+        }
 
+        if (parseFloat(s.share.toFixed(2)) !== s.share) {
+          return res.status(400).json({
+            message: 'Share amount must have at most two decimal places'
+          });
         }
 
       }
 
 
-      const total =
-        finalSplits.reduce(
-          (sum, s) =>
-            sum + s.share,
-          0
-        );
+      const totalCents = Math.round(numericAmount * 100);
+      const splitTotalCents = finalSplits.reduce((sum, s) => sum + Math.round(s.share * 100), 0);
 
-
-      if (
-        Math.abs(
-          total - numericAmount
-        ) > 0.02
-      ) {
-
+      if (totalCents !== splitTotalCents) {
         return res.status(400).json({
-
           message:
-            `Split shares (₹${total.toFixed(2)}) must equal expense amount (₹${numericAmount.toFixed(2)})`
-
+            `Split shares (₹${(splitTotalCents/100).toFixed(2)}) must equal expense amount (₹${(totalCents/100).toFixed(2)})`
         });
-
       }
 
     }
@@ -723,5 +769,192 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+
+// =====================================================
+// EDIT EXPENSE
+// =====================================================
+
+router.put('/:id', async (req, res) => {
+  try {
+    const {
+      description,
+      amount,
+      paidBy,
+      splitType,
+      splits,
+      category,
+      date
+    } = req.body;
+
+    if (!description || !description.trim() || amount == null) {
+      return res.status(400).json({ message: 'description and amount are required' });
+    }
+
+    const expense = await Expense.findById(req.params.id);
+    if (!expense) {
+      return res.status(404).json({ message: 'Expense not found' });
+    }
+
+    const group = await assertMember(expense.group, req.user._id);
+
+    const isCreator = group && group.createdBy.equals(req.user._id);
+    const isExpenseCreator = expense.createdBy && expense.createdBy.equals(req.user._id);
+    const isPayer = expense.paidBy.equals(req.user._id);
+
+    let authorized = false;
+    if (expense.createdBy) {
+      authorized = isExpenseCreator || isCreator;
+    } else {
+      authorized = isPayer || isCreator;
+    }
+
+    if (!authorized) {
+      return res.status(403).json({ message: 'Only the expense creator or group creator can edit this expense' });
+    }
+
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return res.status(400).json({ message: 'Invalid expense amount' });
+    }
+    const envMax = Number(process.env.MAX_EXPENSE_AMOUNT);
+    const MAX_AMOUNT = (Number.isFinite(envMax) && envMax > 0) ? envMax : 10000000;
+    if (numericAmount > MAX_AMOUNT) {
+      return res.status(400).json({ message: `Amount exceeds maximum allowed (₹${MAX_AMOUNT})` });
+    }
+    if (parseFloat(numericAmount.toFixed(2)) !== numericAmount) {
+      return res.status(400).json({ message: 'Amount must have at most two decimal places' });
+    }
+
+    const payerId = paidBy ? paidBy.toString() : req.user._id.toString();
+    if (!group.members.some((m) => m.toString() === payerId)) {
+      return res.status(400).json({ message: 'Payer must be a member of the group' });
+    }
+
+    const type = splitType === 'custom' ? 'custom' : 'equal';
+    let finalSplits = [];
+
+    // =================================================
+    // EQUAL SPLIT
+    // =================================================
+    if (type === 'equal') {
+      let participantIds = [];
+      if (Array.isArray(splits) && splits.length > 0) {
+        participantIds = splits
+          .map((s) => (s.user || s).toString());
+      } else {
+        participantIds = group.members.map((m) => m.toString());
+      }
+
+      const uniqueIds = new Set();
+      for (const id of participantIds) {
+        if (uniqueIds.has(id)) {
+          return res.status(400).json({ message: 'Duplicate split participant' });
+        }
+        if (!group.members.some((m) => m.toString() === id)) {
+          return res.status(400).json({ message: 'All split participants must be group members' });
+        }
+        uniqueIds.add(id);
+      }
+
+      if (!participantIds.length) {
+        return res.status(400).json({ message: 'At least one valid participant is required for equal split' });
+      }
+
+      const base = Math.floor((numericAmount / participantIds.length) * 100) / 100;
+      let remainder = Math.round((numericAmount - base * participantIds.length) * 100) / 100;
+
+      finalSplits = participantIds.map((id) => {
+        let share = base;
+        if (remainder > 0) {
+          share = Math.round((share + 0.01) * 100) / 100;
+          remainder = Math.round((remainder - 0.01) * 100) / 100;
+        }
+        return { user: id, share };
+      });
+    }
+    // =================================================
+    // CUSTOM SPLIT
+    // =================================================
+    else {
+      if (!Array.isArray(splits) || !splits.length) {
+        return res.status(400).json({ message: 'Custom splits are required' });
+      }
+
+      finalSplits = splits.map((s) => ({
+        user: (s.user || '').toString(),
+        share: Number(s.share),
+      }));
+
+      const uniqueIds = new Set();
+      for (const s of finalSplits) {
+        if (uniqueIds.has(s.user)) {
+          return res.status(400).json({ message: 'Duplicate split participant' });
+        }
+        uniqueIds.add(s.user);
+
+        if (!group.members.some((m) => m.toString() === s.user)) {
+          return res.status(400).json({ message: 'All split users must be group members' });
+        }
+        if (!Number.isFinite(s.share) || s.share < 0 || s.share > MAX_AMOUNT) {
+          return res.status(400).json({ message: 'Invalid share amount' });
+        }
+        if (parseFloat(s.share.toFixed(2)) !== s.share) {
+          return res.status(400).json({ message: 'Share amount must have at most two decimal places' });
+        }
+      }
+
+      const totalCents = Math.round(numericAmount * 100);
+      const splitTotalCents = finalSplits.reduce((sum, s) => sum + Math.round(s.share * 100), 0);
+      if (totalCents !== splitTotalCents) {
+        return res.status(400).json({ message: `Split shares (₹${(splitTotalCents/100).toFixed(2)}) must equal expense amount (₹${(totalCents/100).toFixed(2)})` });
+      }
+    }
+
+    expense.description = description.trim();
+    expense.amount = numericAmount;
+    expense.paidBy = payerId;
+    expense.splitType = type;
+    expense.splits = finalSplits;
+    expense.category = (category || 'General').trim();
+    if (date) {
+      expense.date = new Date(date);
+    }
+
+    await expense.save();
+
+    const populated = await Expense.findById(expense._id)
+      .populate('paidBy', 'name email')
+      .populate('splits.user', 'name email');
+
+    group.updatedAt = new Date();
+    await group.save();
+
+    res.json({
+      expense: {
+        id: populated._id,
+        description: populated.description,
+        amount: populated.amount,
+        category: populated.category,
+        splitType: populated.splitType,
+        date: populated.date,
+        paidBy: {
+          id: populated._id,
+          name: populated.paidBy ? populated.paidBy.name : null,
+          email: populated.paidBy ? populated.paidBy.email : null,
+        },
+        splits: populated.splits.map((s) => ({
+          user: {
+            id: s.user ? s.user._id : null,
+            name: s.user ? s.user.name : null,
+            email: s.user ? s.user.email : null,
+          },
+          share: s.share,
+        })),
+      }
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message || 'Failed to edit expense' });
+  }
+});
 
 module.exports = router;

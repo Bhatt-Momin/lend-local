@@ -21,6 +21,7 @@ if (!requireAuth()) {
 
   let group = null;
   let members = [];
+  let currentExpenses = [];
 
   const expenseModal =
     document.getElementById(
@@ -204,6 +205,10 @@ if (!requireAuth()) {
         hideAlert(
           expenseAlert
         );
+
+        document.getElementById('expenseModalTitle').textContent = 'Add expense';
+        const editId = document.getElementById('editExpenseId');
+        if (editId) editId.value = '';
 
         expenseForm.reset();
 
@@ -570,6 +575,15 @@ if (!requireAuth()) {
           `;
         })
         .join('');
+
+    const filterPayer = document.getElementById('filterPayer');
+    if (filterPayer) {
+      const currentValue = filterPayer.value;
+      filterPayer.innerHTML = `<option value="">Any Payer</option>` + members.map((member) => {
+        return `<option value="${getUserId(member)}">${escapeHtml(member.name)}</option>`;
+      }).join('');
+      filterPayer.value = currentValue;
+    }
   }
 
   /* =========================================================
@@ -588,6 +602,20 @@ if (!requireAuth()) {
 
 
   async function _loadAll() {
+    const searchParams = new URLSearchParams();
+    const filterSearch = document.getElementById('filterSearch')?.value.trim();
+    if (filterSearch) searchParams.append('search', filterSearch);
+    const filterCategory = document.getElementById('filterCategory')?.value;
+    if (filterCategory) searchParams.append('category', filterCategory);
+    const filterPayer = document.getElementById('filterPayer')?.value;
+    if (filterPayer) searchParams.append('payer', filterPayer);
+    const filterStartDate = document.getElementById('filterStartDate')?.value;
+    if (filterStartDate) searchParams.append('startDate', filterStartDate);
+    const filterEndDate = document.getElementById('filterEndDate')?.value;
+    if (filterEndDate) searchParams.append('endDate', filterEndDate);
+
+    const expenseQs = searchParams.toString() ? `?${searchParams.toString()}` : '';
+
     const [
       groupRes,
       expenseRes,
@@ -599,7 +627,7 @@ if (!requireAuth()) {
       ),
 
       api(
-        `/expenses/${groupId}`
+        `/expenses/${groupId}${expenseQs}`
       ),
 
       api(
@@ -772,28 +800,51 @@ if (!requireAuth()) {
       );
 
     if (!expenses.length) {
-      list.innerHTML = `
-        <div class="modern-empty">
-          <div class="empty-icon">💸</div>
-          <strong>No expenses yet</strong>
-          <p>Add the first shared cost for this group.</p>
-          <button class="btn btn-primary" type="button" id="emptyAddExpense" style="margin-top: 15px;">Add an expense</button>
-        </div>
-      `;
+      const hasFilters = ['filterSearch', 'filterCategory', 'filterPayer', 'filterStartDate', 'filterEndDate'].some(id => {
+        const el = document.getElementById(id);
+        return el && el.value.trim() !== '';
+      });
 
-      const emptyBtn = document.getElementById('emptyAddExpense');
-      if (emptyBtn) {
-        emptyBtn.addEventListener('click', () => {
-          expenseModalLastFocus = document.activeElement;
-          const expenseModal = document.getElementById('expenseModal');
-          if (expenseModal) {
-            expenseModal.classList.add('open');
-            clearTimeout(expenseFocusTimeout);
-            expenseFocusTimeout = setTimeout(() => {
-              if (expenseModal.classList.contains('open')) expenseForm?.querySelector('input')?.focus();
-            }, 50);
-          }
-        });
+      if (hasFilters) {
+        list.innerHTML = `
+          <div class="modern-empty">
+            <div class="empty-icon">🔍</div>
+            <strong>No matching expenses</strong>
+            <p>Try adjusting your filters.</p>
+            <button class="btn btn-secondary" type="button" id="emptyClearFilters" style="margin-top: 15px;">Clear filters</button>
+          </div>
+        `;
+        const clearBtn = document.getElementById('emptyClearFilters');
+        if (clearBtn) {
+          clearBtn.addEventListener('click', () => {
+            const mainClear = document.getElementById('clearFiltersBtn');
+            if (mainClear) mainClear.click();
+          });
+        }
+      } else {
+        list.innerHTML = `
+          <div class="modern-empty">
+            <div class="empty-icon">💸</div>
+            <strong>No expenses yet</strong>
+            <p>Add the first shared cost for this group.</p>
+            <button class="btn btn-primary" type="button" id="emptyAddExpense" style="margin-top: 15px;">Add an expense</button>
+          </div>
+        `;
+
+        const emptyBtn = document.getElementById('emptyAddExpense');
+        if (emptyBtn) {
+          emptyBtn.addEventListener('click', () => {
+            expenseModalLastFocus = document.activeElement;
+            const expenseModal = document.getElementById('expenseModal');
+            if (expenseModal) {
+              expenseModal.classList.add('open');
+              clearTimeout(expenseFocusTimeout);
+              expenseFocusTimeout = setTimeout(() => {
+                if (expenseModal.classList.contains('open')) expenseForm?.querySelector('input')?.focus();
+              }, 50);
+            }
+          });
+        }
       }
 
       return;
@@ -861,10 +912,18 @@ if (!requireAuth()) {
 
                 if (
                   myId === exId ||
-                  myId === grpId
+                  myId === grpId ||
+                  myId === String(expense.paidBy.id || expense.paidBy._id)
                 ) {
                   return `
               <div class="actions">
+                <button
+                  class="btn btn-secondary"
+                  type="button"
+                  data-edit="${expense.id}"
+                >
+                  Edit
+                </button>
                 <button
                   class="btn btn-danger"
                   type="button"
@@ -889,6 +948,51 @@ if (!requireAuth()) {
         '.expense-item'
       );
     }
+
+    list
+      .querySelectorAll(
+        '[data-edit]'
+      )
+      .forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const expenseId = btn.dataset.edit;
+          const expense = expenses.find(e => e.id === expenseId);
+          if (!expense) return;
+
+          expenseModalLastFocus = document.activeElement;
+          hideAlert(expenseAlert);
+
+          document.getElementById('expenseModalTitle').textContent = 'Edit expense';
+          document.getElementById('editExpenseId').value = expense.id;
+
+          expenseForm.description.value = expense.description;
+          expenseForm.amount.value = expense.amount;
+          expenseForm.category.value = expense.category || 'General';
+          expenseForm.paidBy.value = expense.paidBy.id || expense.paidBy._id;
+          if (expense.date) {
+            expenseForm.date.value = new Date(expense.date).toISOString().slice(0, 10);
+          }
+          expenseForm.splitType.value = expense.splitType || 'equal';
+
+          renderSplitInputs(expense.splitType || 'equal');
+          if (expense.splits && expense.splits.length) {
+            document.querySelectorAll('.split-check').forEach(cb => {
+              const userSplit = expense.splits.find(s => String(s.user.id || s.user._id || s.user) === cb.dataset.user);
+              cb.checked = !!userSplit;
+              if (userSplit && expense.splitType === 'custom') {
+                const input = document.querySelector(`.split-share[data-user="${cb.dataset.user}"]`);
+                if (input) input.value = userSplit.share;
+              }
+            });
+          }
+
+          expenseModal.classList.add('open');
+          clearTimeout(expenseFocusTimeout);
+          expenseFocusTimeout = setTimeout(() => {
+            if (expenseModal.classList.contains('open')) expenseForm.querySelector('input')?.focus();
+          }, 50);
+        });
+      });
 
     list
       .querySelectorAll(
@@ -1659,11 +1763,16 @@ if (!requireAuth()) {
         submitBtn.innerHTML = `<span class="fx-spinner"></span> Saving...`;
       }
 
+      const editIdEl = document.getElementById('editExpenseId');
+      const editId = editIdEl ? editIdEl.value : '';
+      const method = editId ? 'PUT' : 'POST';
+      const endpoint = editId ? `/expenses/${editId}` : '/expenses';
+
       try {
         await api(
-          '/expenses',
+          endpoint,
           {
-            method: 'POST',
+            method: method,
 
             body:
               JSON.stringify({
@@ -1709,7 +1818,7 @@ if (!requireAuth()) {
 
         if (window.FX) {
           window.FX.toast(
-            'Expense added successfully!'
+            'Expense saved successfully!'
           );
         }
 
@@ -1740,6 +1849,33 @@ if (!requireAuth()) {
 
   window.reloadCurrentData = initLoadAll;
   function initLoadAll(force = false) { return loadAll(force).catch(handleInitLoadError); }
+
+  function attachFilterListeners() {
+    const inputs = ['filterSearch', 'filterCategory', 'filterPayer', 'filterStartDate', 'filterEndDate'];
+    inputs.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('change', () => initLoadAll(true));
+        if (el.tagName === 'INPUT' && el.type === 'text') {
+          el.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') initLoadAll(true);
+          });
+        }
+      }
+    });
+
+    const clearBtn = document.getElementById('clearFiltersBtn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        inputs.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        initLoadAll(true);
+      });
+    }
+  }
+  attachFilterListeners();
 
   function handleInitLoadError(err) {
     const el = document.getElementById('expenseList');
