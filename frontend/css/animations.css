@@ -51,14 +51,17 @@
     opacity var(--motion-fast) ease;
 }
 
-.btn:hover,
-.pay-btn:hover {
-  transform: translateY(-2px);
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover,
+  .pay-btn:hover {
+    transform: translateY(-2px);
+  }
 }
 
 .btn:active,
 .pay-btn:active {
-  transform: translateY(0) scale(0.98);
+  transform: translateY(0);
+  opacity: 0.8;
 }
 
 .btn:focus-visible,
@@ -82,8 +85,8 @@
   animation: rippleAnim 520ms ease-out forwards;
 }
 
-.btn > *,
-.pay-btn > * {
+.btn > *:not(.ripple),
+.pay-btn > *:not(.ripple) {
   position: relative;
   z-index: 1;
 }
@@ -140,15 +143,26 @@
     border-color var(--motion-base) ease;
 }
 
-.group-row:hover,
-.stat:hover,
-.expense-item:hover,
-.settlement-item:hover,
-.balance-item:hover,
-.member-item:hover {
-  transform: translateY(-3px);
+@media (hover: hover) and (pointer: fine) {
+  .group-row:hover,
+  .stat:hover,
+  .expense-item:hover,
+  .settlement-item:hover,
+  .balance-item:hover,
+  .member-item:hover {
+    transform: translateY(-3px);
+  }
 }
 
+.group-row:active,
+.stat:active,
+.expense-item:active,
+.settlement-item:active,
+.balance-item:active,
+.member-item:active,
+.modern-group-card:active {
+  opacity: 0.75;
+}
 
 /* =========================================================
    6. NUMBER COUNTING
@@ -227,7 +241,7 @@
 }
 
 .tab:active {
-  transform: scale(0.98);
+  opacity: 0.8;
 }
 
 .panel.active {
@@ -390,15 +404,6 @@
 ========================================================= */
 
 @media (max-width: 700px) {
-  .group-row:hover,
-  .stat:hover,
-  .expense-item:hover,
-  .settlement-item:hover,
-  .balance-item:hover,
-  .member-item:hover {
-    transform: none;
-  }
-
   #fx-toast {
     bottom: 1rem;
   }

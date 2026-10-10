@@ -105,12 +105,14 @@ body.ll-premium .btn-primary {
   transition: all 0.3s var(--ll-ease);
 }
 
-body.ll-premium .btn-primary:hover {
-  background: rgba(16, 185, 129, 0.25);
-  border-color: rgba(16, 185, 129, 0.5);
-  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15), 0 0 20px rgba(16, 185, 129, 0.2) inset;
-  transform: translateY(-2px);
-  color: #fff;
+@media (hover: hover) and (pointer: fine) {
+  body.ll-premium .btn-primary:hover {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: rgba(16, 185, 129, 0.5);
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15), 0 0 20px rgba(16, 185, 129, 0.2) inset;
+    transform: translateY(-2px);
+    color: #fff;
+  }
 }
 
 /* Modals / Surfaces */

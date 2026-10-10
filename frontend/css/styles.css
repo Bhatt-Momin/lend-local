@@ -426,11 +426,13 @@ textarea {
   backdrop-filter: blur(8px);
 }
 
-.group-row:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow);
-  border-color: rgba(15, 92, 76, 0.25);
-  text-decoration: none;
+@media (hover: hover) and (pointer: fine) {
+  .group-row:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+    border-color: rgba(15, 92, 76, 0.25);
+    text-decoration: none;
+  }
 }
 
 .group-row h3 {
@@ -769,4 +771,9 @@ button, .btn, input:not([type="checkbox"]):not([type="radio"]), select {
 }
 .close-modal:hover {
   background: var(--line, #e7ece9);
+}
+
+/* Fix iOS Safari zoom on input focus */
+input, select, textarea, .field input, .field select, .field textarea {
+  font-size: 16px !important;
 }

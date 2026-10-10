@@ -232,17 +232,19 @@ body.ll-group-page .add-group-btn {
   transition: background 0.2s var(--ll-ease), box-shadow 0.2s var(--ll-ease), transform 0.15s var(--ll-ease) !important;
 }
 
-body.ll-group-page #openExpense:hover,
-body.ll-group-page .add-group-btn:hover {
-  background: rgba(16, 185, 129, 0.22) !important;
-  border-color: rgba(16, 185, 129, 0.5) !important;
-  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.18) !important;
-  transform: translateY(-2px) !important;
+@media (hover: hover) and (pointer: fine) {
+  body.ll-group-page #openExpense:hover,
+  body.ll-group-page .add-group-btn:hover {
+    background: rgba(16, 185, 129, 0.22) !important;
+    border-color: rgba(16, 185, 129, 0.5) !important;
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.18) !important;
+    transform: translateY(-2px) !important;
+  }
 }
 
 body.ll-group-page #openExpense:active,
 body.ll-group-page .add-group-btn:active {
-  transform: scale(0.96) !important;
+  opacity: 0.8 !important;
 }
 
 /* ============================================================
@@ -272,11 +274,13 @@ body.ll-group-page .modern-stat::after {
   display: none !important;
 }
 
-body.ll-group-page .modern-stat:hover {
-  background: var(--ll-surface-mid) !important;
-  border-color: var(--ll-border-bright) !important;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4) !important;
-  transform: translateY(-2px) !important;
+@media (hover: hover) and (pointer: fine) {
+  body.ll-group-page .modern-stat:hover {
+    background: var(--ll-surface-mid) !important;
+    border-color: var(--ll-border-bright) !important;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4) !important;
+    transform: translateY(-2px) !important;
+  }
 }
 
 body.ll-group-page .modern-stat .label {
@@ -415,13 +419,15 @@ body.ll-group-page .add-group-btn {
   transition: all 0.3s var(--ll-ease) !important;
 }
 
-body.ll-group-page #openExpense:hover,
-body.ll-group-page .add-group-btn:hover {
-  background: rgba(16, 185, 129, 0.25) !important;
-  border-color: rgba(16, 185, 129, 0.5) !important;
-  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15), 0 0 20px rgba(16, 185, 129, 0.2) inset !important;
-  transform: translateY(-2px) !important;
-  color: #fff !important;
+@media (hover: hover) and (pointer: fine) {
+  body.ll-group-page #openExpense:hover,
+  body.ll-group-page .add-group-btn:hover {
+    background: rgba(16, 185, 129, 0.25) !important;
+    border-color: rgba(16, 185, 129, 0.5) !important;
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15), 0 0 20px rgba(16, 185, 129, 0.2) inset !important;
+    transform: translateY(-2px) !important;
+    color: #fff !important;
+  }
 }
 
 body.ll-group-page .dashboard-stats {
@@ -462,11 +468,13 @@ body.ll-group-page .modern-stat::before {
   display: block !important;
 }
 
-body.ll-group-page .modern-stat:hover {
-  background: var(--ll-surface-mid) !important;
-  border-color: var(--ll-border-bright) !important;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 40px rgba(16, 185, 129, 0.05) inset !important;
-  transform: translateY(-4px) !important;
+@media (hover: hover) and (pointer: fine) {
+  body.ll-group-page .modern-stat:hover {
+    background: var(--ll-surface-mid) !important;
+    border-color: var(--ll-border-bright) !important;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 40px rgba(16, 185, 129, 0.05) inset !important;
+    transform: translateY(-4px) !important;
+  }
 }
 
 body.ll-group-page .modern-stat .stat-icon {
@@ -602,13 +610,15 @@ body.ll-group-page .member-item {
   margin-bottom: 0.75rem !important;
 }
 
-body.ll-group-page .expense-item:hover,
-body.ll-group-page .settlement-item:hover,
-body.ll-group-page .balance-item:hover,
-body.ll-group-page .member-item:hover {
-  background: var(--ll-surface-raised) !important;
-  border-color: var(--ll-border) !important;
-  transform: translateX(4px) !important;
+@media (hover: hover) and (pointer: fine) {
+  body.ll-group-page .expense-item:hover,
+  body.ll-group-page .settlement-item:hover,
+  body.ll-group-page .balance-item:hover,
+  body.ll-group-page .member-item:hover {
+    background: var(--ll-surface-raised) !important;
+    border-color: var(--ll-border) !important;
+    transform: translateX(4px) !important;
+  }
 }
 
 /* Typography inside rows */
@@ -650,12 +660,14 @@ body.ll-group-page .settlement-item .pay-btn {
   transition: all 0.2s var(--ll-ease) !important;
 }
 
-body.ll-group-page .expense-item .actions button:hover,
-body.ll-group-page .member-item button:hover,
-body.ll-group-page .settlement-item .pay-btn:hover {
-  background: rgba(255,255,255,0.06) !important;
-  border-color: rgba(255,255,255,0.1) !important;
-  transform: translateY(-2px) !important;
+@media (hover: hover) and (pointer: fine) {
+  body.ll-group-page .expense-item .actions button:hover,
+  body.ll-group-page .member-item button:hover,
+  body.ll-group-page .settlement-item .pay-btn:hover {
+    background: rgba(255,255,255,0.06) !important;
+    border-color: rgba(255,255,255,0.1) !important;
+    transform: translateY(-2px) !important;
+  }
 }
 
 body.ll-group-page button.btn-danger {
@@ -768,11 +780,13 @@ body.ll-group-page .back-link .back-icon {
   font-size: 1.1rem !important;
 }
 
-body.ll-group-page .back-link:hover {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
-  color: var(--ll-text) !important;
-  transform: translateX(-4px) !important;
+@media (hover: hover) and (pointer: fine) {
+  body.ll-group-page .back-link:hover {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+    color: var(--ll-text) !important;
+    transform: translateX(-4px) !important;
+  }
 }
 
 body.ll-group-page .back-link:hover .back-icon {
