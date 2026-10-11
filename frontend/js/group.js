@@ -289,43 +289,20 @@ if (!requireAuth()) {
   );
 
   /* =========================================================
-     SPLIT TYPE
+     SPLIT TYPE & AMOUNT EVENTS
   ========================================================= */
 
   document
-    .getElementById(
-      'expSplitType'
-    )
-    .addEventListener(
-      'change',
-      (e) => {
-        renderSplitInputs(
-          e.target.value
-        );
-      }
-    );
+    .getElementById('expSplitType')
+    .addEventListener('change', (e) => {
+      renderSplitInputs(e.target.value, true);
+    });
 
   document
-    .getElementById(
-      'expAmount'
-    )
-    .addEventListener(
-      'input',
-      () => {
-        const splitType =
-          document.getElementById(
-            'expSplitType'
-          ).value;
-
-        if (
-          splitType === 'equal'
-        ) {
-          renderSplitInputs(
-            'equal'
-          );
-        }
-      }
-    );
+    .getElementById('expAmount')
+    .addEventListener('input', () => {
+      updateSplitSummary();
+    });
 
   /* =========================================================
      HELPERS
@@ -450,63 +427,145 @@ if (!requireAuth()) {
   }
 
   /* =========================================================
-     SPLIT INPUTS
+     SPLIT INPUTS & SUMMARY
   ========================================================= */
 
+  function updateSplitSummary() {
+    const splitType = document.getElementById('expSplitType')?.value || 'equal';
+    const amountVal = Number(document.getElementById('expAmount')?.value) || 0;
+    const totalPaise = Math.round(amountVal * 100);
+    const summaryEl = document.getElementById('splitSummary');
+    const allocEl = document.getElementById('splitAllocated') || document.getElementById('splitAllocatedAmount');
+    const remEl = document.getElementById('splitRemaining') || document.getElementById('splitRemainingAmount');
+    const statusEl = document.getElementById('splitStatusMsg') || document.getElementById('splitStatusText');
+
+    if (!summaryEl) return;
+    summaryEl.style.display = 'block';
+
+    const checkedBoxes = Array.from(document.querySelectorAll('.split-check:checked'));
+    const count = checkedBoxes.length;
+
+    if (splitType === 'equal') {
+      const basePaise = count > 0 ? Math.floor(totalPaise / count) : 0;
+      const remPaise = count > 0 ? totalPaise % count : 0;
+
+      // Update individual member labels
+      document.querySelectorAll('.split-row').forEach((row) => {
+        const cb = row.querySelector('.split-check');
+        const shareLabel = row.querySelector('.equal-share-label');
+        if (!cb || !shareLabel) return;
+        if (!cb.checked) {
+          shareLabel.textContent = 'Excluded';
+          shareLabel.style.opacity = '0.5';
+        } else {
+          const idx = checkedBoxes.indexOf(cb);
+          const sharePaise = basePaise + (idx < remPaise ? 1 : 0);
+          shareLabel.textContent = `${formatMoney(sharePaise / 100)} each`;
+          shareLabel.style.opacity = '1';
+        }
+      });
+
+      const allocatedPaise = count > 0 ? totalPaise : 0;
+      const remainingPaise = totalPaise - allocatedPaise;
+
+      if (allocEl) allocEl.textContent = formatMoney(allocatedPaise / 100);
+      if (remEl) remEl.textContent = formatMoney(remainingPaise / 100);
+
+      if (statusEl) {
+        if (count === 0) {
+          statusEl.className = 'split-status-msg split-status-text error invalid';
+          statusEl.textContent = 'Select at least one participant';
+        } else if (totalPaise <= 0) {
+          statusEl.className = 'split-status-msg split-status-text warning invalid';
+          statusEl.textContent = 'Enter an expense amount';
+        } else {
+          statusEl.className = 'split-status-msg split-status-text valid';
+          const remMsg = remPaise > 0 ? ` (${remPaise} member${remPaise > 1 ? 's' : ''} +₹0.01)` : '';
+          statusEl.textContent = `Split equally among ${count} member${count > 1 ? 's' : ''}${remMsg}`;
+        }
+      }
+    } else {
+      // Custom split
+      let allocatedPaise = 0;
+      checkedBoxes.forEach((cb) => {
+        const input = document.querySelector(`.split-share[data-user="${cb.dataset.user}"]`);
+        const val = parseFloat(input?.value) || 0;
+        allocatedPaise += Math.round(val * 100);
+      });
+
+      const remainingPaise = totalPaise - allocatedPaise;
+
+      if (allocEl) allocEl.textContent = formatMoney(allocatedPaise / 100);
+      if (remEl) remEl.textContent = formatMoney(remainingPaise / 100);
+
+      if (statusEl) {
+        if (count === 0) {
+          statusEl.className = 'split-status-msg split-status-text error invalid';
+          statusEl.textContent = 'Select at least one participant';
+        } else if (totalPaise <= 0) {
+          statusEl.className = 'split-status-msg split-status-text warning invalid';
+          statusEl.textContent = 'Enter a valid expense amount';
+        } else if (remainingPaise === 0) {
+          statusEl.className = 'split-status-msg split-status-text valid';
+          statusEl.textContent = '✓ Allocations match total amount exactly';
+        } else if (remainingPaise > 0) {
+          statusEl.className = 'split-status-msg split-status-text warning invalid';
+          statusEl.textContent = `₹${(remainingPaise / 100).toFixed(2)} remaining to allocate`;
+        } else {
+          statusEl.className = 'split-status-msg split-status-text error invalid';
+          statusEl.textContent = `Overallocated by ₹${(Math.abs(remainingPaise) / 100).toFixed(2)}`;
+        }
+      }
+    }
+  }
+
   function renderSplitInputs(
-    type
+    type,
+    preserveState = false,
+    initialSplits = null
   ) {
-    const amount =
-      Number(
-        document.getElementById(
-          'expAmount'
-        ).value
-      ) || 0;
+    const amountVal = Number(document.getElementById('expAmount').value) || 0;
+    const totalPaise = Math.round(amountVal * 100);
 
-    const equalShare =
-      members.length
-        ? Math.round(
-            (
-              amount /
-              members.length
-            ) * 100
-          ) / 100
-        : 0;
+    const savedValues = {};
+    const savedChecked = {};
+    if (preserveState) {
+      document.querySelectorAll('.split-check').forEach((cb) => {
+        savedChecked[cb.dataset.user] = cb.checked;
+        const input = document.querySelector(`.split-share[data-user="${cb.dataset.user}"]`);
+        if (input) savedValues[cb.dataset.user] = input.value;
+      });
+    }
 
-    splitList.innerHTML =
-      members
-        .map((member) => {
-          const userId =
-            getUserId(member);
+    const memberCount = members.length;
 
-          if (
-            type === 'custom'
-          ) {
-            return `
-              <div class="split-row">
-                <label>
-                  <input
-                    type="checkbox"
-                    class="split-check"
-                    data-user="${userId}"
-                    checked
-                  />
+    splitList.innerHTML = members
+      .map((member, i) => {
+        const userId = String(getUserId(member));
+        let isChecked = true;
+        let shareValue = '';
 
-                  ${escapeHtml(
-                    member.name
-                  )}
-                </label>
+        if (initialSplits && initialSplits.length) {
+          const found = initialSplits.find(
+            (s) => String(s.user?.id || s.user?._id || s.user) === userId
+          );
+          isChecked = !!found;
+          if (found && type === 'custom') {
+            shareValue = Number(found.share).toFixed(2);
+          }
+        } else if (preserveState) {
+          if (savedChecked[userId] !== undefined) isChecked = savedChecked[userId];
+          if (savedValues[userId] !== undefined) shareValue = savedValues[userId];
+        }
 
-                <input
-                  type="number"
-                  class="split-share"
-                  data-user="${userId}"
-                  min="0"
-                  step="0.01"
-                  value="${equalShare}"
-                />
-              </div>
-            `;
+        if (type === 'custom') {
+          if (!shareValue && shareValue !== '0' && isChecked) {
+            const basePaise = memberCount > 0 ? Math.floor(totalPaise / memberCount) : 0;
+            const remPaise = memberCount > 0 ? totalPaise % memberCount : 0;
+            const userPaise = basePaise + (i < remPaise ? 1 : 0);
+            shareValue = (userPaise / 100).toFixed(2);
+          } else if (!shareValue) {
+            shareValue = '0.00';
           }
 
           return `
@@ -516,28 +575,68 @@ if (!requireAuth()) {
                   type="checkbox"
                   class="split-check"
                   data-user="${userId}"
-                  checked
+                  ${isChecked ? 'checked' : ''}
                 />
-
-                ${escapeHtml(
-                  member.name
-                )}
+                ${escapeHtml(member.name)}
               </label>
-
-              <span
-                style="
-                  color: var(--ll-text-muted);
-                  font-size: 0.9rem;
-                "
-              >
-                ${formatMoney(
-                  equalShare
-                )} each
-              </span>
+              <input
+                type="number"
+                class="split-share"
+                data-user="${userId}"
+                min="0"
+                step="0.01"
+                value="${shareValue}"
+                ${isChecked ? '' : 'disabled'}
+              />
             </div>
           `;
-        })
-        .join('');
+        }
+
+        return `
+          <div class="split-row">
+            <label>
+              <input
+                type="checkbox"
+                class="split-check"
+                data-user="${userId}"
+                ${isChecked ? 'checked' : ''}
+              />
+              ${escapeHtml(member.name)}
+            </label>
+            <span class="equal-share-label" style="color: var(--ll-text-muted); font-size: 0.9rem;">
+              ₹0.00 each
+            </span>
+          </div>
+        `;
+      })
+      .join('');
+
+    splitList.querySelectorAll('.split-check').forEach((cb) => {
+      cb.addEventListener('change', () => {
+        const userId = cb.dataset.user;
+        const shareInput = splitList.querySelector(`.split-share[data-user="${userId}"]`);
+        if (shareInput) {
+          shareInput.disabled = !cb.checked;
+          if (!cb.checked) {
+            shareInput.dataset.previousValue = shareInput.value;
+            shareInput.value = '0.00';
+          } else if (shareInput.dataset.previousValue) {
+            shareInput.value = shareInput.dataset.previousValue;
+          }
+        }
+        updateSplitSummary();
+      });
+    });
+
+    if (type === 'custom') {
+      splitList.querySelectorAll('.split-share').forEach((input) => {
+        input.addEventListener('input', () => {
+          updateSplitSummary();
+        });
+      });
+    }
+
+    updateSplitSummary();
   }
 
   /* =========================================================
@@ -545,45 +644,22 @@ if (!requireAuth()) {
   ========================================================= */
 
   function renderPaidBy() {
-    const select =
-      document.getElementById(
-        'expPaidBy'
-      );
+    const select = document.getElementById('expPaidBy');
+    if (!select) return;
 
-    select.innerHTML =
-      members
-        .map((member) => {
-          const userId =
-            getUserId(member);
-
-          return `
-            <option
-              value="${userId}"
-              ${
-                String(userId) ===
-                String(
-                  getUserId(me)
-                )
-                  ? 'selected'
-                  : ''
-              }
-            >
-              ${escapeHtml(
-                member.name
-              )}
-            </option>
-          `;
-        })
-        .join('');
-
-    const filterPayer = document.getElementById('filterPayer');
-    if (filterPayer) {
-      const currentValue = filterPayer.value;
-      filterPayer.innerHTML = `<option value="">Any Payer</option>` + members.map((member) => {
-        return `<option value="${getUserId(member)}">${escapeHtml(member.name)}</option>`;
-      }).join('');
-      filterPayer.value = currentValue;
-    }
+    select.innerHTML = members
+      .map((member) => {
+        const userId = getUserId(member);
+        return `
+          <option
+            value="${userId}"
+            ${String(userId) === String(getUserId(me)) ? 'selected' : ''}
+          >
+            ${escapeHtml(member.name)}
+          </option>
+        `;
+      })
+      .join('');
   }
 
   /* =========================================================
@@ -602,19 +678,9 @@ if (!requireAuth()) {
 
 
   async function _loadAll() {
-    const searchParams = new URLSearchParams();
-    const filterSearch = document.getElementById('filterSearch')?.value.trim();
-    if (filterSearch) searchParams.append('search', filterSearch);
-    const filterCategory = document.getElementById('filterCategory')?.value;
-    if (filterCategory) searchParams.append('category', filterCategory);
-    const filterPayer = document.getElementById('filterPayer')?.value;
-    if (filterPayer) searchParams.append('payer', filterPayer);
-    const filterStartDate = document.getElementById('filterStartDate')?.value;
-    if (filterStartDate) searchParams.append('startDate', filterStartDate);
-    const filterEndDate = document.getElementById('filterEndDate')?.value;
-    if (filterEndDate) searchParams.append('endDate', filterEndDate);
-
-    const expenseQs = searchParams.toString() ? `?${searchParams.toString()}` : '';
+    const searchInput = document.getElementById('expenseSearchInput');
+    const searchTerm = searchInput ? searchInput.value.trim() : '';
+    const expenseQs = searchTerm ? `?search=${encodeURIComponent(searchTerm)}` : '';
 
     const [
       groupRes,
@@ -658,6 +724,11 @@ if (!requireAuth()) {
     ).textContent =
       group.description ||
       `${members.length} members`;
+
+    const editBtn = document.getElementById('editGroupNameBtn');
+    if (editBtn) {
+      editBtn.style.display = isGroupCreator() ? 'inline-flex' : 'none';
+    }
 
     const statTotal =
       document.getElementById(
@@ -750,8 +821,10 @@ if (!requireAuth()) {
             : ''
       }`;
 
+    currentExpenses = expenseRes.expenses || [];
     renderExpenses(
-      expenseRes.expenses || []
+      currentExpenses,
+      !!searchTerm
     );
 
     renderBalances(
@@ -792,33 +865,32 @@ if (!requireAuth()) {
   ========================================================= */
 
   function renderExpenses(
-    expenses
+    expenses,
+    isSearching = false
   ) {
     const list =
       document.getElementById(
         'expenseList'
       );
 
-    if (!expenses.length) {
-      const hasFilters = ['filterSearch', 'filterCategory', 'filterPayer', 'filterStartDate', 'filterEndDate'].some(id => {
-        const el = document.getElementById(id);
-        return el && el.value.trim() !== '';
-      });
+    if (!list) return;
 
-      if (hasFilters) {
+    if (!expenses.length) {
+      if (isSearching) {
         list.innerHTML = `
           <div class="modern-empty">
             <div class="empty-icon">🔍</div>
             <strong>No matching expenses</strong>
-            <p>Try adjusting your filters.</p>
-            <button class="btn btn-secondary" type="button" id="emptyClearFilters" style="margin-top: 15px;">Clear filters</button>
+            <p>No expenses match your search.</p>
+            <button class="btn btn-secondary" type="button" id="emptyClearSearch" style="margin-top: 15px;">Clear search</button>
           </div>
         `;
-        const clearBtn = document.getElementById('emptyClearFilters');
+        const clearBtn = document.getElementById('emptyClearSearch');
         if (clearBtn) {
           clearBtn.addEventListener('click', () => {
-            const mainClear = document.getElementById('clearFiltersBtn');
-            if (mainClear) mainClear.click();
+            const searchInput = document.getElementById('expenseSearchInput');
+            if (searchInput) searchInput.value = '';
+            doExpenseSearch('');
           });
         }
       } else {
@@ -974,17 +1046,7 @@ if (!requireAuth()) {
           }
           expenseForm.splitType.value = expense.splitType || 'equal';
 
-          renderSplitInputs(expense.splitType || 'equal');
-          if (expense.splits && expense.splits.length) {
-            document.querySelectorAll('.split-check').forEach(cb => {
-              const userSplit = expense.splits.find(s => String(s.user.id || s.user._id || s.user) === cb.dataset.user);
-              cb.checked = !!userSplit;
-              if (userSplit && expense.splitType === 'custom') {
-                const input = document.querySelector(`.split-share[data-user="${cb.dataset.user}"]`);
-                if (input) input.value = userSplit.share;
-              }
-            });
-          }
+          renderSplitInputs(expense.splitType || 'equal', false, expense.splits || []);
 
           expenseModal.classList.add('open');
           clearTimeout(expenseFocusTimeout);
@@ -1692,68 +1754,83 @@ if (!requireAuth()) {
     'submit',
     async (e) => {
       e.preventDefault();
+      hideAlert(expenseAlert);
 
-      hideAlert(
-        expenseAlert
-      );
+      const amountVal = Number(expenseForm.amount.value);
+      if (isNaN(amountVal) || amountVal <= 0 || !isFinite(amountVal)) {
+        showAlert(expenseAlert, 'Enter a valid positive expense amount');
+        if (window.FX) window.FX.shake(expenseAlert);
+        return;
+      }
 
-      const splitType =
-        expenseForm.splitType.value;
+      const totalPaise = Math.round(amountVal * 100);
+      if (Math.abs(amountVal - totalPaise / 100) > 0.00001) {
+        showAlert(expenseAlert, 'Amount cannot have more than 2 decimal places');
+        if (window.FX) window.FX.shake(expenseAlert);
+        return;
+      }
 
-      const checked =
-        [
-          ...document.querySelectorAll(
-            '.split-check:checked'
-          ),
-        ];
+      const description = expenseForm.description.value.trim();
+      if (!description) {
+        showAlert(expenseAlert, 'Description is required');
+        if (window.FX) window.FX.shake(expenseAlert);
+        return;
+      }
+
+      const paidBy = expenseForm.paidBy.value;
+      if (!paidBy) {
+        showAlert(expenseAlert, 'Select who paid');
+        if (window.FX) window.FX.shake(expenseAlert);
+        return;
+      }
+
+      const splitType = expenseForm.splitType.value;
+      const checked = [...document.querySelectorAll('.split-check:checked')];
 
       if (!checked.length) {
-        showAlert(
-          expenseAlert,
-          'Select at least one participant'
-        );
-
-        if (window.FX) {
-          window.FX.shake(
-            expenseAlert
-          );
-        }
-
+        showAlert(expenseAlert, 'Select at least one participant');
+        if (window.FX) window.FX.shake(expenseAlert);
         return;
       }
 
       let splits;
-
-      if (
-        splitType === 'equal'
-      ) {
-        splits =
-          checked.map(
-            (checkbox) => ({
-              user:
-                checkbox.dataset.user,
-            })
-          );
+      if (splitType === 'equal') {
+        splits = checked.map((cb) => ({
+          user: cb.dataset.user,
+        }));
       } else {
-        splits =
-          checked.map(
-            (checkbox) => {
-              const input =
-                document.querySelector(
-                  `.split-share[data-user="${checkbox.dataset.user}"]`
-                );
+        let allocatedPaise = 0;
+        splits = [];
+        for (const cb of checked) {
+          const input = document.querySelector(`.split-share[data-user="${cb.dataset.user}"]`);
+          const shareNum = Number(input?.value);
+          if (isNaN(shareNum) || shareNum < 0 || !isFinite(shareNum)) {
+            showAlert(expenseAlert, 'Each participant share must be a valid non-negative number');
+            if (window.FX) window.FX.shake(expenseAlert);
+            return;
+          }
+          const sharePaise = Math.round(shareNum * 100);
+          if (Math.abs(shareNum - sharePaise / 100) > 0.00001) {
+            showAlert(expenseAlert, 'Participant shares cannot have more than 2 decimal places');
+            if (window.FX) window.FX.shake(expenseAlert);
+            return;
+          }
+          allocatedPaise += sharePaise;
+          splits.push({
+            user: cb.dataset.user,
+            share: shareNum,
+          });
+        }
 
-              return {
-                user:
-                  checkbox.dataset.user,
-
-                share:
-                  Number(
-                    input.value
-                  ),
-              };
-            }
+        if (allocatedPaise !== totalPaise) {
+          const diff = (allocatedPaise - totalPaise) / 100;
+          showAlert(
+            expenseAlert,
+            `Custom allocations (${formatMoney(allocatedPaise / 100)}) must add up exactly to total amount (${formatMoney(amountVal)}). Difference: ${formatMoney(Math.abs(diff))}`
           );
+          if (window.FX) window.FX.shake(expenseAlert);
+          return;
+        }
       }
 
       const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -1769,71 +1846,30 @@ if (!requireAuth()) {
       const endpoint = editId ? `/expenses/${editId}` : '/expenses';
 
       try {
-        await api(
-          endpoint,
-          {
-            method: method,
-
-            body:
-              JSON.stringify({
-                groupId,
-
-                description:
-                  expenseForm
-                    .description
-                    .value
-                    .trim(),
-
-                amount:
-                  Number(
-                    expenseForm
-                      .amount
-                      .value
-                  ),
-
-                paidBy:
-                  expenseForm
-                    .paidBy
-                    .value,
-
-                splitType,
-
-                splits,
-
-                category:
-                  expenseForm
-                    .category
-                    .value,
-
-                date:
-                  expenseForm
-                    .date
-                    .value ||
-                  undefined,
-              }),
-          }
-        );
+        await api(endpoint, {
+          method,
+          body: JSON.stringify({
+            groupId,
+            description,
+            amount: amountVal,
+            paidBy,
+            splitType,
+            splits,
+            category: expenseForm.category.value,
+            date: expenseForm.date.value || undefined,
+          }),
+        });
 
         closeExpenseModal();
 
         if (window.FX) {
-          window.FX.toast(
-            'Expense saved successfully!'
-          );
+          window.FX.toast('Expense saved successfully!');
         }
 
         await initLoadAll(true);
       } catch (err) {
-        showAlert(
-          expenseAlert,
-          err.message
-        );
-
-        if (window.FX) {
-          window.FX.shake(
-            expenseAlert
-          );
-        }
+        showAlert(expenseAlert, err.message);
+        if (window.FX) window.FX.shake(expenseAlert);
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
@@ -1844,58 +1880,224 @@ if (!requireAuth()) {
   );
 
   /* =========================================================
+     GROUP RENAMING
+  ========================================================= */
+
+  const editGroupNameBtn = document.getElementById('editGroupNameBtn');
+  const renameGroupForm = document.getElementById('renameGroupForm');
+  const renameGroupInput = document.getElementById('renameGroupInput');
+  const cancelRenameBtn = document.getElementById('cancelRenameBtn');
+  const saveRenameBtn = document.getElementById('saveRenameBtn');
+  const renameGroupError = document.getElementById('renameGroupError');
+
+  if (editGroupNameBtn) {
+    editGroupNameBtn.addEventListener('click', () => {
+      if (!renameGroupForm || !renameGroupInput) return;
+      renameGroupInput.value = group?.name || '';
+      if (renameGroupError) {
+        renameGroupError.style.display = 'none';
+        renameGroupError.textContent = '';
+      }
+      const titleRow = document.querySelector('.group-title-row');
+      if (titleRow) titleRow.style.display = 'none';
+      renameGroupForm.style.display = 'flex';
+      renameGroupInput.focus();
+      renameGroupInput.select();
+    });
+  }
+
+  if (cancelRenameBtn) {
+    cancelRenameBtn.addEventListener('click', () => {
+      if (renameGroupForm) renameGroupForm.style.display = 'none';
+      if (renameGroupError) {
+        renameGroupError.style.display = 'none';
+        renameGroupError.textContent = '';
+      }
+      const titleRow = document.querySelector('.group-title-row');
+      if (titleRow) titleRow.style.display = 'flex';
+      editGroupNameBtn?.focus();
+    });
+  }
+
+  if (renameGroupForm) {
+    renameGroupForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newName = renameGroupInput.value.trim();
+
+      if (!newName) {
+        if (renameGroupError) {
+          renameGroupError.textContent = 'Group name cannot be empty';
+          renameGroupError.style.display = 'block';
+        }
+        return;
+      }
+
+      if (newName.length > 100) {
+        if (renameGroupError) {
+          renameGroupError.textContent = 'Group name must be 100 characters or less';
+          renameGroupError.style.display = 'block';
+        }
+        return;
+      }
+
+      if (saveRenameBtn) {
+        saveRenameBtn.disabled = true;
+        saveRenameBtn.dataset.originalText = saveRenameBtn.textContent;
+        saveRenameBtn.innerHTML = '<span class="fx-spinner"></span> Saving...';
+      }
+      if (renameGroupError) renameGroupError.style.display = 'none';
+
+      try {
+        const res = await api(`/groups/${groupId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ name: newName }),
+        });
+
+        const updatedName = res.group?.name || newName;
+        if (group) group.name = updatedName;
+        const nameHeading = document.getElementById('groupName');
+        if (nameHeading) nameHeading.textContent = updatedName;
+        document.title = `${updatedName} — LendLocal`;
+
+        renameGroupForm.style.display = 'none';
+        const titleRow = document.querySelector('.group-title-row');
+        if (titleRow) titleRow.style.display = 'flex';
+        editGroupNameBtn?.focus();
+
+        if (window.FX) {
+          window.FX.toast('Group renamed successfully');
+        }
+      } catch (err) {
+        if (renameGroupError) {
+          renameGroupError.textContent = err.message || 'Failed to rename group';
+          renameGroupError.style.display = 'block';
+        }
+        if (window.FX) {
+          window.FX.shake(renameGroupForm);
+        }
+      } finally {
+        if (saveRenameBtn) {
+          saveRenameBtn.disabled = false;
+          saveRenameBtn.textContent = saveRenameBtn.dataset.originalText || 'Save';
+        }
+      }
+    });
+  }
+
+  /* =========================================================
+     COMPACT SEARCH
+  ========================================================= */
+
+  let expenseSearchSeq = 0;
+  let searchDebounceTimer = null;
+
+  async function doExpenseSearch(term) {
+    const currentSeq = ++expenseSearchSeq;
+    const trimmed = term.trim();
+    const clearBtn = document.getElementById('clearSearchBtn');
+    if (clearBtn) {
+      clearBtn.style.display = term.length > 0 ? 'block' : 'none';
+    }
+
+    const list = document.getElementById('expenseList');
+    const query = trimmed ? `?search=${encodeURIComponent(trimmed)}` : '';
+
+    try {
+      const res = await api(`/expenses/${groupId}${query}`);
+      if (currentSeq !== expenseSearchSeq) {
+        return; // Discard stale response
+      }
+      currentExpenses = res.expenses || [];
+      renderExpenses(currentExpenses, !!trimmed);
+    } catch (err) {
+      if (currentSeq !== expenseSearchSeq) return;
+      if (list) {
+        list.innerHTML = `
+          <div class="modern-empty" style="padding: 2rem;">
+            <div class="empty-icon" style="color: var(--ll-negative);">⚠️</div>
+            <strong>Failed to load expenses</strong>
+            <p>${escapeHtml(err.message || 'Network error')}</p>
+            <button class="btn btn-secondary" style="margin-top: 15px;" type="button" id="retrySearchBtn">Retry</button>
+          </div>
+        `;
+        document.getElementById('retrySearchBtn')?.addEventListener('click', () => {
+          doExpenseSearch(document.getElementById('expenseSearchInput')?.value || '');
+        });
+      }
+    }
+  }
+
+  const searchInput = document.getElementById('expenseSearchInput');
+  const clearSearchBtn = document.getElementById('clearSearchBtn');
+
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        doExpenseSearch(e.target.value);
+      }, 250);
+    });
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        clearTimeout(searchDebounceTimer);
+        doExpenseSearch(searchInput.value);
+      }
+    });
+
+    searchInput.addEventListener('search', () => {
+      clearTimeout(searchDebounceTimer);
+      doExpenseSearch(searchInput.value);
+    });
+  }
+
+  if (clearSearchBtn) {
+    clearSearchBtn.addEventListener('click', () => {
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+      }
+      clearTimeout(searchDebounceTimer);
+      doExpenseSearch('');
+    });
+  }
+
+  /* =========================================================
      INITIAL LOAD
   ========================================================= */
 
   window.reloadCurrentData = initLoadAll;
   function initLoadAll(force = false) { return loadAll(force).catch(handleInitLoadError); }
 
-  function attachFilterListeners() {
-    const inputs = ['filterSearch', 'filterCategory', 'filterPayer', 'filterStartDate', 'filterEndDate'];
-    inputs.forEach(id => {
+  function handleInitLoadError(err) {
+    const errorHtml = `
+      <div class="modern-empty" style="padding: 2rem;">
+        <div class="empty-icon" style="color: var(--ll-negative);">⚠️</div>
+        <strong>Could not load data</strong>
+        <p>${escapeHtml(err?.message || 'Failed to load group')}</p>
+        <button class="btn btn-primary retry-group-btn" style="margin-top: 15px;" type="button">Retry</button>
+      </div>
+    `;
+
+    ['expenseList', 'settlementList', 'balanceList', 'memberList'].forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
-        el.addEventListener('change', () => initLoadAll(true));
-        if (el.tagName === 'INPUT' && el.type === 'text') {
-          el.addEventListener('keyup', (e) => {
-            if (e.key === 'Enter') initLoadAll(true);
-          });
-        }
+        el.innerHTML = errorHtml;
       }
     });
 
-    const clearBtn = document.getElementById('clearFiltersBtn');
-    if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
-        inputs.forEach(id => {
+    document.querySelectorAll('.retry-group-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        ['expenseList', 'settlementList', 'balanceList', 'memberList'].forEach((id) => {
           const el = document.getElementById(id);
-          if (el) el.value = '';
+          if (el) {
+            el.innerHTML = '<div class="loading-state"><span class="fx-spinner"></span> Loading...</div>';
+          }
         });
-        initLoadAll(true);
+        initLoadAll(true).catch((e) => console.error('Retry failed:', e));
       });
-    }
-  }
-  attachFilterListeners();
-
-  function handleInitLoadError(err) {
-    const el = document.getElementById('expenseList');
-    if (el) {
-      el.innerHTML = `<div class="modern-empty" style="padding: 2rem;">
-        <div class="empty-icon">!</div>
-        <strong>Could not load group</strong>
-        <p>${escapeHtml(err.message)}</p>
-        <button id="retryGroupBtn" class="btn btn-primary" style="margin-top: 15px;" type="button">Retry</button>
-      </div>`;
-      const btn = document.getElementById('retryGroupBtn');
-      if (btn) {
-        btn.addEventListener('click', () => {
-          btn.disabled = true;
-          btn.textContent = 'Loading...';
-          initLoadAll(true).catch(e => console.error('Retry failed:', e));
-        });
-      }
-    }
-    throw err;
+    });
   }
 
 

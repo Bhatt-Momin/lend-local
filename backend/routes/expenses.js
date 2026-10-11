@@ -179,39 +179,39 @@ router.post('/', async (req, res) => {
 
     if (
       !groupId ||
-      !description ||
+      typeof description !== 'string' ||
       !description.trim() ||
-      amount == null
+      typeof amount !== 'number'
     ) {
-
       return res.status(400).json({
-        message:
-          'groupId, description, and amount are required'
+        message: 'groupId, non-empty description, and numeric amount are required'
       });
-
     }
-
-
-    const numericAmount =
-      Number(amount);
-
 
     const envMax = Number(process.env.MAX_EXPENSE_AMOUNT);
     const MAX_AMOUNT = (Number.isFinite(envMax) && envMax > 0) ? envMax : 10000000;
 
     if (
-      !Number.isFinite(numericAmount) ||
-      numericAmount <= 0 ||
-      numericAmount > MAX_AMOUNT
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      amount > MAX_AMOUNT
     ) {
       return res.status(400).json({
-        message: 'Valid finite amount required'
+        message: 'Valid finite positive amount required within limits'
       });
     }
 
-    if (parseFloat(numericAmount.toFixed(2)) !== numericAmount) {
+    if (parseFloat(amount.toFixed(2)) !== amount) {
       return res.status(400).json({
         message: 'Amount must have at most two decimal places'
+      });
+    }
+
+    const numericAmount = amount;
+    const totalPaise = Math.round(numericAmount * 100);
+    if (!Number.isSafeInteger(totalPaise) || totalPaise <= 0 || totalPaise > Math.round(MAX_AMOUNT * 100)) {
+      return res.status(400).json({
+        message: 'Expense amount exceeds safe integer arithmetic limits'
       });
     }
 
@@ -315,48 +315,14 @@ router.post('/', async (req, res) => {
       }
 
 
-      const base =
-        Math.floor(
-          (numericAmount * 100) / n
-        ) / 100;
+      const totalPaise = Math.round(numericAmount * 100);
+      const basePaise = Math.floor(totalPaise / n);
+      const remainderPaise = totalPaise % n;
 
-
-      let remainder =
-        Math.round(
-          (numericAmount - base * n) * 100
-        ) / 100;
-
-
-      finalSplits =
-        participantIds.map(
-          (id, idx) => {
-
-            let share = base;
-
-
-            if (remainder > 0) {
-
-              share =
-                Math.round(
-                  (share + 0.01) * 100
-                ) / 100;
-
-
-              remainder =
-                Math.round(
-                  (remainder - 0.01) * 100
-                ) / 100;
-
-            }
-
-
-            return {
-              user: id,
-              share
-            };
-
-          }
-        );
+      finalSplits = participantIds.map((id, idx) => ({
+        user: id,
+        share: (basePaise + (idx < remainderPaise ? 1 : 0)) / 100
+      }));
 
     }
 
@@ -387,7 +353,7 @@ router.post('/', async (req, res) => {
             (s.user || '').toString(),
 
           share:
-            Number(s.share),
+            s.share,
 
         }));
 
@@ -418,9 +384,13 @@ router.post('/', async (req, res) => {
         }
 
 
+        const sharePaise = Math.round(s.share * 100);
         if (
+          typeof s.share !== 'number' ||
           !Number.isFinite(s.share) ||
-          s.share < 0 ||
+          !Number.isSafeInteger(sharePaise) ||
+          sharePaise < 0 ||
+          sharePaise > totalPaise ||
           s.share > MAX_AMOUNT
         ) {
           return res.status(400).json({
@@ -786,8 +756,8 @@ router.put('/:id', async (req, res) => {
       date
     } = req.body;
 
-    if (!description || !description.trim() || amount == null) {
-      return res.status(400).json({ message: 'description and amount are required' });
+    if (typeof description !== 'string' || !description.trim() || typeof amount !== 'number') {
+      return res.status(400).json({ message: 'non-empty description and numeric amount are required' });
     }
 
     const expense = await Expense.findById(req.params.id);
@@ -812,17 +782,22 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ message: 'Only the expense creator or group creator can edit this expense' });
     }
 
-    const numericAmount = Number(amount);
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      return res.status(400).json({ message: 'Invalid expense amount' });
-    }
     const envMax = Number(process.env.MAX_EXPENSE_AMOUNT);
     const MAX_AMOUNT = (Number.isFinite(envMax) && envMax > 0) ? envMax : 10000000;
-    if (numericAmount > MAX_AMOUNT) {
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ message: 'Invalid expense amount' });
+    }
+    if (amount > MAX_AMOUNT) {
       return res.status(400).json({ message: `Amount exceeds maximum allowed (₹${MAX_AMOUNT})` });
     }
-    if (parseFloat(numericAmount.toFixed(2)) !== numericAmount) {
+    if (parseFloat(amount.toFixed(2)) !== amount) {
       return res.status(400).json({ message: 'Amount must have at most two decimal places' });
+    }
+    const numericAmount = amount;
+    const totalPaise = Math.round(numericAmount * 100);
+    if (!Number.isSafeInteger(totalPaise) || totalPaise <= 0 || totalPaise > Math.round(MAX_AMOUNT * 100)) {
+      return res.status(400).json({ message: 'Expense amount exceeds safe integer arithmetic limits' });
     }
 
     const payerId = paidBy ? paidBy.toString() : req.user._id.toString();
@@ -860,17 +835,14 @@ router.put('/:id', async (req, res) => {
         return res.status(400).json({ message: 'At least one valid participant is required for equal split' });
       }
 
-      const base = Math.floor((numericAmount / participantIds.length) * 100) / 100;
-      let remainder = Math.round((numericAmount - base * participantIds.length) * 100) / 100;
+      const n = participantIds.length;
+      const basePaise = Math.floor(totalPaise / n);
+      const remainderPaise = totalPaise % n;
 
-      finalSplits = participantIds.map((id) => {
-        let share = base;
-        if (remainder > 0) {
-          share = Math.round((share + 0.01) * 100) / 100;
-          remainder = Math.round((remainder - 0.01) * 100) / 100;
-        }
-        return { user: id, share };
-      });
+      finalSplits = participantIds.map((id, idx) => ({
+        user: id,
+        share: (basePaise + (idx < remainderPaise ? 1 : 0)) / 100
+      }));
     }
     // =================================================
     // CUSTOM SPLIT
@@ -882,7 +854,7 @@ router.put('/:id', async (req, res) => {
 
       finalSplits = splits.map((s) => ({
         user: (s.user || '').toString(),
-        share: Number(s.share),
+        share: s.share,
       }));
 
       const uniqueIds = new Set();
@@ -895,7 +867,15 @@ router.put('/:id', async (req, res) => {
         if (!group.members.some((m) => m.toString() === s.user)) {
           return res.status(400).json({ message: 'All split users must be group members' });
         }
-        if (!Number.isFinite(s.share) || s.share < 0 || s.share > MAX_AMOUNT) {
+        const sharePaise = Math.round(s.share * 100);
+        if (
+          typeof s.share !== 'number' ||
+          !Number.isFinite(s.share) ||
+          !Number.isSafeInteger(sharePaise) ||
+          sharePaise < 0 ||
+          sharePaise > totalPaise ||
+          s.share > MAX_AMOUNT
+        ) {
           return res.status(400).json({ message: 'Invalid share amount' });
         }
         if (parseFloat(s.share.toFixed(2)) !== s.share) {
@@ -938,7 +918,7 @@ router.put('/:id', async (req, res) => {
         splitType: populated.splitType,
         date: populated.date,
         paidBy: {
-          id: populated._id,
+          id: populated.paidBy ? populated.paidBy._id : null,
           name: populated.paidBy ? populated.paidBy.name : null,
           email: populated.paidBy ? populated.paidBy.email : null,
         },

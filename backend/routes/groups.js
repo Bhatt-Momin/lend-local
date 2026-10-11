@@ -33,12 +33,13 @@ router.get('/', async (req, res) => {
         const isActiveMember = g.members.some(m => m._id.equals(req.user._id));
 
         const myBalance = mine ? mine.net : 0;
+        const uIdStr = req.user._id.toString();
+        const hasDirectDebt = ledger.settlements.some(s => s.from.id === uIdStr || s.to.id === uIdStr);
 
-        if (!isActiveMember && Math.abs(myBalance) < 0.01) {
-          return null; // Skip if departed and no outstanding balance
+        if (!isActiveMember && Math.abs(myBalance) < 0.01 && !hasDirectDebt) {
+          return null; // Skip if departed and no outstanding balance or direct debts
         }
 
-        const uIdStr = req.user._id.toString();
         const settlements = isActiveMember
           ? ledger.settlements
           : ledger.settlements.filter(s => s.from.id === uIdStr || s.to.id === uIdStr);
@@ -76,7 +77,7 @@ router.get('/', async (req, res) => {
           updatedAt: g.updatedAt,
           createdAt: g.createdAt,
           isActiveMember,
-          hasOutstandingBalance: Math.abs(myBalance) >= 0.01
+          hasOutstandingBalance: Math.abs(myBalance) >= 0.01 || hasDirectDebt
         };
       })
     );
@@ -262,9 +263,12 @@ router.delete('/:id/members/me', async (req, res) => {
     }
 
     const ledger = await getGroupLedger(group._id);
-    const myBalance = ledger.balances.find((b) => b.userId === req.user._id.toString());
+    const userIdStr = req.user._id.toString();
+    const hasUnsettledDirectDebts = ledger.settlements.some(
+      (s) => s.from.id === userIdStr || s.to.id === userIdStr
+    );
 
-    if (myBalance && Math.abs(myBalance.net) >= 0.01) {
+    if (hasUnsettledDirectDebts) {
       return res.status(400).json({ message: 'You must settle your balance before leaving the group.' });
     }
 
@@ -310,5 +314,50 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ message: err.message || 'Failed to delete group' });
   }
 });
+// =====================================================
+// RENAME / UPDATE GROUP
+// =====================================================
+
+const handleRenameGroup = async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ message: 'Group name is required' });
+    }
+
+    const trimmedName = name.trim();
+    if (trimmedName.length > 100) {
+      return res.status(400).json({ message: 'Group name must be 100 characters or less' });
+    }
+
+    const group = await Group.findById(req.params.id);
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+
+    if (!group.createdBy.equals(req.user._id)) {
+      return res.status(403).json({ message: 'Only the group creator can rename this group.' });
+    }
+
+    group.name = trimmedName;
+    group.updatedAt = new Date();
+    await group.save();
+
+    res.json({
+      message: 'Group renamed successfully',
+      group: {
+        id: group._id,
+        name: group.name,
+        description: group.description,
+        updatedAt: group.updatedAt,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Failed to rename group' });
+  }
+};
+
+router.patch('/:id', handleRenameGroup);
+router.put('/:id', handleRenameGroup);
 
 module.exports = router;

@@ -527,8 +527,13 @@ router.post("/intent", protect, async (req, res) => {
       });
     };
 
-    // One-active-intent guard: check BEFORE ledger cap check
-    const existingActive = await Payment.findOne({
+    // Fetch direct pairwise ledger to validate payable relationship
+    const ledger = await getGroupLedger(groupId);
+    const validSettlement = ledger.settlements.find(
+      (s) => s.from.id === req.user._id.toString() && s.to.id === toUserId.toString()
+    );
+
+    let existingActive = await Payment.findOne({
       group: groupId,
       from: req.user._id,
       to: toUserId,
@@ -536,15 +541,33 @@ router.post("/intent", protect, async (req, res) => {
       status: { $in: ["pending", "payer_claimed"] },
     });
 
-    if (existingActive) {
-      if (Math.round(existingActive.amount * 100) === requestedPaise) {
-        return buildIntentResponse(existingActive, 200);
+    if (!validSettlement) {
+      if (existingActive && existingActive.status === "pending") {
+        existingActive.status = "cancelled";
+        existingActive.cancelledAt = new Date();
+        await existingActive.save();
       }
-      return res.status(409).json({
-        message: "An active UPI payment already exists for this recipient. Complete or cancel it first.",
-        intentId: existingActive._id,
-        status: existingActive.status,
-      });
+      return res.status(403).json({ message: "No valid payable relationship established by ledger" });
+    }
+
+    const authorizedPaise = Math.round(validSettlement.amount * 100);
+
+    if (existingActive) {
+      const activePaise = Math.round(existingActive.amount * 100);
+      if (existingActive.status === "pending" && activePaise > authorizedPaise) {
+        existingActive.status = "cancelled";
+        existingActive.cancelledAt = new Date();
+        await existingActive.save();
+        existingActive = null;
+      } else if (activePaise === requestedPaise && requestedPaise <= authorizedPaise) {
+        return buildIntentResponse(existingActive, 200);
+      } else {
+        return res.status(409).json({
+          message: "An active UPI payment already exists for this recipient. Complete or cancel it first.",
+          intentId: existingActive._id,
+          status: existingActive.status,
+        });
+      }
     }
 
     // New intent flow -> check recipient UPI and ledger cap
@@ -556,17 +579,6 @@ router.post("/intent", protect, async (req, res) => {
     if (!recipient.upiId) {
       return res.status(400).json({ message: "Recipient has not configured a UPI payment method" });
     }
-
-    const ledger = await getGroupLedger(groupId);
-    const validSettlement = ledger.settlements.find(
-      (s) => s.from.id === req.user._id.toString() && s.to.id === toUserId.toString()
-    );
-
-    if (!validSettlement) {
-      return res.status(403).json({ message: "No valid payable relationship established by ledger" });
-    }
-
-    const authorizedPaise = Math.round(validSettlement.amount * 100);
 
     if (requestedPaise > authorizedPaise) {
       return res.status(400).json({ message: "Payment exceeds authorized settlement amount" });
@@ -961,6 +973,8 @@ router.get("/active/:groupId", protect, async (req, res) => {
       return res.status(403).json({ message: "You are not authorized to view this group's payments" });
     }
 
+    const ledger = await getGroupLedger(groupId);
+
     const intents = await Payment.find({
       group: groupId,
       method: "upi_direct",
@@ -968,7 +982,23 @@ router.get("/active/:groupId", protect, async (req, res) => {
       $or: [{ from: req.user._id }, { to: req.user._id }]
     }).populate("from", "name").populate("to", "name");
 
-    const mappedIntents = intents.map(intent => {
+    const activeIntents = [];
+    for (const intent of intents) {
+      if (intent.status === 'pending') {
+        const fromStr = intent.from?._id ? intent.from._id.toString() : intent.from?.toString();
+        const toStr = intent.to?._id ? intent.to._id.toString() : intent.to?.toString();
+        const curSettlement = ledger.settlements.find(s => s.from.id === fromStr && s.to.id === toStr);
+        if (!curSettlement || Math.round(intent.amount * 100) > Math.round(curSettlement.amount * 100)) {
+          intent.status = 'cancelled';
+          intent.cancelledAt = new Date();
+          await intent.save();
+          continue;
+        }
+      }
+      activeIntents.push(intent);
+    }
+
+    const mappedIntents = activeIntents.map(intent => {
       let upiUri = null;
       if (intent.method === 'upi_direct' && intent.payeeUpiId && intent.upiTransactionRef) {
         const pa = encodeURIComponent(intent.payeeUpiId);

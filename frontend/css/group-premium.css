@@ -915,64 +915,438 @@ body.ll-group-page .add-member-heading p {
 }
 
 /* ============================================================
-   EXPENSE MODAL (DARK THEME OVERRIDES)
+   GROUP RENAMING CONTROLS
    ============================================================ */
 
-/* Ensure the modal scrolls so title and buttons remain reachable */
-body.ll-group-page #expenseModal .modern-modal {
-  display: flex;
-  flex-direction: column;
-  max-height: 90vh;
-  overflow: hidden !important; /* Disable native full-modal scroll */
+body.ll-group-page .group-name-wrapper {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  flex-wrap: wrap !important;
 }
-body.ll-group-page #expenseModal .modal-header {
-  flex-shrink: 0;
+
+body.ll-group-page .btn-rename {
+  background: var(--ll-surface-raised) !important;
+  color: var(--ll-text-muted) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 99px !important;
+  padding: 0.25rem 0.75rem !important;
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  min-height: 32px !important;
+  transition: all 0.2s var(--ll-ease) !important;
 }
-body.ll-group-page #expenseModal #expenseForm {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  padding-right: 5px;
+
+body.ll-group-page .btn-rename:hover {
+  background: var(--ll-brand-dim) !important;
+  color: var(--ll-brand) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
 }
-body.ll-group-page #expenseModal .modern-modal-actions {
-  position: sticky;
-  bottom: 0;
+
+body.ll-group-page .rename-group-form {
+  margin: 0.5rem 0 0.75rem !important;
+  width: 100% !important;
+  max-width: 500px !important;
+}
+
+body.ll-group-page .rename-form-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  flex-wrap: wrap !important;
+}
+
+body.ll-group-page #renameGroupInput {
+  flex: 1 1 200px !important;
+  padding: 0.5rem 0.85rem !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 10px !important;
+  color: var(--ll-text) !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+}
+
+body.ll-group-page #renameGroupInput:focus {
+  border-color: var(--ll-brand) !important;
+  box-shadow: 0 0 0 3px var(--ll-brand-glow) !important;
+  outline: none !important;
+}
+
+body.ll-group-page .rename-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.4rem !important;
+}
+
+body.ll-group-page .btn-sm {
+  padding: 0.4rem 0.85rem !important;
+  font-size: 0.8rem !important;
+  min-height: 34px !important;
+  border-radius: 8px !important;
+}
+
+/* ============================================================
+   EXPENSE SEARCH BAR
+   ============================================================ */
+
+body.ll-group-page .expense-search-bar {
+  margin-bottom: 1.5rem !important;
+}
+
+body.ll-group-page .search-input-wrapper {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+}
+
+body.ll-group-page .search-input-wrapper .search-icon {
+  position: absolute !important;
+  left: 0.85rem !important;
+  color: var(--ll-text-muted) !important;
+  font-size: 0.9rem !important;
+  pointer-events: none !important;
+}
+
+body.ll-group-page #expenseSearchInput {
+  width: 100% !important;
+  padding: 0.75rem 2.5rem 0.75rem 2.5rem !important;
   background: var(--ll-surface) !important;
-  padding-top: 1rem;
-  margin-top: auto;
-  z-index: 10;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 12px !important;
+  color: var(--ll-text) !important;
+  font-size: 0.95rem !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+  transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+body.ll-group-page #expenseSearchInput:focus {
+  border-color: var(--ll-brand) !important;
+  box-shadow: 0 0 0 3px var(--ll-brand-glow) !important;
+  outline: none !important;
+}
+
+body.ll-group-page .clear-search-btn {
+  position: absolute !important;
+  right: 0.65rem !important;
+  background: transparent !important;
+  border: none !important;
+  color: var(--ll-text-muted) !important;
+  font-size: 1.25rem !important;
+  width: 30px !important;
+  height: 30px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+}
+
+body.ll-group-page .clear-search-btn:hover {
+  color: var(--ll-text) !important;
+  background: var(--ll-surface-raised) !important;
+}
+
+/* ============================================================
+   SPLIT SUMMARY
+   ============================================================ */
+
+body.ll-group-page .split-summary {
+  background: var(--ll-surface) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 10px !important;
+  padding: 0.75rem 1rem !important;
+  margin-top: 0.75rem !important;
+  font-family: var(--ll-font-mono) !important;
+}
+
+body.ll-group-page .split-summary-bar {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  font-size: 0.88rem !important;
+  gap: 0.5rem !important;
+  flex-wrap: wrap !important;
+}
+
+body.ll-group-page .split-status-msg {
+  font-size: 0.8rem !important;
+  margin-top: 0.35rem !important;
+}
+
+body.ll-group-page .split-status-msg.valid {
+  color: var(--ll-positive) !important;
+}
+
+body.ll-group-page .split-status-msg.invalid {
+  color: var(--ll-warning) !important;
+}
+
+/* ============================================================
+   MODALS (DARK THEME, VIEWPORT FIT, REACHABLE CONTROLS)
+   ============================================================ */
+
+body.ll-group-page .modal-backdrop {
+  padding: 0.75rem !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(0, 0, 0, 0.75) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+body.ll-group-page .modern-modal {
+  width: min(520px, 100%) !important;
+  max-height: calc(100dvh - 2rem) !important;
+  max-width: calc(100vw - 1rem) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 1.25rem !important;
+  border-radius: 20px !important;
+  background: var(--ll-surface) !important;
+  border: 1px solid var(--ll-border) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6) !important;
+  box-sizing: border-box !important;
+}
+
+body.ll-group-page .modern-modal .modal-header {
+  flex-shrink: 0 !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+  gap: 0.75rem !important;
+  margin-bottom: 1rem !important;
+  padding-bottom: 0.75rem !important;
+  border-bottom: 1px solid var(--ll-border) !important;
+}
+
+body.ll-group-page .modern-modal .modal-header h2 {
+  font-size: 1.25rem !important;
+  margin: 0 !important;
+}
+
+body.ll-group-page .modern-modal .modal-header p {
+  font-size: 0.85rem !important;
+  margin: 0.25rem 0 0 !important;
+  color: var(--ll-text-muted) !important;
+}
+
+/* Modal Internal Scrolling */
+body.ll-group-page #expenseModal #expenseForm,
+body.ll-group-page .modal-body-scroll {
+  flex: 1 1 auto !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding-right: 4px !important;
+  min-height: 0 !important;
+}
+
+body.ll-group-page #expenseModal #expenseForm {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Modal Actions */
+body.ll-group-page .modern-modal-actions {
+  flex-shrink: 0 !important;
+  position: sticky !important;
+  bottom: 0 !important;
+  background: var(--ll-surface) !important;
+  padding-top: 0.75rem !important;
+  margin-top: auto !important;
+  display: flex !important;
+  gap: 0.75rem !important;
+  z-index: 10 !important;
+}
+
+@media (max-width: 480px) {
+  body.ll-group-page .modern-modal-actions {
+    flex-direction: column-reverse !important;
+    gap: 0.5rem !important;
+  }
+  body.ll-group-page .modern-modal-actions .btn {
+    width: 100% !important;
+  }
 }
 
 /* Select Inputs */
-body.ll-group-page #expenseModal select {
-  background: rgba(0,0,0,0.5) !important;
+body.ll-group-page select {
+  background: rgba(0, 0, 0, 0.5) !important;
   color: var(--ll-text) !important;
   border: 1px solid var(--ll-border) !important;
 }
-body.ll-group-page #expenseModal select:focus {
+
+body.ll-group-page select:focus {
   border-color: var(--ll-brand) !important;
   box-shadow: 0 0 0 3px var(--ll-brand-glow) !important;
   outline: none;
 }
 
 /* Participant / Share Rows */
-body.ll-group-page #expenseModal .split-row {
+body.ll-group-page .split-row {
   background: var(--ll-surface-raised) !important;
   border: 1px solid var(--ll-border) !important;
+  border-radius: 10px !important;
+  padding: 0.5rem 0.75rem !important;
 }
-body.ll-group-page #expenseModal .split-row label {
+
+body.ll-group-page .split-row label {
   color: var(--ll-text) !important;
 }
-body.ll-group-page #expenseModal .split-row input[type="checkbox"] {
+
+body.ll-group-page .split-row input[type="checkbox"] {
   accent-color: var(--ll-brand) !important;
 }
-body.ll-group-page #expenseModal .split-row .split-share {
-  background: rgba(0,0,0,0.5) !important;
+
+body.ll-group-page .split-row .split-share {
+  background: rgba(0, 0, 0, 0.5) !important;
   color: var(--ll-text) !important;
   border: 1px solid var(--ll-border) !important;
+  border-radius: 8px !important;
+  padding: 0.4rem 0.6rem !important;
 }
-body.ll-group-page #expenseModal .split-row .split-share:focus {
+
+body.ll-group-page .split-row .split-share:focus {
   border-color: var(--ll-brand) !important;
   box-shadow: 0 0 0 3px var(--ll-brand-glow) !important;
+}
+
+/* ============================================================
+   EMPTY & LOADING STATES (HIGH CONTRAST DARK DESIGN)
+   ============================================================ */
+
+body.ll-group-page .modern-empty {
+  padding: 2.75rem 1.5rem !important;
+  text-align: center !important;
+  border: 1px dashed var(--ll-border) !important;
+  border-radius: 18px !important;
+  background: var(--ll-surface) !important;
+  color: var(--ll-text) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
+  margin-bottom: 1rem !important;
+}
+
+body.ll-group-page .modern-empty strong {
+  display: block !important;
+  color: var(--ll-text) !important;
+  font-size: 1.2rem !important;
+  font-family: var(--ll-font-display) !important;
+  margin-bottom: 0.35rem !important;
+}
+
+body.ll-group-page .modern-empty p {
+  color: var(--ll-text-muted) !important;
+  margin: 0.35rem auto 1rem !important;
+  font-size: 0.88rem !important;
+  max-width: 320px !important;
+}
+
+body.ll-group-page .modern-empty .empty-icon {
+  width: 50px !important;
+  height: 50px !important;
+  display: grid !important;
+  place-items: center !important;
+  margin: 0 auto 1rem !important;
+  border-radius: 14px !important;
+  background: var(--ll-brand-dim) !important;
+  border: 1px solid rgba(16, 185, 129, 0.2) !important;
+  font-size: 1.3rem !important;
+}
+
+body.ll-group-page .loading-state {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.65rem !important;
+  padding: 2.5rem 1rem !important;
+  color: var(--ll-text-muted) !important;
+  font-size: 0.92rem !important;
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.01) !important;
+  border: 1px solid var(--ll-border) !important;
+}
+
+body.ll-group-page .fx-spinner {
+  display: inline-block !important;
+  width: 18px !important;
+  height: 18px !important;
+  border: 2px solid rgba(16, 185, 129, 0.2) !important;
+  border-top-color: var(--ll-brand) !important;
+  border-radius: 50% !important;
+  animation: llSpin 0.7s linear infinite !important;
+}
+
+@keyframes llSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   RESPONSIVE COMPACT HEADER & MOBILE SPACING
+   ============================================================ */
+
+@media (max-width: 760px) {
+  body.ll-group-page .modern-header {
+    padding: 0 !important;
+  }
+  body.ll-group-page .app-header-inner {
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    padding: 0.65rem 1rem !important;
+  }
+  body.ll-group-page .modern-logo {
+    width: auto !important;
+    justify-content: flex-start !important;
+    gap: 0.5rem !important;
+  }
+  body.ll-group-page .modern-logo small {
+    display: none !important;
+  }
+  body.ll-group-page .modern-actions {
+    width: auto !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-end !important;
+    gap: 0.5rem !important;
+  }
+  body.ll-group-page .modern-actions .btn {
+    flex: 0 0 auto !important;
+    padding: 0.35rem 0.75rem !important;
+    font-size: 0.78rem !important;
+    min-height: 36px !important;
+  }
+  body.ll-group-page .user-area {
+    width: auto !important;
+    margin-bottom: 0 !important;
+    gap: 0.4rem !important;
+  }
+  body.ll-group-page .user-chip {
+    max-width: 100px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 0.8rem !important;
+  }
+}
+
+@media (max-width: 380px) {
+  body.ll-group-page .user-chip {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  body.ll-group-page .modern-container,
+  body.ll-group-page .container {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+    padding-top: 1rem !important;
+  }
 }

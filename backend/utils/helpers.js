@@ -7,81 +7,205 @@ function signToken(userId) {
 }
 
 /**
- * Compute net balances from expenses.
- * Positive = others owe this person; negative = this person owes others.
- * Also simplifies into pairwise settlements (who owes whom).
+ * Authoritative ledger calculation using exact integer paise arithmetic.
+ * Accounting rule:
+ * net = expense amounts paid − allocated expense shares
+ *       + confirmed settlements sent − confirmed settlements received.
+ *
+ * Positive = member should receive money (creditor)
+ * Negative = member owes money (debtor)
+ * Net group balance sums identically to zero.
  */
-function computeBalances(expenses, members) {
-  const net = {};
-  members.forEach((m) => {
-    const id = m._id ? m._id.toString() : m.toString();
-    net[id] = 0;
-  });
+function calculateLedger({ expenses = [], payments = [], members = [], nameMap = {} }) {
+  const netPaise = {};
+  const pairwiseNetPaise = {};
 
-  for (const expense of expenses) {
-    const payerId = expense.paidBy._id
-      ? expense.paidBy._id.toString()
-      : expense.paidBy.toString();
+  const getPairKey = (id1, id2) => (id1 < id2 ? `${id1}:${id2}` : `${id2}:${id1}`);
 
-    if (net[payerId] === undefined) net[payerId] = 0;
-    net[payerId] += expense.amount;
-
-    for (const split of expense.splits) {
-      const uid = split.user._id ? split.user._id.toString() : split.user.toString();
-      if (net[uid] === undefined) net[uid] = 0;
-      net[uid] -= split.share;
+  const addDirectDebt = (debtorId, creditorId, amountPaise) => {
+    if (!debtorId || !creditorId || debtorId === creditorId || amountPaise === 0) return;
+    const key = getPairKey(debtorId, creditorId);
+    if (pairwiseNetPaise[key] === undefined) pairwiseNetPaise[key] = 0;
+    if (debtorId < creditorId) {
+      pairwiseNetPaise[key] += amountPaise;
+    } else {
+      pairwiseNetPaise[key] -= amountPaise;
     }
-  }
-
-  // Round to 2 decimals to avoid float noise
-  Object.keys(net).forEach((k) => {
-    net[k] = Math.round(net[k] * 100) / 100;
-  });
-
-  const nameOf = (id) => {
-    const m = members.find((x) => (x._id ? x._id.toString() : x.toString()) === id);
-    return m && m.name ? m.name : 'Unknown';
   };
 
-  const balances = Object.entries(net).map(([userId, amount]) => ({
-    userId,
-    name: nameOf(userId),
-    net: amount,
-  }));
+  members.forEach((m) => {
+    const id = (m._id || m.id || m).toString();
+    netPaise[id] = 0;
+  });
 
-  // Greedy pairwise settlement
-  const creditors = balances
-    .filter((b) => b.net > 0.009)
-    .map((b) => ({ ...b }))
-    .sort((a, b) => b.net - a.net);
-  const debtors = balances
-    .filter((b) => b.net < -0.009)
-    .map((b) => ({ ...b, net: -b.net }))
-    .sort((a, b) => b.net - a.net);
+  let totalSpentPaise = 0;
 
-  const settlements = [];
-  let i = 0;
-  let j = 0;
-  while (i < debtors.length && j < creditors.length) {
-    const pay = Math.min(debtors[i].net, creditors[j].net);
-    const amount = Math.round(pay * 100) / 100;
-    if (amount > 0) {
-      settlements.push({
-        from: { userId: debtors[i].userId, name: debtors[i].name },
-        to: { userId: creditors[j].userId, name: creditors[j].name },
-        amount,
-      });
+  for (const ex of expenses) {
+    const expenseAmountPaise = Math.round(Number(ex.amount || 0) * 100);
+    totalSpentPaise += expenseAmountPaise;
+
+    const payerId = ex.paidBy ? (ex.paidBy._id || ex.paidBy.id || ex.paidBy).toString() : null;
+    if (payerId) {
+      if (netPaise[payerId] === undefined) netPaise[payerId] = 0;
+      netPaise[payerId] += expenseAmountPaise;
     }
-    debtors[i].net = Math.round((debtors[i].net - pay) * 100) / 100;
-    creditors[j].net = Math.round((creditors[j].net - pay) * 100) / 100;
-    if (debtors[i].net < 0.01) i += 1;
-    if (creditors[j].net < 0.01) j += 1;
+
+    if (!Array.isArray(ex.splits) || ex.splits.length === 0) {
+      if (expenseAmountPaise > 0) {
+        throw new Error(
+          `Data integrity error: Expense "${ex.description || ex._id || 'unknown'}" has no split allocations`
+        );
+      }
+      continue;
+    }
+
+    const splitSharesPaise = ex.splits.map((s) => Math.round(Number(s.share || 0) * 100));
+    const totalSplitPaise = splitSharesPaise.reduce((acc, p) => acc + p, 0);
+
+    const diff = expenseAmountPaise - totalSplitPaise;
+    if (diff !== 0) {
+      // Reconcile ONLY identifiable legacy rounding discrepancies.
+      // Identifiable if:
+      // 1. Explicitly equal split or legacy record without splitType where non-zero shares are virtually identical (difference <= 1 paisa)
+      // 2. Discrepancy is strictly within the mathematical bound of equal integer division (|diff| < activeCount)
+      const activeSplits = ex.splits.filter((s) => Number(s.share || 0) > 0);
+      const activeCount = activeSplits.length;
+      const rawShares = activeSplits.map((s) => Number(s.share || 0));
+      const maxShare = rawShares.length > 0 ? Math.max(...rawShares) : 0;
+      const minShare = rawShares.length > 0 ? Math.min(...rawShares) : 0;
+      const sharesVirtuallyEqual = (maxShare - minShare) <= 0.01 + 1e-9;
+      const isLegacyEqual = (ex.splitType === 'equal' || !ex.splitType) && sharesVirtuallyEqual;
+
+      if (isLegacyEqual && activeCount > 0 && Math.abs(diff) < activeCount) {
+        const step = diff > 0 ? 1 : -1;
+        let count = Math.abs(diff);
+        for (let i = 0; i < ex.splits.length && count > 0; i++) {
+          // Distribute 1 paisa only to active participants with positive share, never producing negative share
+          if (splitSharesPaise[i] > 0 && splitSharesPaise[i] + step >= 0) {
+            splitSharesPaise[i] += step;
+            count--;
+          }
+        }
+        if (count > 0) {
+          throw new Error(
+            `Data integrity error: Expense "${ex.description || ex._id || 'unknown'}" has unreconcilable allocations (allocated ₹${(totalSplitPaise / 100).toFixed(2)} of ₹${(expenseAmountPaise / 100).toFixed(2)})`
+          );
+        }
+      } else {
+        // Materially inconsistent, arbitrary discrepancy, or invalid custom split
+        throw new Error(
+          `Data integrity error: Expense "${ex.description || ex._id || 'unknown'}" has unreconcilable allocations (allocated ₹${(totalSplitPaise / 100).toFixed(2)} of ₹${(expenseAmountPaise / 100).toFixed(2)})`
+        );
+      }
+    }
+
+    for (let i = 0; i < ex.splits.length; i++) {
+      const s = ex.splits[i];
+      const splitUserId = s.user ? (s.user._id || s.user.id || s.user).toString() : null;
+      const sharePaise = splitSharesPaise[i];
+      if (splitUserId) {
+        if (netPaise[splitUserId] === undefined) netPaise[splitUserId] = 0;
+        netPaise[splitUserId] -= sharePaise;
+
+        // Direct debt: non-payer participant owes payer their share (payer owes self creates no debt)
+        if (payerId && splitUserId !== payerId && sharePaise > 0) {
+          addDirectDebt(splitUserId, payerId, sharePaise);
+        }
+      }
+    }
   }
 
-  return { balances, settlements };
+  for (const p of payments) {
+    const status = p.status;
+    if (status !== 'paid' && status !== 'recipient_confirmed') {
+      continue;
+    }
+
+    const fromId = p.from ? (p.from._id || p.from.id || p.from).toString() : null;
+    const toId = p.to ? (p.to._id || p.to.id || p.to).toString() : null;
+    const amtPaise = Math.round(Number(p.amount || 0) * 100);
+
+    if (fromId && toId && fromId !== toId && amtPaise > 0) {
+      if (netPaise[fromId] === undefined) netPaise[fromId] = 0;
+      if (netPaise[toId] === undefined) netPaise[toId] = 0;
+
+      netPaise[fromId] += amtPaise;
+      netPaise[toId] -= amtPaise;
+
+      // Confirmed settlement: fromId pays toId, reducing direct debt from fromId to toId
+      addDirectDebt(fromId, toId, -amtPaise);
+    }
+  }
+
+  const balances = Object.entries(netPaise).map(([userId, paise]) => ({
+    userId,
+    name: nameMap[userId] || 'Unknown',
+    net: paise / 100,
+  }));
+
+  // Direct pairwise settlements
+  const settlements = [];
+
+  for (const [key, netPaiseValue] of Object.entries(pairwiseNetPaise)) {
+    if (netPaiseValue === 0) continue;
+    const [u1, u2] = key.split(':');
+
+    if (netPaiseValue > 0) {
+      // u1 owes u2
+      settlements.push({
+        from: { id: u1, userId: u1, name: nameMap[u1] || 'Unknown' },
+        to: { id: u2, userId: u2, name: nameMap[u2] || 'Unknown' },
+        amount: netPaiseValue / 100,
+      });
+    } else {
+      // u2 owes u1
+      settlements.push({
+        from: { id: u2, userId: u2, name: nameMap[u2] || 'Unknown' },
+        to: { id: u1, userId: u1, name: nameMap[u1] || 'Unknown' },
+        amount: (-netPaiseValue) / 100,
+      });
+    }
+  }
+
+  // Sort settlements deterministically: amount desc, from.id asc, to.id asc
+  settlements.sort((a, b) => {
+    if (Math.round(b.amount * 100) !== Math.round(a.amount * 100)) {
+      return Math.round(b.amount * 100) - Math.round(a.amount * 100);
+    }
+    if (a.from.id !== b.from.id) return a.from.id.localeCompare(b.from.id);
+    return a.to.id.localeCompare(b.to.id);
+  });
+
+  return { balances, settlements, totalSpent: totalSpentPaise / 100 };
 }
 
-module.exports = { signToken, computeBalances, getGroupLedger, checkParticipation };
+/**
+ * Compute net balances from expenses and optional payments.
+ * Authorized wrapper around calculateLedger.
+ */
+function computeBalances(expenses, members, payments = []) {
+  const nameMap = {};
+  members.forEach((m) => {
+    const id = (m._id || m.id || m).toString();
+    if (m.name) nameMap[id] = m.name;
+  });
+  expenses.forEach((ex) => {
+    if (ex.paidBy && ex.paidBy.name) {
+      nameMap[(ex.paidBy._id || ex.paidBy.id || ex.paidBy).toString()] = ex.paidBy.name;
+    }
+    if (Array.isArray(ex.splits)) {
+      ex.splits.forEach((s) => {
+        if (s.user && s.user.name) {
+          nameMap[(s.user._id || s.user.id || s.user).toString()] = s.user.name;
+        }
+      });
+    }
+  });
+
+  return calculateLedger({ expenses, payments, members, nameMap });
+}
+
+module.exports = { signToken, computeBalances, getGroupLedger, checkParticipation, calculateLedger };
 
 async function getGroupLedger(groupId) {
   const Group = require('../models/Group');
@@ -104,106 +228,24 @@ async function getGroupLedger(groupId) {
     nameMap[m._id.toString()] = m.name;
   });
   expenses.forEach((ex) => {
-    if (ex.paidBy) nameMap[ex.paidBy._id.toString()] = ex.paidBy.name;
+    if (ex.paidBy) nameMap[(ex.paidBy._id || ex.paidBy).toString()] = ex.paidBy.name || 'Unknown';
     if (ex.splits) {
       ex.splits.forEach((s) => {
-        if (s.user) nameMap[s.user._id.toString()] = s.user.name;
+        if (s.user) nameMap[(s.user._id || s.user).toString()] = s.user.name || 'Unknown';
       });
     }
   });
   payments.forEach((p) => {
-    if (p.from) nameMap[p.from._id.toString()] = p.from.name;
-    if (p.to) nameMap[p.to._id.toString()] = p.to.name;
+    if (p.from) nameMap[(p.from._id || p.from).toString()] = p.from.name || 'Unknown';
+    if (p.to) nameMap[(p.to._id || p.to).toString()] = p.to.name || 'Unknown';
   });
 
-  const net = {};
-
-  group.members.forEach((m) => {
-    const id = m._id.toString();
-    net[id] = 0;
+  const { balances, settlements, totalSpent } = calculateLedger({
+    expenses,
+    payments,
+    members: group.members,
+    nameMap,
   });
-
-  expenses.forEach((ex) => {
-    const pId = ex.paidBy._id.toString();
-    if (net[pId] === undefined) net[pId] = 0;
-    net[pId] += ex.amount;
-
-    ex.splits.forEach((s) => {
-      const sId = s.user._id.toString();
-      if (net[sId] === undefined) net[sId] = 0;
-      net[sId] -= s.share;
-    });
-  });
-
-  payments.forEach((p) => {
-    const fId = p.from._id.toString();
-    const tId = p.to._id.toString();
-    const amt = p.amount;
-
-    if (net[fId] === undefined) net[fId] = 0;
-    if (net[tId] === undefined) net[tId] = 0;
-
-    net[fId] = Math.round((net[fId] + amt) * 100) / 100;
-    net[tId] = Math.round((net[tId] - amt) * 100) / 100;
-  });
-
-  Object.keys(net).forEach((k) => {
-    net[k] = Math.round(net[k] * 100) / 100;
-  });
-
-  const balances = Object.entries(net).map(([userId, amount]) => ({
-    userId,
-    name: nameMap[userId] || 'Unknown',
-    net: amount,
-  }));
-
-  const debtors = balances
-  .filter((b) => b.net < -0.009)
-  .map((b) => ({
-    ...b,
-    remaining: Math.abs(b.net),
-  }))
-  .sort(
-    (a, b) =>
-      b.remaining -
-      a.remaining
-  );
-
-const creditors = balances
-  .filter((b) => b.net > 0.009)
-  .map((b) => ({
-    ...b,
-    remaining: b.net,
-  }))
-  .sort(
-    (a, b) =>
-      b.remaining -
-      a.remaining
-  );
-
-  const settlements = [];
-  let debtorIndex = 0;
-  let creditorIndex = 0;
-
-  while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
-    const debtor = debtors[debtorIndex];
-    const creditor = creditors[creditorIndex];
-    const amount = Math.min(debtor.remaining, creditor.remaining);
-
-    settlements.push({
-      from: { id: debtor.userId, name: debtor.name },
-      to: { id: creditor.userId, name: creditor.name },
-      amount: Math.round(amount * 100) / 100,
-    });
-
-    debtor.remaining -= amount;
-    creditor.remaining -= amount;
-
-    if (debtor.remaining < 0.01) debtorIndex++;
-    if (creditor.remaining < 0.01) creditorIndex++;
-  }
-
-  const totalSpent = expenses.reduce((sum, ex) => sum + Number(ex.amount), 0);
 
   return { group, expenses, payments, balances, settlements, totalSpent, nameMap };
 }
