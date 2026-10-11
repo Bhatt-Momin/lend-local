@@ -255,8 +255,20 @@ if ('serviceWorker' in navigator) {
         updateBtn.className = 'btn';
         updateBtn.style.cssText = 'min-height: 36px; min-width: 0; padding: 0.5rem 1rem;';
         updateBtn.onclick = () => {
-          if (window.isPaymentActive || window.isPaymentRequestInFlight) {
-            alert('You have an active payment. Please finish or close it before updating.');
+          // 1. Guard active payment flow
+          const isPaymentActive = window.isPaymentActive ||
+            window.isPaymentRequestInFlight ||
+            !!document.querySelector('#upiPayerModal.open, #paymentModal.open, #upiRecipientModal.open');
+
+          if (isPaymentActive) {
+            alert('You have an active payment in progress. Please finish or close it before updating.');
+            return;
+          }
+
+          // 2. Guard active expense editing
+          const isExpenseEditing = !!document.querySelector('#expenseModal.open, #customSplitModal.open, #addExpenseModal.open');
+          if (isExpenseEditing) {
+            alert('You are editing an expense. Please finish saving or close the form before updating.');
             return;
           }
 
@@ -315,6 +327,20 @@ if ('serviceWorker' in navigator) {
       if (registration.waiting && navigator.serviceWorker.controller) {
         showUpdateBanner(registration.waiting);
       }
+
+      // Check for service worker updates when app resumes on mobile / tab becomes visible
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && registration) {
+          registration.update().catch(() => {});
+        }
+      });
+
+      // Periodic background check every 15 minutes while app is running
+      setInterval(() => {
+        if (registration) {
+          registration.update().catch(() => {});
+        }
+      }, 15 * 60 * 1000);
     } catch (error) {
       console.error('Service Worker registration failed:', error);
     }

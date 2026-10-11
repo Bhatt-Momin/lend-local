@@ -1,6 +1,6 @@
 importScripts("/js/helpers.js");
 
-const CACHE_NAME = "lendlocal-v17";
+const CACHE_NAME = "lendlocal-v18";
 
 const STATIC_ASSETS = [
   "/",
@@ -33,8 +33,14 @@ const STATIC_ASSETS = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      await Promise.all(
+        STATIC_ASSETS.map((asset) =>
+          cache.add(asset).catch((err) => {
+            console.warn(`[SW] Pre-caching asset skipped or failed: ${asset}`, err);
+          })
+        )
+      );
     })
   );
 });
@@ -55,6 +61,7 @@ self.addEventListener("activate", (event) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache.startsWith("lendlocal-") && cache !== CACHE_NAME) {
+            console.log("[SW] Deleting obsolete app cache:", cache);
             return caches.delete(cache);
           }
         })
@@ -73,21 +80,79 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
   const url = new URL(event.request.url);
+
+  // 1. NEVER intercept or cache authenticated financial API responses
   if (url.pathname.startsWith('/api/')) {
     return;
   }
 
+  // 2. Navigation requests (HTML pages): Network-First
+  // Ensures online mobile and desktop users receive current HTML on navigation/refresh,
+  // while falling back to cache or offline.html when offline.
+  if (
+    event.request.mode === 'navigate' ||
+    (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html'))
+  ) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cached = await caches.match(event.request, { ignoreSearch: true });
+          if (cached) return cached;
+          const fallbackCached = await caches.match(url.pathname);
+          if (fallbackCached) return fallbackCached;
+          return caches.match('/offline.html');
+        })
+    );
+    return;
+  }
+
+  // 3. Same-origin static assets (CSS, JS, icons, manifest): Network-First with Cache Fallback
+  // When online, gets latest updated JS/CSS without retaining stale assets.
+  // When offline, immediately serves cached version.
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(event.request, { ignoreSearch: true });
+        })
+    );
+    return;
+  }
+
+  // 4. Third-party static assets: Stale-While-Revalidate with Network Fallback
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).catch((err) => {
-        if (event.request.mode === 'navigate') {
-          return caches.match('/offline.html');
-        }
-        throw err;
-      });
+      const fetchPromise = fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => cachedResponse);
+
+      return cachedResponse || fetchPromise;
     })
   );
 });

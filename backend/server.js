@@ -34,11 +34,52 @@ app.use(cors());
 
 app.use(express.json());
 
-// Serve frontend files
+// Never cache authenticated financial API responses as static assets
+app.use("/api", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
+// Serve frontend files with explicit caching policies
 app.use(
-  express.static(
-    path.join(__dirname, "..", "frontend")
-  )
+  express.static(path.join(__dirname, "..", "frontend"), {
+    setHeaders: (res, filePath) => {
+      const fileName = path.basename(filePath);
+
+      // Service worker MUST NEVER be cached by HTTP caches
+      if (fileName === "service-worker.js") {
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
+        return;
+      }
+
+      // HTML pages: always revalidate so online navigation receives the latest HTML
+      if (filePath.endsWith(".html")) {
+        res.setHeader("Cache-Control", "no-cache, must-revalidate, max-age=0");
+        res.setHeader("Pragma", "no-cache");
+        return;
+      }
+
+      // Manifest & icons: cache with revalidation
+      if (fileName === "manifest.json" || filePath.includes(path.sep + "icons" + path.sep)) {
+        res.setHeader("Cache-Control", "public, max-age=86400, must-revalidate");
+        return;
+      }
+
+      // CSS, JS and other frontend assets:
+      // max-age=0 with must-revalidate and ETag allows fast 304 validation when unchanged,
+      // and immediate fresh delivery when changed
+      if (filePath.endsWith(".js") || filePath.endsWith(".css")) {
+        res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+        return;
+      }
+
+      res.setHeader("Cache-Control", "public, max-age=3600");
+    },
+  })
 );
 
 // =====================================================
