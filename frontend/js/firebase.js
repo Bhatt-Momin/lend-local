@@ -125,6 +125,7 @@ async function initializeFirebaseMessaging() {
             }).catch(() => {});
           }
           await deleteTokenFunction(messaging);
+          localStorage.removeItem('fcm_token_registered');
           console.log("FCM token deleted locally.");
         } catch(e) {
           console.error("Error deleting FCM token", e);
@@ -192,6 +193,7 @@ async function initializeFirebaseMessaging() {
 
         const data = await response.json();
         if (!response.ok) {
+          localStorage.removeItem('fcm_token_registered');
           if (response.status === 401) {
             const err = new Error(data.message || "Session expired.");
             err.status = 401;
@@ -200,11 +202,16 @@ async function initializeFirebaseMessaging() {
           throw new Error(data.message || "Failed to save FCM token.");
         }
 
+        localStorage.setItem('fcm_token_registered', 'true');
         console.log("FCM token saved to LendLocal account.");
         removeNotificationBanner();
         showToast("Notifications enabled!");
+        if (typeof window.syncNotificationSettingsUi === 'function') {
+          window.syncNotificationSettingsUi();
+        }
         return token;
       } catch (error) {
+        localStorage.removeItem('fcm_token_registered');
         console.error("FCM token setup error:", error);
 
         if (error.status === 401) {
@@ -245,9 +252,18 @@ async function initializeFirebaseMessaging() {
                body: JSON.stringify({ token: token }),
                signal: controller.signal
              });
-             if (!res.ok) {
+             if (res.ok) {
+               localStorage.setItem('fcm_token_registered', 'true');
+               if (typeof window.syncNotificationSettingsUi === 'function') {
+                 window.syncNotificationSettingsUi();
+               }
+             } else {
+               localStorage.removeItem('fcm_token_registered');
                console.error("Silent FCM registration failed on backend.");
                showToast("Could not sync notifications. Please check settings.", true);
+               if (typeof window.syncNotificationSettingsUi === 'function') {
+                 window.syncNotificationSettingsUi();
+               }
              }
           }
         } catch(e) { console.error('Silent FCM registration failed', e); }
@@ -296,19 +312,133 @@ async function initializeFirebaseMessaging() {
 // =====================================================
 initializeFirebaseMessaging();
 
-// Wire settings button
-function wireSettingsBtn() {
+// Wire settings button & status synchronization
+function syncNotificationSettingsUi() {
+  const statusEl = document.getElementById('settingsNotifStatus');
   const btn = document.getElementById('settingsEnableNotifBtn');
-  if (btn) {
-    btn.addEventListener('click', () => {
-      if (window.requestNotificationPermission) {
-        window.requestNotificationPermission();
-      } else {
-        alert("Notification system is currently unavailable.");
+  const hintEl = document.getElementById('settingsNotifHint');
+  if (!statusEl || !btn) return;
+
+  if (!("Notification" in window)) {
+    statusEl.textContent = 'Unsupported';
+    statusEl.className = 'notif-pill notif-pill-unsupported';
+    btn.textContent = 'Unavailable';
+    btn.disabled = true;
+    if (hintEl) {
+      hintEl.textContent = 'Your current browser does not support web push notifications.';
+      hintEl.style.display = 'block';
+    }
+    return;
+  }
+
+  const perm = Notification.permission;
+  const isRegistered = localStorage.getItem('fcm_token_registered') === 'true';
+
+  if (perm === 'granted' && isRegistered) {
+    statusEl.textContent = 'Enabled';
+    statusEl.className = 'notif-pill notif-pill-enabled';
+    btn.textContent = 'Active';
+    btn.disabled = true;
+    if (hintEl) hintEl.style.display = 'none';
+  } else if (perm === 'granted' && !isRegistered) {
+    statusEl.textContent = 'Needs Sync';
+    statusEl.className = 'notif-pill notif-pill-requesting';
+    btn.textContent = 'Sync Alerts';
+    btn.disabled = false;
+    if (hintEl) {
+      hintEl.textContent = 'Browser permission is granted, but alerts are not linked to your account yet. Tap to sync.';
+      hintEl.style.display = 'block';
+    }
+  } else if (perm === 'denied') {
+    statusEl.textContent = 'Blocked';
+    statusEl.className = 'notif-pill notif-pill-denied';
+    btn.textContent = 'Blocked';
+    btn.disabled = true;
+    if (hintEl) {
+      hintEl.textContent = '⚠️ Notifications are blocked in browser settings. To enable alerts, open browser site settings and set Notifications to Allow.';
+      hintEl.style.display = 'block';
+    }
+  } else {
+    // default
+    statusEl.textContent = 'Disabled';
+    statusEl.className = 'notif-pill notif-pill-disabled';
+    btn.textContent = 'Enable';
+    btn.disabled = false;
+    if (hintEl) hintEl.style.display = 'none';
+  }
+}
+
+window.syncNotificationSettingsUi = syncNotificationSettingsUi;
+
+function wireSettingsBtn() {
+  syncNotificationSettingsUi();
+  const btn = document.getElementById('settingsEnableNotifBtn');
+  const statusEl = document.getElementById('settingsNotifStatus');
+  const hintEl = document.getElementById('settingsNotifHint');
+
+  if (btn && !btn._wired) {
+    btn._wired = true;
+    btn.addEventListener('click', async () => {
+      if (!("Notification" in window)) {
+        syncNotificationSettingsUi();
+        return;
+      }
+
+      if (Notification.permission === 'denied') {
+        syncNotificationSettingsUi();
+        return;
+      }
+
+      const isRegistered = localStorage.getItem('fcm_token_registered') === 'true';
+      if (Notification.permission === 'granted' && isRegistered) {
+        syncNotificationSettingsUi();
+        return;
+      }
+
+      try {
+        if (statusEl) {
+          statusEl.textContent = 'Requesting...';
+          statusEl.className = 'notif-pill notif-pill-requesting';
+        }
+        btn.textContent = Notification.permission === 'granted' ? 'Syncing...' : 'Enabling...';
+        btn.disabled = true;
+
+        if (window.requestNotificationPermission) {
+          const res = await window.requestNotificationPermission();
+          if (!res && Notification.permission !== 'denied' && localStorage.getItem('fcm_token_registered') !== 'true') {
+            if (statusEl) {
+              statusEl.textContent = 'Failed';
+              statusEl.className = 'notif-pill notif-pill-denied';
+            }
+            btn.textContent = 'Retry';
+            btn.disabled = false;
+            if (hintEl) {
+              hintEl.textContent = 'Could not register notification alerts with server. Tap to retry.';
+              hintEl.style.display = 'block';
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Error enabling notifications:", err);
+        if (statusEl) {
+          statusEl.textContent = 'Failed';
+          statusEl.className = 'notif-pill notif-pill-denied';
+        }
+        btn.textContent = 'Retry';
+        btn.disabled = false;
+        if (hintEl) {
+          hintEl.textContent = 'Failed to enable notifications. Please check your connection and try again.';
+          hintEl.style.display = 'block';
+        }
+        return;
+      } finally {
+        syncNotificationSettingsUi();
       }
     });
   }
 }
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', wireSettingsBtn);
 } else {

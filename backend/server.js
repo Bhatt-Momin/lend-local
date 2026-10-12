@@ -34,6 +34,12 @@ app.use(cors());
 
 app.use(express.json());
 
+// Brand header to distinguish LendLocal responses from Render wake-up/error responses
+app.use((req, res, next) => {
+  res.setHeader("X-App", "LendLocal");
+  next();
+});
+
 // Never cache authenticated financial API responses as static assets
 app.use("/api", (req, res, next) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");

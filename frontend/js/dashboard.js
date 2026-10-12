@@ -78,6 +78,7 @@ if (!requireAuth()) {
       hideAlert(createAlert);
       createForm.reset();
       createModal.classList.add('open');
+      document.body.classList.add('modal-open');
       clearTimeout(createFocusTimeout);
       createFocusTimeout = setTimeout(() => {
         if (createModal.classList.contains('open')) createForm.querySelector('input')?.focus();
@@ -86,6 +87,9 @@ if (!requireAuth()) {
 
   function closeCreateModal() {
     createModal.classList.remove('open');
+    if (!document.querySelector('.modal-backdrop.open')) {
+      document.body.classList.remove('modal-open');
+    }
     clearTimeout(createFocusTimeout);
     restoreFocusSafe(createModalLastFocus);
   }
@@ -780,6 +784,10 @@ if (!requireAuth()) {
     hideAlert(settingsAlert);
     upiIdInput.value = '';
     settingsModal.classList.add('open');
+    document.body.classList.add('modal-open');
+    if (window.syncNotificationSettingsUi) {
+      window.syncNotificationSettingsUi();
+    }
     clearTimeout(settingsFocusTimeout);
     settingsFocusTimeout = setTimeout(() => {
       if (settingsModal.classList.contains('open')) upiIdInput.focus();
@@ -801,6 +809,9 @@ if (!requireAuth()) {
 
   function closeSettings() {
     settingsModal.classList.remove('open');
+    if (!document.querySelector('.modal-backdrop.open')) {
+      document.body.classList.remove('modal-open');
+    }
     clearTimeout(settingsFocusTimeout);
     restoreFocusSafe(settingsModalLastFocus);
   }
@@ -808,6 +819,21 @@ if (!requireAuth()) {
   if (settingsBtn) settingsBtn.addEventListener('click', openSettingsModal);
   if (closeSettingsBtn) closeSettingsBtn.addEventListener('click', closeSettings);
   if (cancelSettingsBtn) cancelSettingsBtn.addEventListener('click', closeSettings);
+  settingsModal?.addEventListener('click', (e) => {
+    if (e.target === settingsModal) {
+      closeSettings();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (settingsModal?.classList.contains('open')) {
+        closeSettings();
+      } else if (createModal?.classList.contains('open')) {
+        closeCreateModal();
+      }
+    }
+  });
 
   if (saveSettingsBtn) {
     saveSettingsBtn.addEventListener('click', async () => {

@@ -358,74 +358,77 @@
       </div>
 
 
-      <div
-        id="createAlert"
-        class="alert alert-error"
-        role="alert"
-      ></div>
-
-
       <form
         id="createForm"
         class="form-stack"
       >
 
-        <div class="field">
+        <div class="modal-body-scroll">
 
-          <label for="groupName">
-            Group name
-          </label>
+          <div
+            id="createAlert"
+            class="alert alert-error"
+            role="alert"
+          ></div>
 
-          <input
-            id="groupName"
-            name="name"
-            required
-            maxlength="100"
-            placeholder="e.g. Hostel Room 12"
-          />
+          <div class="field">
 
-        </div>
+            <label for="groupName">
+              Group name
+            </label>
 
+            <input
+              id="groupName"
+              name="name"
+              required
+              maxlength="100"
+              placeholder="e.g. Hostel Room 12"
+            />
 
-        <div class="field">
-
-          <label for="groupDesc">
-
-            Description
-
-            <span class="optional">
-              (optional)
-            </span>
-
-          </label>
-
-          <textarea
-            id="groupDesc"
-            name="description"
-            rows="2"
-            maxlength="300"
-            placeholder="Rent, groceries, utilities..."
-          ></textarea>
-
-        </div>
+          </div>
 
 
-        <div class="field">
+          <div class="field">
 
-          <label for="memberEmails">
-            Invite members by email
-          </label>
+            <label for="groupDesc">
 
-          <input
-            id="memberEmails"
-            name="memberEmails"
-            placeholder="friend1@mail.com, friend2@mail.com"
-          />
+              Description
 
-          <p class="field-hint">
-            Separate multiple email addresses with commas.
-            Members must already have a LendLocal account.
-          </p>
+              <span class="optional">
+                (optional)
+              </span>
+
+            </label>
+
+            <textarea
+              id="groupDesc"
+              name="description"
+              rows="2"
+              maxlength="300"
+              placeholder="Rent, groceries, utilities..."
+            ></textarea>
+
+          </div>
+
+
+          <div class="field">
+
+            <label for="memberEmails">
+              Invite members by email
+            </label>
+
+            <input
+              id="memberEmails"
+              name="memberEmails"
+              placeholder="friend1@mail.com, friend2@mail.com"
+            />
+
+            <p class="field-hint">
+              Separate multiple email addresses with commas.
+              Members must already have a LendLocal account.
+            </p>
+
+          </div>
 
         </div>
 
@@ -466,33 +469,55 @@
 <!-- =========================================
        SETTINGS MODAL
   ========================================== -->
-  <div id="settingsModal" class="modal-backdrop modern-modal-backdrop" role="dialog" aria-modal="true">
-    <div class="modal modern-modal">
+  <div id="settingsModal" class="modal-backdrop modern-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+    <div class="modal modern-modal settings-modal-card">
       <div class="modal-header">
         <div>
-          <h2>Account Settings</h2>
-          <p>Configure your payment methods.</p>
+          <h2 id="settingsModalTitle">Account Settings</h2>
+          <p>Manage notifications & payment details.</p>
         </div>
-        <button type="button" class="close-modal" id="closeSettingsBtn">×</button>
-      </div>
-      <div id="settingsAlert" class="alert" role="alert"></div>
-
-      <div class="form-group">
-        <label>Push Notifications</label>
-        <button type="button" class="btn btn-outline" id="settingsEnableNotifBtn" style="width: 100%; justify-content: center; min-height: 44px; margin-bottom: 15px;">
-          🔔 Enable Push Notifications
-        </button>
+        <button type="button" class="close-modal" id="closeSettingsBtn" aria-label="Close settings">×</button>
       </div>
 
-      <div class="form-group">
-        <label for="upiIdInput">UPI ID</label>
-        <input id="upiIdInput" type="text" inputmode="email" autocomplete="off" placeholder="username@bank" />
-        <p class="field-hint">Required to receive direct UPI payments.</p>
+      <div class="modal-body-scroll">
+        <div id="settingsAlert" class="alert" role="alert"></div>
+
+        <!-- NOTIFICATIONS ROW -->
+        <div class="settings-control-card">
+          <div class="settings-control-header">
+            <div class="settings-control-info">
+              <label class="settings-control-label">🔔 Push Notifications</label>
+              <span class="settings-control-desc">Get instant settlement & payment alerts</span>
+            </div>
+            <div class="settings-control-status-group">
+              <span id="settingsNotifStatus" class="notif-pill notif-pill-disabled">Disabled</span>
+              <button type="button" class="btn btn-outline-dark btn-notif-action" id="settingsEnableNotifBtn">
+                Enable
+              </button>
+            </div>
+          </div>
+          <p id="settingsNotifHint" class="settings-notif-hint" style="display: none;"></p>
+        </div>
+
+        <!-- UPI ID INPUT -->
+        <div class="form-group settings-upi-group">
+          <label for="upiIdInput">UPI ID</label>
+          <input
+            id="upiIdInput"
+            type="text"
+            inputmode="email"
+            autocomplete="off"
+            placeholder="username@bank"
+            class="input-upi"
+            aria-describedby="upiHint"
+          />
+          <p id="upiHint" class="field-hint">Required so group members can pay you directly with UPI apps.</p>
+        </div>
       </div>
 
-      <div class="modern-modal-actions" style="margin-top: 20px;">
+      <div class="modern-modal-actions">
         <button type="button" class="btn btn-ghost" id="cancelSettingsBtn">Cancel</button>
-        <button type="button" class="btn" id="saveSettingsBtn">Save Settings</button>
+        <button type="button" class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
       </div>
     </div>
   </div>

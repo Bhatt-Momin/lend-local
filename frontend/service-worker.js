@@ -1,6 +1,6 @@
 importScripts("/js/helpers.js");
 
-const CACHE_NAME = "lendlocal-v18";
+const CACHE_NAME = "lendlocal-v19";
 
 const STATIC_ASSETS = [
   "/",
@@ -96,7 +96,13 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
+          if (
+            networkResponse &&
+            networkResponse.ok &&
+            networkResponse.status === 200 &&
+            (networkResponse.headers.get("content-type") || "").includes("text/html") &&
+            networkResponse.headers.get("X-App") === "LendLocal"
+          ) {
             const responseToCache = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, responseToCache);

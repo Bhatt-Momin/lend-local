@@ -111,16 +111,13 @@ if (!requireAuth()) {
   ========================================================= */
 
   function closeExpenseModal() {
-    expenseModal.classList.remove(
-      'open'
-    );
-
+    expenseModal.classList.remove('open');
+    if (!document.querySelector('.modal-backdrop.open')) {
+      document.body.classList.remove('modal-open');
+    }
     clearTimeout(expenseFocusTimeout);
     restoreFocusSafe(expenseModalLastFocus);
-
-    hideAlert(
-      expenseAlert
-    );
+    hideAlert(expenseAlert);
   }
 
   /* =========================================================
@@ -221,9 +218,8 @@ if (!requireAuth()) {
           'equal'
         );
 
-        expenseModal.classList.add(
-          'open'
-        );
+        expenseModal.classList.add('open');
+        document.body.classList.add('modal-open');
         clearTimeout(expenseFocusTimeout);
         expenseFocusTimeout = setTimeout(() => {
           if (expenseModal.classList.contains('open')) expenseForm.querySelector('input')?.focus();
@@ -274,19 +270,24 @@ if (!requireAuth()) {
 
   /* ESC KEY */
 
-  document.addEventListener(
-    'keydown',
-    (e) => {
-      if (
-        e.key === 'Escape' &&
-        expenseModal.classList.contains(
-          'open'
-        )
-      ) {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const upiPayer = document.getElementById('upiPayerModal');
+      const upiRecip = document.getElementById('upiRecipientModal');
+      const payMethod = document.getElementById('paymentMethodModal');
+      if (upiPayer?.classList.contains('open')) {
+        if (!window.isPaymentRequestInFlight) {
+          document.getElementById('closeUpiPayerBtn')?.click();
+        }
+      } else if (upiRecip?.classList.contains('open')) {
+        document.getElementById('closeUpiRecipientBtn')?.click();
+      } else if (payMethod?.classList.contains('open')) {
+        closePaymentMethodModal();
+      } else if (expenseModal?.classList.contains('open')) {
         closeExpenseModal();
       }
     }
-  );
+  });
 
   /* =========================================================
      SPLIT TYPE & AMOUNT EVENTS
@@ -1049,6 +1050,7 @@ if (!requireAuth()) {
           renderSplitInputs(expense.splitType || 'equal', false, expense.splits || []);
 
           expenseModal.classList.add('open');
+          document.body.classList.add('modal-open');
           clearTimeout(expenseFocusTimeout);
           expenseFocusTimeout = setTimeout(() => {
             if (expenseModal.classList.contains('open')) expenseForm.querySelector('input')?.focus();
@@ -2133,28 +2135,39 @@ if (!requireAuth()) {
 
   let paymentModalLastFocus = null;
   let paymentFocusTimeout;
+  function closePaymentMethodModal() {
+    const modal = document.getElementById('paymentMethodModal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    if (!document.querySelector('.modal-backdrop.open')) {
+      document.body.classList.remove('modal-open');
+    }
+    clearTimeout(paymentFocusTimeout);
+    restoreFocusSafe(paymentModalLastFocus);
+  }
+
   function openPaymentMethodModal(amount, toUserId) {
     paymentModalLastFocus = document.activeElement;
     const modal = document.getElementById('paymentMethodModal');
     modal.classList.add('open');
+    document.body.classList.add('modal-open');
     clearTimeout(paymentFocusTimeout);
     paymentFocusTimeout = setTimeout(() => {
       if (modal.classList.contains('open')) modal.querySelector('button')?.focus();
     }, 50);
 
-    document.getElementById('closePaymentMethodBtn').onclick = () => {
-      modal.classList.remove('open');
-      clearTimeout(paymentFocusTimeout);
-      restoreFocusSafe(paymentModalLastFocus);
+    document.getElementById('closePaymentMethodBtn').onclick = closePaymentMethodModal;
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        closePaymentMethodModal();
+      }
     };
 
     document.getElementById('btnPayRazorpay').onclick = async () => {
       try {
         const conf = await api('/config');
         if (conf.razorpayEnabled) {
-          modal.classList.remove('open');
-          clearTimeout(paymentFocusTimeout);
-          restoreFocusSafe(paymentModalLastFocus);
+          closePaymentMethodModal();
           startPayment(amount, toUserId);
         } else {
           alert("Razorpay payments will be available soon. Currently under maintenance. Please use UPI.");
@@ -2165,9 +2178,7 @@ if (!requireAuth()) {
     };
 
     document.getElementById('btnPayUpi').onclick = () => {
-      modal.classList.remove('open');
-      clearTimeout(paymentFocusTimeout);
-      restoreFocusSafe(paymentModalLastFocus);
+      closePaymentMethodModal();
       startUpiPayment(amount, toUserId);
     };
   }
@@ -2201,16 +2212,26 @@ if (!requireAuth()) {
 
     hideAlert(alertBox);
     modal.classList.add('open');
+    document.body.classList.add('modal-open');
     clearTimeout(upiPayerFocusTimeout);
     upiPayerFocusTimeout = setTimeout(() => {
       if (modal.classList.contains('open')) modal.querySelector('button')?.focus();
     }, 50);
     document.getElementById('closeUpiPayerBtn').onclick = () => {
       modal.classList.remove('open');
+      if (!document.querySelector('.modal-backdrop.open')) {
+        document.body.classList.remove('modal-open');
+      }
       clearTimeout(upiPayerFocusTimeout);
       restoreFocusSafe(upiPayerModalLastFocus);
       if (!window.isPaymentRequestInFlight) {
         window.isPaymentActive = false;
+      }
+    };
+
+    modal.onclick = (e) => {
+      if (e.target === modal && !window.isPaymentRequestInFlight) {
+        document.getElementById('closeUpiPayerBtn')?.click();
       }
     };
 
@@ -2323,6 +2344,7 @@ if (!requireAuth()) {
       hideAlert(alertBox);
       statusText.textContent = `${intent.payerName} claims they paid you ₹${intent.amount}. Please confirm if you received it.`;
       modal.classList.add('open');
+      document.body.classList.add('modal-open');
       clearTimeout(upiRecipientFocusTimeout);
       upiRecipientFocusTimeout = setTimeout(() => {
         if (modal.classList.contains('open')) modal.querySelector('button')?.focus();
@@ -2330,8 +2352,17 @@ if (!requireAuth()) {
 
       document.getElementById('closeUpiRecipientBtn').onclick = () => {
         modal.classList.remove('open');
+        if (!document.querySelector('.modal-backdrop.open')) {
+          document.body.classList.remove('modal-open');
+        }
         clearTimeout(upiRecipientFocusTimeout);
         restoreFocusSafe(upiRecipientModalLastFocus);
+      };
+
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          document.getElementById('closeUpiRecipientBtn')?.click();
+        }
       };
 
       document.getElementById('btnUpiConfirm').onclick = async () => {

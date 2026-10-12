@@ -83,11 +83,37 @@ const mockDoc = {
     if (selector.includes('input')) return Object.values(this.elements);
     return [];
   },
+  querySelector(selector) {
+    if (selector.includes('#')) {
+      const parts = selector.split(',').map(s => s.trim());
+      for (const part of parts) {
+        const idMatch = part.match(/#([a-zA-Z0-9_-]+)/);
+        if (idMatch) {
+          const id = idMatch[1];
+          const el = this.elements[id] || this.body.children.find(c => c.id === id);
+          if (el) {
+            if (part.includes('.open') && !el.classList.contains('open')) continue;
+            return el;
+          }
+        }
+      }
+      return null;
+    }
+    return this.body.querySelector(selector);
+  },
   listeners: {}, addEventListener(evt, cb) { if (!this.listeners[evt]) this.listeners[evt] = []; this.listeners[evt].push(cb); }, fireEvent(evt) { if (this.listeners[evt]) this.listeners[evt].forEach(cb => cb()); }
 };
 
 global.document = mockDoc;
 let reloadCount = 0;
+const activeTimers = [];
+const origSetInterval = global.setInterval;
+global.setInterval = (fn, ms) => {
+  const t = origSetInterval(fn, ms);
+  activeTimers.push(t);
+  return t;
+};
+
 global.window = {
   matchMedia: () => ({ addEventListener: () => {}, matches: false }),
   location: { reload: () => { reloadCount++; } },
@@ -109,7 +135,8 @@ global.navigator.serviceWorker.addEventListener = (evt, handler) => {
 global.navigator.serviceWorker.register = async (url) => {
   capturedSWRegister = {
     scope: url,
-    addEventListener: (evt, handler) => { if (evt === 'updatefound') updatefoundHandler = handler; }
+    addEventListener: (evt, handler) => { if (evt === 'updatefound') updatefoundHandler = handler; },
+    update: async () => {}
   };
   return capturedSWRegister;
 };
@@ -471,5 +498,7 @@ eval(pwaCode);
   } catch(e) {
     console.error("Test failed:", e);
     process.exitCode = 1;
+  } finally {
+    activeTimers.forEach(clearInterval);
   }
 })();
