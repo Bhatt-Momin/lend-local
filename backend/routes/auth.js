@@ -277,15 +277,26 @@ router.post('/upi-id', protect, async (req, res) => {
   try {
     const { upiId } = req.body;
 
+    // Reject omitted upiId property
+    if (upiId === undefined) {
+      return res.status(400).json({ message: 'UPI ID is required' });
+    }
+
+    // Allow user to clear/unset their saved UPI ID
+    if (upiId === null || (typeof upiId === 'string' && upiId.trim() === '')) {
+      req.user.upiId = null;
+      await req.user.save();
+      return res.json({
+        message: 'UPI ID cleared successfully',
+        upiId: null
+      });
+    }
+
     if (typeof upiId !== 'string') {
       return res.status(400).json({ message: 'UPI ID must be a string' });
     }
 
     const trimmedUpiId = upiId.trim();
-
-    if (!trimmedUpiId) {
-      return res.status(400).json({ message: 'UPI ID is required' });
-    }
 
     // Basic conservative validation for UPI ID (e.g., username@bank)
     const upiRegex = /^[\w.-]+@[a-zA-Z]+$/;

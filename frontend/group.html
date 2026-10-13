@@ -784,12 +784,16 @@
 
         <div style="margin: 20px 0; text-align: center;" id="upiLinkContainer">
           <a href="#" id="upiDeepLink" class="btn" style="display: none; text-decoration: none; padding: 12px; font-size: 1.1rem;">Open UPI App</a>
-          <p id="upiDesktopMessage" style="display: none; font-size: 1rem; color: var(--ll-text); margin-top: 10px; font-weight: bold;">Open LendLocal on your phone to pay directly via UPI.</p>
+          <div id="upiQrContainer" style="display: none; margin: 15px auto; padding: 10px; background: #ffffff; border-radius: 8px; width: fit-content; box-shadow: 0 2px 8px rgba(0,0,0,0.15);" aria-label="UPI Payment QR Code"></div>
+          <p id="upiDesktopMessage" style="display: none; font-size: 0.95rem; color: var(--ll-text); margin-top: 10px; font-weight: 500;">Scan with any UPI app on your phone to pay.</p>
         </div>
 
         <div id="upiFallbackDetails" style="display: none; text-align: left; background: var(--ll-surface); padding: 10px; border-radius: 8px; margin-bottom: 20px; font-size: 0.9rem;">
           <p style="margin: 0 0 5px 0;"><strong>To:</strong> <span id="upiFallbackName"></span></p>
-          <p style="margin: 0 0 5px 0;"><strong>UPI ID:</strong> <span id="upiFallbackId"></span></p>
+          <p style="margin: 0 0 5px 0; display: flex; align-items: center; justify-content: space-between;">
+            <span><strong>UPI ID:</strong> <span id="upiFallbackId"></span></span>
+            <button type="button" class="btn btn-ghost" id="btnCopyUpi" style="font-size: 0.8rem; padding: 2px 8px; margin-left: 8px; border: 1px solid var(--ll-border);">Copy</button>
+          </p>
           <p style="margin: 0;"><strong>Amount:</strong> ₹<span id="upiFallbackAmount"></span></p>
         </div>
       </div>
@@ -825,6 +829,7 @@
   </div>
 
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <script src="/js/helpers.js"></script>
   <script src="/js/api.js"></script>

@@ -2199,16 +2199,139 @@ if (!requireAuth()) {
     }
   }
 
+  let activeStatusPollTimer = null;
+  let isPollRequestInFlight = false;
+  let consecutivePollErrors = 0;
+  let polledIntentId = null;
+
+  function stopStatusPolling() {
+    if (activeStatusPollTimer) {
+      clearTimeout(activeStatusPollTimer);
+      activeStatusPollTimer = null;
+    }
+    isPollRequestInFlight = false;
+    consecutivePollErrors = 0;
+    polledIntentId = null;
+  }
+
+  function startStatusPolling(intentId) {
+    stopStatusPolling();
+    if (!intentId) return;
+    polledIntentId = intentId;
+
+    const scheduleNext = () => {
+      const modal = document.getElementById('upiPayerModal');
+      if (!modal || !modal.classList.contains('open') || polledIntentId !== intentId) {
+        stopStatusPolling();
+        return;
+      }
+      activeStatusPollTimer = setTimeout(executePoll, 4000);
+    };
+
+    const executePoll = async () => {
+      const modal = document.getElementById('upiPayerModal');
+      if (!modal || !modal.classList.contains('open') || polledIntentId !== intentId) {
+        stopStatusPolling();
+        return;
+      }
+
+      if (isPollRequestInFlight) {
+        scheduleNext();
+        return;
+      }
+
+      isPollRequestInFlight = true;
+      try {
+        const data = await api(`/payment/status/${intentId}`);
+        if (polledIntentId !== intentId || !modal.classList.contains('open')) {
+          stopStatusPolling();
+          return;
+        }
+
+        consecutivePollErrors = 0;
+
+        if (data && data.status) {
+          if (data.status === 'recipient_confirmed') {
+            stopStatusPolling();
+            modal.classList.remove('open');
+            if (!document.querySelector('.modal-backdrop.open')) {
+              document.body.classList.remove('modal-open');
+            }
+            clearTimeout(upiPayerFocusTimeout);
+            restoreFocusSafe(upiPayerModalLastFocus);
+            window.isPaymentActive = false;
+
+            if (window.FX) {
+              window.FX.toast('Payment confirmed by recipient! 🎉');
+              window.FX.confettiBurst();
+            } else {
+              alert('Payment confirmed by recipient!');
+            }
+            await initLoadAll(true).catch(e => console.warn('Payment refresh failed', e));
+            return;
+          }
+
+          if (data.status === 'recipient_rejected') {
+            stopStatusPolling();
+            const alertBox = document.getElementById('upiPayerAlert');
+            showAlert(alertBox, 'Recipient rejected this payment claim. Please verify your transfer details.');
+            const statusText = document.getElementById('upiPayerStatusText');
+            if (statusText) statusText.textContent = "Payment claim was rejected by recipient.";
+            const btnClaim = document.getElementById('btnUpiClaim');
+            if (btnClaim) btnClaim.style.display = 'none';
+            return;
+          }
+
+          if (data.status === 'cancelled') {
+            stopStatusPolling();
+            modal.classList.remove('open');
+            if (!document.querySelector('.modal-backdrop.open')) {
+              document.body.classList.remove('modal-open');
+            }
+            clearTimeout(upiPayerFocusTimeout);
+            restoreFocusSafe(upiPayerModalLastFocus);
+            window.isPaymentActive = false;
+            await initLoadAll(true).catch(e => console.warn('Payment refresh failed', e));
+            return;
+          }
+        }
+        scheduleNext();
+      } catch (err) {
+        consecutivePollErrors++;
+        if (consecutivePollErrors >= 4) {
+          stopStatusPolling();
+          const alertBox = document.getElementById('upiPayerAlert');
+          showAlert(alertBox, 'Unable to check live payment status. You can close this dialog and check back later.');
+          return;
+        }
+        scheduleNext();
+      } finally {
+        isPollRequestInFlight = false;
+      }
+    };
+
+    scheduleNext();
+  }
+
+  window.addEventListener('pagehide', stopStatusPolling);
+
   let upiPayerModalLastFocus = null;
   let upiPayerFocusTimeout;
   function openUpiPayerModal(intentData) {
+    stopStatusPolling();
     upiPayerModalLastFocus = document.activeElement;
     const modal = document.getElementById('upiPayerModal');
     const alertBox = document.getElementById('upiPayerAlert');
     const linkContainer = document.getElementById('upiLinkContainer');
+    const qrContainer = document.getElementById('upiQrContainer');
     const btnCancel = document.getElementById('btnUpiCancel');
     const btnClaim = document.getElementById('btnUpiClaim');
     const statusText = document.getElementById('upiPayerStatusText');
+
+    if (qrContainer) {
+      qrContainer.innerHTML = '';
+      qrContainer.style.display = 'none';
+    }
 
     hideAlert(alertBox);
     modal.classList.add('open');
@@ -2218,6 +2341,7 @@ if (!requireAuth()) {
       if (modal.classList.contains('open')) modal.querySelector('button')?.focus();
     }, 50);
     document.getElementById('closeUpiPayerBtn').onclick = () => {
+      stopStatusPolling();
       modal.classList.remove('open');
       if (!document.querySelector('.modal-backdrop.open')) {
         document.body.classList.remove('modal-open');
@@ -2252,6 +2376,42 @@ if (!requireAuth()) {
         document.getElementById('upiFallbackId').textContent = intentData.payeeUpiId;
         document.getElementById('upiFallbackAmount').textContent = intentData.amount.toFixed(2);
         fallbackContainer.style.display = 'block';
+
+        const btnCopy = document.getElementById('btnCopyUpi');
+        if (btnCopy) {
+          btnCopy.onclick = async () => {
+            const textToCopy = intentData.payeeUpiId;
+            if (!textToCopy) return;
+
+            let success = false;
+            if (navigator.clipboard && window.isSecureContext) {
+              try {
+                await navigator.clipboard.writeText(textToCopy);
+                success = true;
+              } catch (e) {
+                success = false;
+              }
+            }
+            if (!success) {
+              try {
+                const ta = document.createElement('textarea');
+                ta.value = textToCopy;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                success = document.execCommand('copy');
+                document.body.removeChild(ta);
+              } catch (e) {
+                success = false;
+              }
+            }
+            const origText = btnCopy.textContent;
+            btnCopy.textContent = success ? 'Copied!' : 'Failed';
+            setTimeout(() => { btnCopy.textContent = origText; }, 2000);
+          };
+        }
       } else {
         fallbackContainer.style.display = 'none';
       }
@@ -2259,18 +2419,44 @@ if (!requireAuth()) {
       if (isMobile) {
         upiLink.style.display = 'block';
         desktopMsg.style.display = 'none';
+        if (qrContainer) qrContainer.style.display = 'none';
         if (intentData.upiUri) upiLink.href = intentData.upiUri;
       } else {
         upiLink.style.display = 'none';
         desktopMsg.style.display = 'block';
+        if (qrContainer && intentData.upiUri) {
+          try {
+            if (typeof QRCode !== 'undefined') {
+              new QRCode(qrContainer, {
+                text: intentData.upiUri,
+                width: 180,
+                height: 180,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
+              });
+              qrContainer.style.display = 'inline-block';
+              desktopMsg.textContent = 'Scan with any UPI app on your phone to pay.';
+            } else {
+              qrContainer.style.display = 'none';
+              desktopMsg.textContent = 'Use the UPI details below to complete your transfer in any UPI app.';
+            }
+          } catch (qrErr) {
+            console.warn('QR code generation failed:', qrErr);
+            qrContainer.style.display = 'none';
+            desktopMsg.textContent = 'Use the UPI details below to complete your transfer in any UPI app.';
+          }
+        }
       }
 
     } else if (intentData.status === 'payer_claimed') {
       statusText.textContent = "Payment claimed. Awaiting confirmation from the recipient.";
       linkContainer.style.display = 'none';
+      if (qrContainer) qrContainer.style.display = 'none';
       document.getElementById('upiFallbackDetails').style.display = 'none';
       btnCancel.style.display = 'none';
       btnClaim.style.display = 'none';
+      startStatusPolling(currentPayerIntentId || intentData.intentId || intentData._id);
     }
 
     btnClaim.onclick = async () => {
@@ -2292,6 +2478,7 @@ if (!requireAuth()) {
     };
 
     btnCancel.onclick = async () => {
+      stopStatusPolling();
       try {
         window.isPaymentRequestInFlight = true;
         await api('/payment/cancel', {
@@ -2299,7 +2486,7 @@ if (!requireAuth()) {
           body: JSON.stringify({ intentId: currentPayerIntentId })
         });
         modal.classList.remove('open');
-        window.location.reload();
+        await initLoadAll(true).catch(() => window.location.reload());
       } catch (err) {
         showAlert(alertBox, err.message);
       } finally {

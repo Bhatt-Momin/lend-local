@@ -1,6 +1,6 @@
 importScripts("/js/helpers.js");
 
-const CACHE_NAME = "lendlocal-v19";
+const CACHE_NAME = "lendlocal-v20";
 
 const STATIC_ASSETS = [
   "/",

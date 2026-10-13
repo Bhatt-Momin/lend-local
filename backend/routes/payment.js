@@ -1010,13 +1010,16 @@ router.get("/active/:groupId", protect, async (req, res) => {
         upiUri = `upi://pay?pa=${pa}&pn=${pn}&tr=${tr}&am=${am}&cu=${cu}&tn=${tn}`;
       }
 
+      const fromId = intent.from?._id ? intent.from._id : (intent.from || null);
+      const toId = intent.to?._id ? intent.to._id : (intent.to || null);
+
       return {
         intentId: intent._id,
         groupId: intent.group,
-        from: intent.from._id,
-        to: intent.to._id,
-        payerName: intent.from.name || "Unknown",
-        payeeName: intent.to.name || intent.payeeName || "Unknown",
+        from: fromId,
+        to: toId,
+        payerName: intent.from?.name || "Unknown",
+        payeeName: intent.to?.name || intent.payeeName || "Unknown",
         amount: intent.amount,
         status: intent.status,
         upiUri,
