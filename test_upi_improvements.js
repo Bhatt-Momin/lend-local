@@ -1,8 +1,8 @@
 const assert = require('assert');
-const { calculateLedger } = require('./backend/utils/helpers');
+const { calculateLedger, validatePaymentAmount } = require('./backend/utils/helpers');
 
 async function main() {
-  console.log('--- Starting LendLocal Direct UPI Improvements Test Suite ---');
+  console.log('--- Starting LendLocal Direct UPI Improvements & Custom Amounts Test Suite ---');
 
   let passedTests = 0;
 
@@ -213,86 +213,347 @@ async function main() {
   }
 
   // =========================================================================
-  // TEST 3: Ledger Settlement Invariants (helpers.js)
+  // TEST 3: Ledger Settlement Invariants, Partial Payments & Sequential Debts
   // =========================================================================
-  console.log('Test 3: Testing ledger settlement invariants with direct UPI...');
+  console.log('Test 3: Testing ledger settlement invariants with full & partial payments...');
   {
     const members = [{ _id: 'u1', name: 'User 1' }, { _id: 'u2', name: 'User 2' }];
     const nameMap = { u1: 'User 1', u2: 'User 2' };
 
-    // u2 pays 100 for an expense split equally between u1 and u2 (u1 owes u2 50)
+    // u2 pays 1000 for an expense split equally between u1 and u2 (u1 owes u2 500)
     const expenses = [{
-      amount: 100,
+      amount: 1000,
       paidBy: 'u2',
-      splits: [{ user: 'u1', share: 50 }, { user: 'u2', share: 50 }]
+      splits: [{ user: 'u1', share: 500 }, { user: 'u2', share: 500 }]
     }];
 
-    // Case A: UPI intent in 'pending' state
-    let resPending = calculateLedger({
-      expenses,
-      payments: [{ from: 'u1', to: 'u2', amount: 50, status: 'pending', method: 'upi_direct' }],
-      members,
-      nameMap
-    });
-    // Balance should STILL show u1 owes u2 50
-    assert.strictEqual(resPending.settlements.length, 1);
-    assert.strictEqual(resPending.settlements[0].from.id, 'u1');
-    assert.strictEqual(resPending.settlements[0].to.id, 'u2');
-    assert.strictEqual(resPending.settlements[0].amount, 50);
+    // 3a. Initial debt calculation
+    let initialRes = calculateLedger({ expenses, payments: [], members, nameMap });
+    assert.strictEqual(initialRes.settlements.length, 1);
+    assert.strictEqual(initialRes.settlements[0].from.id, 'u1');
+    assert.strictEqual(initialRes.settlements[0].to.id, 'u2');
+    assert.strictEqual(initialRes.settlements[0].amount, 500);
 
-    // Case B: UPI intent in 'payer_claimed' state
-    let resClaimed = calculateLedger({
-      expenses,
-      payments: [{ from: 'u1', to: 'u2', amount: 50, status: 'payer_claimed', method: 'upi_direct' }],
-      members,
-      nameMap
+    // 3b. Intermediate unconfirmed statuses do NOT reduce ledger debt
+    ['pending', 'payer_claimed', 'recipient_rejected', 'cancelled'].forEach((unconfirmedStatus) => {
+      let res = calculateLedger({
+        expenses,
+        payments: [{ _id: 'p1', from: 'u1', to: 'u2', amount: 200, status: unconfirmedStatus, method: 'upi_direct' }],
+        members,
+        nameMap
+      });
+      assert.strictEqual(res.settlements.length, 1, `Status ${unconfirmedStatus} must not alter settlements`);
+      assert.strictEqual(res.settlements[0].amount, 500, `Status ${unconfirmedStatus} must leave debt at 500`);
     });
-    // Balance should STILL show u1 owes u2 50
-    assert.strictEqual(resClaimed.settlements.length, 1);
-    assert.strictEqual(resClaimed.settlements[0].amount, 50);
 
-    // Case C: UPI intent in 'recipient_rejected' state
-    let resRejected = calculateLedger({
+    // 3c. Single partial payment (e.g. ₹200 out of ₹500)
+    let resPartial1 = calculateLedger({
       expenses,
-      payments: [{ from: 'u1', to: 'u2', amount: 50, status: 'recipient_rejected', method: 'upi_direct' }],
+      payments: [{ _id: 'p1', from: 'u1', to: 'u2', amount: 200, status: 'recipient_confirmed', method: 'upi_direct' }],
       members,
       nameMap
     });
-    assert.strictEqual(resRejected.settlements.length, 1);
-    assert.strictEqual(resRejected.settlements[0].amount, 50);
+    assert.strictEqual(resPartial1.settlements.length, 1);
+    assert.strictEqual(resPartial1.settlements[0].amount, 300, 'Debt should decrease from ₹500 to ₹300 after ₹200 confirmed');
+    const u1Bal1 = resPartial1.balances.find(b => b.userId === 'u1');
+    const u2Bal1 = resPartial1.balances.find(b => b.userId === 'u2');
+    assert.strictEqual(u1Bal1.net, -300);
+    assert.strictEqual(u2Bal1.net, 300);
 
-    // Case D: UPI intent in 'cancelled' state
-    let resCancelled = calculateLedger({
+    // 3d. Sequential partial payment: second payment of ₹100
+    let resPartial2 = calculateLedger({
       expenses,
-      payments: [{ from: 'u1', to: 'u2', amount: 50, status: 'cancelled', method: 'upi_direct' }],
+      payments: [
+        { _id: 'p1', from: 'u1', to: 'u2', amount: 200, status: 'recipient_confirmed', method: 'upi_direct' },
+        { _id: 'p2', from: 'u1', to: 'u2', amount: 100, status: 'recipient_confirmed', method: 'upi_direct' }
+      ],
       members,
       nameMap
     });
-    assert.strictEqual(resCancelled.settlements.length, 1);
-    assert.strictEqual(resCancelled.settlements[0].amount, 50);
+    assert.strictEqual(resPartial2.settlements.length, 1);
+    assert.strictEqual(resPartial2.settlements[0].amount, 200, 'Debt should decrease from ₹300 to ₹200 after second payment of ₹100');
 
-    // Case E: UPI intent in 'recipient_confirmed' state
-    let resConfirmed = calculateLedger({
+    // 3e. Final partial payment of remaining ₹200 clears the entire debt
+    let resPartial3 = calculateLedger({
       expenses,
-      payments: [{ from: 'u1', to: 'u2', amount: 50, status: 'recipient_confirmed', method: 'upi_direct' }],
+      payments: [
+        { _id: 'p1', from: 'u1', to: 'u2', amount: 200, status: 'recipient_confirmed', method: 'upi_direct' },
+        { _id: 'p2', from: 'u1', to: 'u2', amount: 100, status: 'recipient_confirmed', method: 'upi_direct' },
+        { _id: 'p3', from: 'u1', to: 'u2', amount: 200, status: 'recipient_confirmed', method: 'upi_direct' }
+      ],
       members,
       nameMap
     });
-    // Debt is completely settled!
-    assert.strictEqual(resConfirmed.settlements.length, 0, 'Confirmed settlement must clear the pairwise debt');
-    const u1Balance = resConfirmed.balances.find(b => b.userId === 'u1');
-    const u2Balance = resConfirmed.balances.find(b => b.userId === 'u2');
-    assert.strictEqual(u1Balance.net, 0);
-    assert.strictEqual(u2Balance.net, 0);
+    assert.strictEqual(resPartial3.settlements.length, 0, 'Sequential payments (200+100+200) must fully settle the ₹500 debt');
+    const u1Bal3 = resPartial3.balances.find(b => b.userId === 'u1');
+    const u2Bal3 = resPartial3.balances.find(b => b.userId === 'u2');
+    assert.strictEqual(u1Bal3.net, 0);
+    assert.strictEqual(u2Bal3.net, 0);
+
+    // 3f. Full settlement in a single payment using default amount
+    let resFull = calculateLedger({
+      expenses,
+      payments: [{ _id: 'pFull', from: 'u1', to: 'u2', amount: 500, status: 'recipient_confirmed', method: 'upi_direct' }],
+      members,
+      nameMap
+    });
+    assert.strictEqual(resFull.settlements.length, 0, 'Single full payment must clear the pairwise debt immediately');
+
+    // 3g. Razorpay payment status ('paid') parity with UPI ('recipient_confirmed')
+    let resRzp = calculateLedger({
+      expenses,
+      payments: [{ _id: 'pRzp', from: 'u1', to: 'u2', amount: 250, status: 'paid', method: 'razorpay' }],
+      members,
+      nameMap
+    });
+    assert.strictEqual(resRzp.settlements.length, 1);
+    assert.strictEqual(resRzp.settlements[0].amount, 250, 'Razorpay paid status must deduct pairwise debt identically to UPI');
 
     passedTests++;
-    console.log('✅ Test 3 Passed: calculateLedger strictly settles debts ONLY on recipient_confirmed.');
+    console.log('✅ Test 3 Passed: Ledger calculations strictly and accurately handle full, partial, and sequential settlements.');
   }
 
   // =========================================================================
-  // TEST 4: Frontend QR URI Construction & Copy Logic Validation
+  // TEST 4: Authoritative Shared Payment Amount Validation (helpers.js)
   // =========================================================================
-  console.log('Test 4: Testing UPI URI construction and copy button data flow...');
+  console.log('Test 4: Testing shared payment amount validation logic (production function)...');
+  {
+    const authorized = 500.00;
+
+    // 4a. Valid full amount
+    let v = validatePaymentAmount(500, authorized);
+    assert.strictEqual(v.valid, true);
+    assert.strictEqual(v.paymentAmount, 500);
+    assert.strictEqual(v.requestedPaise, 50000);
+
+    // 4b. Valid string full amount
+    v = validatePaymentAmount('500.00', authorized);
+    assert.strictEqual(v.valid, true);
+    assert.strictEqual(v.paymentAmount, 500);
+    assert.strictEqual(v.requestedPaise, 50000);
+
+    // 4c. Valid partial amount
+    v = validatePaymentAmount(200, authorized);
+    assert.strictEqual(v.valid, true);
+    assert.strictEqual(v.paymentAmount, 200);
+    assert.strictEqual(v.requestedPaise, 20000);
+
+    // 4d. Minimum valid amount ₹0.01
+    v = validatePaymentAmount(0.01, authorized);
+    assert.strictEqual(v.valid, true);
+    assert.strictEqual(v.paymentAmount, 0.01);
+    assert.strictEqual(v.requestedPaise, 1);
+
+    // 4e. Exact two decimal places and valid amounts
+    v = validatePaymentAmount('123.45', authorized);
+    assert.strictEqual(v.valid, true);
+    assert.strictEqual(v.paymentAmount, 123.45);
+    assert.strictEqual(v.requestedPaise, 12345);
+
+    v = validatePaymentAmount(123.45, authorized);
+    assert.strictEqual(v.valid, true);
+    assert.strictEqual(v.paymentAmount, 123.45);
+
+    v = validatePaymentAmount('10.10', authorized);
+    assert.strictEqual(v.valid, true);
+    assert.strictEqual(v.paymentAmount, 10.10);
+
+    v = validatePaymentAmount(10.10, authorized);
+    assert.strictEqual(v.valid, true);
+    assert.strictEqual(v.paymentAmount, 10.10);
+
+    // 4e-ii. Safe handling of JavaScript floating-point representation drift (0.1 + 0.2 === 0.30000000000000004)
+    v = validatePaymentAmount(0.1 + 0.2, authorized);
+    assert.strictEqual(v.valid, true);
+    assert.strictEqual(v.paymentAmount, 0.30);
+    assert.strictEqual(v.requestedPaise, 30);
+
+    // 4f. Reject excessive precision (more than 2 decimal places) - NO silent rounding!
+    // Regression cases for 10.001, 10.000009, 1.234567, 10.555 (both numbers and strings)
+    v = validatePaymentAmount(10.555, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Amount cannot have more than 2 decimal places');
+
+    v = validatePaymentAmount('10.001', authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Amount cannot have more than 2 decimal places');
+
+    v = validatePaymentAmount(10.001, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Amount cannot have more than 2 decimal places');
+
+    v = validatePaymentAmount('10.000009', authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Amount cannot have more than 2 decimal places');
+
+    v = validatePaymentAmount(10.000009, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Amount cannot have more than 2 decimal places');
+
+    v = validatePaymentAmount('1.234567', authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Amount cannot have more than 2 decimal places');
+
+    v = validatePaymentAmount(1.234567, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Amount cannot have more than 2 decimal places');
+
+    // 4g. Reject amounts below ₹0.01
+    v = validatePaymentAmount(0.005, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Amount must be at least ₹0.01');
+
+    v = validatePaymentAmount(0, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Amount must be at least ₹0.01');
+
+    v = validatePaymentAmount(-50, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Amount must be at least ₹0.01');
+
+    // 4h. Reject non-numeric, empty amounts, and unsupported JSON input types (booleans, objects, arrays)
+    v = validatePaymentAmount('abc', authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Valid numeric amount is required');
+
+    v = validatePaymentAmount('', authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Payment amount is required');
+
+    v = validatePaymentAmount(null, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Payment amount is required');
+
+    v = validatePaymentAmount(undefined, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Payment amount is required');
+
+    v = validatePaymentAmount(true, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Valid numeric amount is required', 'Boolean true must not be coerced to 1');
+
+    v = validatePaymentAmount(false, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Valid numeric amount is required', 'Boolean false must not be coerced to 0');
+
+    v = validatePaymentAmount([], authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Valid numeric amount is required', 'Array must not be coerced');
+
+    v = validatePaymentAmount({}, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Valid numeric amount is required', 'Object must not be coerced');
+
+    // 4i. Reject over-balance amounts
+    v = validatePaymentAmount(500.01, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Payment exceeds authorized settlement amount');
+
+    v = validatePaymentAmount(600, authorized);
+    assert.strictEqual(v.valid, false);
+    assert.strictEqual(v.message, 'Payment exceeds authorized settlement amount');
+
+    passedTests++;
+    console.log('✅ Test 4 Passed: validatePaymentAmount strictly enforces precision, limits, type safety, and integer paise arithmetic.');
+  }
+
+  // =========================================================================
+  // TEST 5: Intent Lifecycle, Immutability & Conflict Decision Rules (Unit Simulation)
+  // =========================================================================
+  console.log('Test 5: Simulating intent lifecycle immutability and conflict decision rules (isolated unit simulation of payment.js logic)...');
+  {
+    // Unit simulation: isolated verification of the intent conflict and immutability decision logic implemented in backend/routes/payment.js (does not invoke the live Express route)
+    function checkIntentConflict(existingActive, requestedAmount, authorizedAmount) {
+      const amountValidation = validatePaymentAmount(requestedAmount, authorizedAmount);
+      if (!amountValidation.valid) {
+        return { status: 400, message: amountValidation.message };
+      }
+      const { requestedPaise } = amountValidation;
+      const authorizedPaise = Math.round(Number(authorizedAmount) * 100);
+
+      if (existingActive) {
+        const activePaise = Math.round(existingActive.amount * 100);
+        if (existingActive.status === "pending" && activePaise > authorizedPaise) {
+          return { status: 'cancelled_stale' };
+        } else if (activePaise === requestedPaise && requestedPaise <= authorizedPaise) {
+          return { status: 200, intent: existingActive, reused: true };
+        } else {
+          const conflictMsg = existingActive.status === 'payer_claimed'
+            ? `An active UPI payment claim of ₹${existingActive.amount.toFixed(2)} is awaiting recipient confirmation. It cannot be changed.`
+            : `An active UPI payment for ₹${existingActive.amount.toFixed(2)} is already in progress. To pay a different amount, cancel the existing pending payment first (Note: cancellation does not reverse money already sent via UPI).`;
+          return {
+            status: 409,
+            message: conflictMsg,
+            intentId: existingActive._id,
+            intentStatus: existingActive.status,
+            amount: existingActive.amount
+          };
+        }
+      }
+      return { status: 201, created: true };
+    }
+
+    const authorized = 500.00;
+
+    // 5a. Existing pending intent with amount ₹500, user requests ₹500 again
+    let pendingIntent = { _id: 'intent_pend', amount: 500, status: 'pending' };
+    let res1 = checkIntentConflict(pendingIntent, 500, authorized);
+    assert.strictEqual(res1.status, 200);
+    assert.strictEqual(res1.reused, true);
+    assert.strictEqual(pendingIntent.amount, 500, 'Intent amount must remain immutable');
+
+    // 5b. Existing pending intent with amount ₹500, user requests different amount ₹200
+    // Must NOT overwrite pending intent amount in place; must return 409 with cancellation instructions!
+    let res2 = checkIntentConflict(pendingIntent, 200, authorized);
+    assert.strictEqual(res2.status, 409);
+    assert.ok(res2.message.includes('already in progress'));
+    assert.ok(res2.message.includes('cancellation does not reverse money already sent via UPI'));
+    assert.strictEqual(pendingIntent.amount, 500, 'Pending intent amount must NOT be overwritten in place');
+
+    // 5c. Existing claimed intent with amount ₹200, user attempts to create intent for ₹100
+    let claimedIntent = { _id: 'intent_claim', amount: 200, status: 'payer_claimed' };
+    let res3 = checkIntentConflict(claimedIntent, 100, authorized);
+    assert.strictEqual(res3.status, 409);
+    assert.ok(res3.message.includes('awaiting recipient confirmation. It cannot be changed'));
+    assert.strictEqual(claimedIntent.amount, 200, 'Claimed intent amount must be strictly immutable');
+
+    // 5d. Duplicate confirmation protection simulation
+    // Simulating confirmation endpoint logic: atomically update payer_claimed -> recipient_confirmed
+    let dbPayment = { _id: 'intent_conf', amount: 200, status: 'payer_claimed' };
+    function simulateConfirm(paymentDoc, callerUserId, expectedRecipientId) {
+      if (callerUserId !== expectedRecipientId) {
+        return { status: 403, message: 'Unauthorized' };
+      }
+      if (paymentDoc.status === 'payer_claimed') {
+        paymentDoc.status = 'recipient_confirmed';
+        paymentDoc.confirmedAt = new Date();
+        return { status: 200, message: 'Confirmed successfully', firstConfirm: true };
+      }
+      if (paymentDoc.status === 'recipient_confirmed') {
+        return { status: 200, message: 'Payment was already confirmed', firstConfirm: false };
+      }
+      return { status: 409, message: `Cannot confirm a payment with status: ${paymentDoc.status}` };
+    }
+
+    let c1 = simulateConfirm(dbPayment, 'recip1', 'recip1');
+    assert.strictEqual(c1.status, 200);
+    assert.strictEqual(c1.firstConfirm, true);
+    assert.strictEqual(dbPayment.status, 'recipient_confirmed');
+
+    // Duplicate call: idempotent, does not re-apply
+    let c2 = simulateConfirm(dbPayment, 'recip1', 'recip1');
+    assert.strictEqual(c2.status, 200);
+    assert.strictEqual(c2.firstConfirm, false);
+    assert.strictEqual(c2.message, 'Payment was already confirmed');
+
+    passedTests++;
+    console.log('✅ Test 5 Passed: Intent lifecycle and immutability decision rules verified via unit simulation.');
+  }
+
+  // =========================================================================
+  // TEST 6: Frontend QR URI Construction & Copy Logic Validation
+  // =========================================================================
+  console.log('Test 6: Testing UPI URI construction and copy button data flow...');
   {
     const payeeUpi = 'merchant@okaxis';
     const payeeName = 'Merchant Store';
@@ -315,13 +576,13 @@ async function main() {
     assert.ok(upiUri.includes('tr=' + tr), 'Must contain transaction ref ID');
 
     passedTests++;
-    console.log('✅ Test 4 Passed: UPI URI complies with standard UPI parameters.');
+    console.log('✅ Test 6 Passed: UPI URI complies with standard UPI parameters.');
   }
 
   // =========================================================================
-  // TEST 5: Polling Lifecycle Simulation
+  // TEST 7: Polling Lifecycle Simulation
   // =========================================================================
-  console.log('Test 5: Testing polling lifecycle, timer cancellation, and error backoff...');
+  console.log('Test 7: Testing polling lifecycle, timer cancellation, and error backoff...');
   {
     let pollTimer = null;
     let pollCount = 0;
@@ -366,7 +627,120 @@ async function main() {
     assert.strictEqual(pollCount, 4);
 
     passedTests++;
-    console.log('✅ Test 5 Passed: Polling lifecycle stops cleanly on terminal status.');
+    console.log('✅ Test 7 Passed: Polling lifecycle stops cleanly on terminal status.');
+  }
+
+  // =========================================================================
+  // TEST 8: Client-Side Input Parsing & Validation Parity
+  // =========================================================================
+  console.log('Test 8: Testing client-side parseAndValidatePaymentAmount parity...');
+  {
+    // Exact logic from frontend/js/group.js
+    function parseAndValidatePaymentAmount(rawVal, maxAuthorized) {
+      if (rawVal === undefined || rawVal === null || (typeof rawVal === 'string' && rawVal.trim() === '')) {
+        return { valid: false, message: 'Please enter a payment amount' };
+      }
+      if (typeof rawVal !== 'number' && typeof rawVal !== 'string') {
+        return { valid: false, message: 'Please enter a valid numeric amount' };
+      }
+
+      let num;
+      if (typeof rawVal === 'string') {
+        const trimmed = rawVal.trim();
+        if (!/^-?\d+(\.\d+)?$/.test(trimmed)) {
+          return { valid: false, message: 'Please enter a valid numeric amount' };
+        }
+        num = Number(trimmed);
+      } else {
+        if (!Number.isFinite(rawVal) || isNaN(rawVal)) {
+          return { valid: false, message: 'Please enter a valid numeric amount' };
+        }
+        num = rawVal;
+      }
+
+      if (num < 0.01) {
+        return { valid: false, message: 'Payment amount must be at least ₹0.01' };
+      }
+
+      // Check decimal places strictly (at most 2 decimal places)
+      if (typeof rawVal === 'string') {
+        const trimmed = rawVal.trim();
+        const dotIndex = trimmed.indexOf('.');
+        if (dotIndex !== -1 && trimmed.length - dotIndex - 1 > 2) {
+          return { valid: false, message: 'Amount cannot have more than 2 decimal places' };
+        }
+      } else {
+        const str = rawVal.toString();
+        const dotIndex = str.indexOf('.');
+        if (dotIndex !== -1 && str.length - dotIndex - 1 > 2) {
+          const requestedPaise = Math.round(rawVal * 100);
+          const diff = Math.abs(rawVal - requestedPaise / 100);
+          if (diff > 1e-9) {
+            return { valid: false, message: 'Amount cannot have more than 2 decimal places' };
+          }
+        }
+      }
+      const requestedPaise = Math.round(num * 100);
+      const maxPaise = Math.round(Number(maxAuthorized) * 100);
+      if (requestedPaise > maxPaise) {
+        return { valid: false, message: `Payment cannot exceed total outstanding debt of ₹${(maxPaise / 100).toFixed(2)}` };
+      }
+      return { valid: true, amount: requestedPaise / 100, requestedPaise };
+    }
+
+    const maxDebt = 350.00;
+
+    // Valid full amount
+    assert.strictEqual(parseAndValidatePaymentAmount('350.00', maxDebt).valid, true);
+    assert.strictEqual(parseAndValidatePaymentAmount(350, maxDebt).amount, 350.00);
+
+    // Valid partial amount
+    assert.strictEqual(parseAndValidatePaymentAmount('100.50', maxDebt).valid, true);
+    assert.strictEqual(parseAndValidatePaymentAmount('100.50', maxDebt).amount, 100.50);
+    assert.strictEqual(parseAndValidatePaymentAmount(10.10, maxDebt).valid, true);
+    assert.strictEqual(parseAndValidatePaymentAmount('10.10', maxDebt).amount, 10.10);
+    assert.strictEqual(parseAndValidatePaymentAmount(123.45, maxDebt).valid, true);
+    assert.strictEqual(parseAndValidatePaymentAmount('123.45', maxDebt).amount, 123.45);
+
+    // Valid minimum amount
+    assert.strictEqual(parseAndValidatePaymentAmount('0.01', maxDebt).valid, true);
+    assert.strictEqual(parseAndValidatePaymentAmount(0.01, maxDebt).amount, 0.01);
+
+    // Valid JS floating-point safe representation
+    assert.strictEqual(parseAndValidatePaymentAmount(0.1 + 0.2, maxDebt).valid, true);
+    assert.strictEqual(parseAndValidatePaymentAmount(0.1 + 0.2, maxDebt).amount, 0.30);
+
+    // Invalid: Over-balance
+    assert.strictEqual(parseAndValidatePaymentAmount('350.01', maxDebt).valid, false);
+    assert.ok(parseAndValidatePaymentAmount('400', maxDebt).message.includes('Payment cannot exceed'));
+
+    // Invalid: Excessive precision (more than 2 decimal places) - regression cases
+    assert.strictEqual(parseAndValidatePaymentAmount('50.123', maxDebt).valid, false);
+    assert.strictEqual(parseAndValidatePaymentAmount('50.123', maxDebt).message, 'Amount cannot have more than 2 decimal places');
+    assert.strictEqual(parseAndValidatePaymentAmount(10.001, maxDebt).valid, false);
+    assert.strictEqual(parseAndValidatePaymentAmount('10.001', maxDebt).valid, false);
+    assert.strictEqual(parseAndValidatePaymentAmount(10.000009, maxDebt).valid, false);
+    assert.strictEqual(parseAndValidatePaymentAmount('10.000009', maxDebt).valid, false);
+    assert.strictEqual(parseAndValidatePaymentAmount(1.234567, maxDebt).valid, false);
+    assert.strictEqual(parseAndValidatePaymentAmount('1.234567', maxDebt).valid, false);
+
+    // Invalid: Zero & negative
+    assert.strictEqual(parseAndValidatePaymentAmount('0', maxDebt).valid, false);
+    assert.strictEqual(parseAndValidatePaymentAmount('-10', maxDebt).valid, false);
+
+    // Invalid: Empty & non-numeric
+    assert.strictEqual(parseAndValidatePaymentAmount('', maxDebt).valid, false);
+    assert.strictEqual(parseAndValidatePaymentAmount('   ', maxDebt).valid, false);
+    assert.strictEqual(parseAndValidatePaymentAmount('abc', maxDebt).valid, false);
+
+    // Invalid: Unsupported types (booleans, objects, arrays)
+    assert.strictEqual(parseAndValidatePaymentAmount(true, maxDebt).valid, false);
+    assert.strictEqual(parseAndValidatePaymentAmount(false, maxDebt).valid, false);
+    assert.strictEqual(parseAndValidatePaymentAmount([], maxDebt).valid, false);
+    assert.strictEqual(parseAndValidatePaymentAmount({}, maxDebt).valid, false);
+
+    passedTests++;
+    console.log('✅ Test 8 Passed: Client-side validation accurately mirrors backend business rules.');
   }
 
   console.log(`\n🎉 All ${passedTests} focused tests passed successfully!\n`);

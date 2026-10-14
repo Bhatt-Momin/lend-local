@@ -9,7 +9,7 @@ const { protect } = require("../middleware/auth");
 const razorpay = require("../config/razorpay");
 
 const { getMessaging } = require("firebase-admin/messaging");
-const { getGroupLedger, checkParticipation } = require("../utils/helpers");
+const { getGroupLedger, checkParticipation, validatePaymentAmount } = require("../utils/helpers");
 
 const router = express.Router();
 
@@ -79,21 +79,21 @@ router.post("/create-order", protect, async (req, res) => {
       });
     }
 
-    const requestedPaise = Math.round(numericAmount * 100);
-    const authorizedPaise = Math.round(validSettlement.amount * 100);
-
-    if (requestedPaise > authorizedPaise) {
+    const amountValidation = validatePaymentAmount(amount, validSettlement.amount);
+    if (!amountValidation.valid) {
       return res.status(400).json({
-        message: "Payment exceeds authorized settlement amount",
+        message: amountValidation.message,
       });
     }
+
+    const { requestedPaise } = amountValidation;
 
     // -------------------------------------------------
     // CREATE RAZORPAY ORDER
     // -------------------------------------------------
 
     const order = await razorpay.orders.create({
-      amount: Math.round(numericAmount * 100),
+      amount: requestedPaise,
       currency: "INR",
       receipt: `receipt_${Date.now()}`,
 
@@ -500,14 +500,6 @@ router.post("/intent", protect, async (req, res) => {
       return res.status(403).json({ message: "You are not an active member of this group" });
     }
 
-    const requestedPaise = Math.round(numericAmount * 100);
-
-    if (!Number.isFinite(requestedPaise) || requestedPaise < 1 || numericAmount < 0.01) {
-      return res.status(400).json({ message: "Amount must be at least ₹0.01" });
-    }
-
-    const paymentAmount = requestedPaise / 100;
-
     // Helper: build intent response with UPI deep-link URI
     const buildIntentResponse = (payment, statusCode) => {
       const pa = encodeURIComponent(payment.payeeUpiId);
@@ -550,6 +542,12 @@ router.post("/intent", protect, async (req, res) => {
       return res.status(403).json({ message: "No valid payable relationship established by ledger" });
     }
 
+    const amountValidation = validatePaymentAmount(amount, validSettlement.amount);
+    if (!amountValidation.valid) {
+      return res.status(400).json({ message: amountValidation.message });
+    }
+
+    const { requestedPaise, paymentAmount } = amountValidation;
     const authorizedPaise = Math.round(validSettlement.amount * 100);
 
     if (existingActive) {
@@ -562,10 +560,14 @@ router.post("/intent", protect, async (req, res) => {
       } else if (activePaise === requestedPaise && requestedPaise <= authorizedPaise) {
         return buildIntentResponse(existingActive, 200);
       } else {
+        const conflictMsg = existingActive.status === 'payer_claimed'
+          ? `An active UPI payment claim of ₹${existingActive.amount.toFixed(2)} is awaiting recipient confirmation. It cannot be changed.`
+          : `An active UPI payment for ₹${existingActive.amount.toFixed(2)} is already in progress. To pay a different amount, cancel the existing pending payment first (Note: cancellation does not reverse money already sent via UPI).`;
         return res.status(409).json({
-          message: "An active UPI payment already exists for this recipient. Complete or cancel it first.",
+          message: conflictMsg,
           intentId: existingActive._id,
           status: existingActive.status,
+          amount: existingActive.amount,
         });
       }
     }
@@ -578,10 +580,6 @@ router.post("/intent", protect, async (req, res) => {
 
     if (!recipient.upiId) {
       return res.status(400).json({ message: "Recipient has not configured a UPI payment method" });
-    }
-
-    if (requestedPaise > authorizedPaise) {
-      return res.status(400).json({ message: "Payment exceeds authorized settlement amount" });
     }
 
     // Create new intent — partial unique index is the concurrency backstop
@@ -613,10 +611,14 @@ router.post("/intent", protect, async (req, res) => {
           if (Math.round(racedIntent.amount * 100) === requestedPaise) {
             return buildIntentResponse(racedIntent, 200);
           }
+          const raceConflictMsg = racedIntent.status === 'payer_claimed'
+            ? `An active UPI payment claim of ₹${racedIntent.amount.toFixed(2)} is awaiting recipient confirmation. It cannot be changed.`
+            : `An active UPI payment for ₹${racedIntent.amount.toFixed(2)} is already in progress. To pay a different amount, cancel the existing pending payment first (Note: cancellation does not reverse money already sent via UPI).`;
           return res.status(409).json({
-            message: "An active UPI payment already exists for this recipient. Complete or cancel it first.",
+            message: raceConflictMsg,
             intentId: racedIntent._id,
             status: racedIntent.status,
+            amount: racedIntent.amount,
           });
         }
       }

@@ -10,9 +10,15 @@ class Element {
     this.id = '';
     this.className = '';
     this.classList = {
-      contains: (c) => this.className.includes(c),
-      add: (c) => this.className += ' ' + c,
-      remove: (c) => this.className = this.className.replace(c, '')
+      contains: (c) => this.className.split(/\s+/).includes(c),
+      add: (c) => {
+        const classes = this.className.split(/\s+/).filter(Boolean);
+        if (!classes.includes(c)) classes.push(c);
+        this.className = classes.join(' ');
+      },
+      remove: (c) => {
+        this.className = this.className.split(/\s+/).filter(cls => cls && cls !== c).join(' ');
+      }
     };
     this.style = { cssText: '', display: '' };
     this.children = [];
@@ -424,6 +430,34 @@ eval(pwaCode);
     razorpayOnDismiss();
     assert.strictEqual(window.isPaymentActive, true, 'isPaymentActive should remain true if request is in flight');
     console.log('✅ Razorpay modal dismissal logic passed');
+
+    console.log('--- Testing UPI Payer Modal Cancellation and Interaction Restoration ---');
+    const cancelModal = mockDoc.getElementById('upiPayerModal');
+    const cancelBtn = mockDoc.getElementById('btnUpiCancel');
+    window.isPaymentActive = true;
+    window.openUpiPayerModal({ intentId: 'intent_cancel_test', amount: 200, status: 'pending' });
+    assert.strictEqual(cancelModal.classList.contains('open'), true, 'Modal should be open');
+    assert.strictEqual(mockDoc.body.classList.contains('modal-open'), true, 'body should have modal-open class');
+    assert.strictEqual(window.isPaymentActive, true, 'isPaymentActive should be true while modal open');
+
+    global.confirm = () => true;
+    let cancelEndpointCalled = false;
+    global.api = async (url) => {
+      if (url === '/payment/cancel') {
+        cancelEndpointCalled = true;
+        return { message: 'Payment intent cancelled' };
+      }
+      return { group: { members: [] }, expenses: [], balances: [], intents: [] };
+    };
+
+    await cancelBtn.onclick();
+    assert.strictEqual(cancelEndpointCalled, true, 'Cancellation endpoint should be called');
+    assert.strictEqual(cancelModal.classList.contains('open'), false, 'Modal should no longer have open class');
+    assert.strictEqual(mockDoc.body.classList.contains('modal-open'), false, 'body should not have modal-open class stuck');
+    assert.strictEqual(window.isPaymentActive, false, 'isPaymentActive should be cleared');
+    assert.strictEqual(window.isPaymentRequestInFlight, false, 'isPaymentRequestInFlight should be cleared');
+    assert.strictEqual(cancelBtn.disabled, false, 'Cancel button should be re-enabled');
+    console.log('✅ UPI Payer Modal Cancellation passed');
 
     console.log('--- Testing URL parsing for Notification Destinations ---');
     assert.strictEqual(parseReturnUrl('/dashboard.html', 'https://app.lendlocal.com'), '/dashboard.html');

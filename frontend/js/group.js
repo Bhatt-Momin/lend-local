@@ -277,7 +277,7 @@ if (!requireAuth()) {
       const payMethod = document.getElementById('paymentMethodModal');
       if (upiPayer?.classList.contains('open')) {
         if (!window.isPaymentRequestInFlight) {
-          document.getElementById('closeUpiPayerBtn')?.click();
+          closeUpiPayerModal();
         }
       } else if (upiRecip?.classList.contains('open')) {
         document.getElementById('closeUpiRecipientBtn')?.click();
@@ -847,7 +847,7 @@ if (!requireAuth()) {
           try {
             const statusRes = await api(`/payment/status/${currentPayerIntentId}`);
             if (['confirmed', 'recipient_rejected', 'cancelled', 'unknown'].includes(statusRes.status)) {
-              upiModal.classList.remove('open');
+              closeUpiPayerModal();
               window.isPaymentActive = false;
               if (!window.isPaymentRequestInFlight) {
                 alert(`Payment status updated to: ${statusRes.status}`);
@@ -2146,14 +2146,91 @@ if (!requireAuth()) {
     restoreFocusSafe(paymentModalLastFocus);
   }
 
+  let currentPaymentMaxAmount = 0;
+
+  function parseAndValidatePaymentAmount(rawVal, maxAuthorized) {
+    if (rawVal === undefined || rawVal === null || (typeof rawVal === 'string' && rawVal.trim() === '')) {
+      return { valid: false, message: 'Please enter a payment amount' };
+    }
+    if (typeof rawVal !== 'number' && typeof rawVal !== 'string') {
+      return { valid: false, message: 'Please enter a valid numeric amount' };
+    }
+
+    let num;
+    if (typeof rawVal === 'string') {
+      const trimmed = rawVal.trim();
+      if (!/^-?\d+(\.\d+)?$/.test(trimmed)) {
+        return { valid: false, message: 'Please enter a valid numeric amount' };
+      }
+      num = Number(trimmed);
+    } else {
+      if (!Number.isFinite(rawVal) || isNaN(rawVal)) {
+        return { valid: false, message: 'Please enter a valid numeric amount' };
+      }
+      num = rawVal;
+    }
+
+    if (num < 0.01) {
+      return { valid: false, message: 'Payment amount must be at least ₹0.01' };
+    }
+
+    // Check decimal places strictly (at most 2 decimal places)
+    if (typeof rawVal === 'string') {
+      const trimmed = rawVal.trim();
+      const dotIndex = trimmed.indexOf('.');
+      if (dotIndex !== -1 && trimmed.length - dotIndex - 1 > 2) {
+        return { valid: false, message: 'Amount cannot have more than 2 decimal places' };
+      }
+    } else {
+      const str = rawVal.toString();
+      const dotIndex = str.indexOf('.');
+      if (dotIndex !== -1 && str.length - dotIndex - 1 > 2) {
+        const requestedPaise = Math.round(rawVal * 100);
+        const diff = Math.abs(rawVal - requestedPaise / 100);
+        if (diff > 1e-9) {
+          return { valid: false, message: 'Amount cannot have more than 2 decimal places' };
+        }
+      }
+    }
+    const requestedPaise = Math.round(num * 100);
+    const maxPaise = Math.round(Number(maxAuthorized) * 100);
+    if (requestedPaise > maxPaise) {
+      return { valid: false, message: `Payment cannot exceed total outstanding debt of ${formatMoney(maxAuthorized)}` };
+    }
+    return { valid: true, amount: requestedPaise / 100, requestedPaise };
+  }
+
   function openPaymentMethodModal(amount, toUserId) {
+    currentPaymentMaxAmount = amount;
     paymentModalLastFocus = document.activeElement;
     const modal = document.getElementById('paymentMethodModal');
+    const alertBox = document.getElementById('paymentMethodAlert');
+    const debtEl = document.getElementById('paymentMethodTotalDebt');
+    const amountInput = document.getElementById('paymentCustomAmount');
+    const hintEl = document.getElementById('paymentAmountHint');
+
+    if (alertBox) hideAlert(alertBox);
+    if (debtEl) debtEl.textContent = formatMoney(amount);
+    if (amountInput) {
+      amountInput.value = amount.toFixed(2);
+      amountInput.max = amount.toFixed(2);
+      amountInput.min = '0.01';
+      amountInput.step = '0.01';
+      amountInput.oninput = () => {
+        if (alertBox) hideAlert(alertBox);
+      };
+    }
+    if (hintEl) {
+      hintEl.textContent = `Default is full debt (${formatMoney(amount)}). You can enter a smaller amount (min ₹0.01).`;
+    }
+
     modal.classList.add('open');
     document.body.classList.add('modal-open');
     clearTimeout(paymentFocusTimeout);
     paymentFocusTimeout = setTimeout(() => {
-      if (modal.classList.contains('open')) modal.querySelector('button')?.focus();
+      if (modal.classList.contains('open')) {
+        amountInput ? amountInput.focus() : modal.querySelector('button')?.focus();
+      }
     }, 50);
 
     document.getElementById('closePaymentMethodBtn').onclick = closePaymentMethodModal;
@@ -2164,22 +2241,56 @@ if (!requireAuth()) {
     };
 
     document.getElementById('btnPayRazorpay').onclick = async () => {
+      const inputVal = amountInput ? amountInput.value : amount;
+      const validation = parseAndValidatePaymentAmount(inputVal, currentPaymentMaxAmount);
+      if (!validation.valid) {
+        if (alertBox) {
+          showAlert(alertBox, validation.message);
+          if (window.FX) window.FX.shake(alertBox);
+        } else {
+          alert(validation.message);
+        }
+        return;
+      }
+
       try {
         const conf = await api('/config');
         if (conf.razorpayEnabled) {
           closePaymentMethodModal();
-          startPayment(amount, toUserId);
+          startPayment(validation.amount, toUserId);
+        } else {
+          if (alertBox) {
+            showAlert(alertBox, "Razorpay payments will be available soon. Currently under maintenance. Please use UPI.");
+            if (window.FX) window.FX.shake(alertBox);
+          } else {
+            alert("Razorpay payments will be available soon. Currently under maintenance. Please use UPI.");
+          }
+        }
+      } catch (err) {
+        if (alertBox) {
+          showAlert(alertBox, "Razorpay payments will be available soon. Currently under maintenance. Please use UPI.");
+          if (window.FX) window.FX.shake(alertBox);
         } else {
           alert("Razorpay payments will be available soon. Currently under maintenance. Please use UPI.");
         }
-      } catch (err) {
-        alert("Razorpay payments will be available soon. Currently under maintenance. Please use UPI.");
       }
     };
 
     document.getElementById('btnPayUpi').onclick = () => {
+      const inputVal = amountInput ? amountInput.value : amount;
+      const validation = parseAndValidatePaymentAmount(inputVal, currentPaymentMaxAmount);
+      if (!validation.valid) {
+        if (alertBox) {
+          showAlert(alertBox, validation.message);
+          if (window.FX) window.FX.shake(alertBox);
+        } else {
+          alert(validation.message);
+        }
+        return;
+      }
+
       closePaymentMethodModal();
-      startUpiPayment(amount, toUserId);
+      startUpiPayment(validation.amount, toUserId);
     };
   }
 
@@ -2252,13 +2363,7 @@ if (!requireAuth()) {
 
         if (data && data.status) {
           if (data.status === 'recipient_confirmed') {
-            stopStatusPolling();
-            modal.classList.remove('open');
-            if (!document.querySelector('.modal-backdrop.open')) {
-              document.body.classList.remove('modal-open');
-            }
-            clearTimeout(upiPayerFocusTimeout);
-            restoreFocusSafe(upiPayerModalLastFocus);
+            closeUpiPayerModal();
             window.isPaymentActive = false;
 
             if (window.FX) {
@@ -2283,13 +2388,7 @@ if (!requireAuth()) {
           }
 
           if (data.status === 'cancelled') {
-            stopStatusPolling();
-            modal.classList.remove('open');
-            if (!document.querySelector('.modal-backdrop.open')) {
-              document.body.classList.remove('modal-open');
-            }
-            clearTimeout(upiPayerFocusTimeout);
-            restoreFocusSafe(upiPayerModalLastFocus);
+            closeUpiPayerModal();
             window.isPaymentActive = false;
             await initLoadAll(true).catch(e => console.warn('Payment refresh failed', e));
             return;
@@ -2317,8 +2416,29 @@ if (!requireAuth()) {
 
   let upiPayerModalLastFocus = null;
   let upiPayerFocusTimeout;
+
+  function closeUpiPayerModal() {
+    stopStatusPolling();
+    const modal = document.getElementById('upiPayerModal');
+    if (modal) {
+      modal.classList.remove('open');
+    }
+    if (!document.querySelector('.modal-backdrop.open')) {
+      document.body.classList.remove('modal-open');
+    }
+    clearTimeout(upiPayerFocusTimeout);
+    restoreFocusSafe(upiPayerModalLastFocus);
+    currentPayerIntentId = null;
+    if (!window.isPaymentRequestInFlight) {
+      window.isPaymentActive = false;
+    }
+  }
+
   function openUpiPayerModal(intentData) {
     stopStatusPolling();
+    if (intentData?.intentId || intentData?._id) {
+      currentPayerIntentId = intentData.intentId || intentData._id;
+    }
     upiPayerModalLastFocus = document.activeElement;
     const modal = document.getElementById('upiPayerModal');
     const alertBox = document.getElementById('upiPayerAlert');
@@ -2340,22 +2460,14 @@ if (!requireAuth()) {
     upiPayerFocusTimeout = setTimeout(() => {
       if (modal.classList.contains('open')) modal.querySelector('button')?.focus();
     }, 50);
+
     document.getElementById('closeUpiPayerBtn').onclick = () => {
-      stopStatusPolling();
-      modal.classList.remove('open');
-      if (!document.querySelector('.modal-backdrop.open')) {
-        document.body.classList.remove('modal-open');
-      }
-      clearTimeout(upiPayerFocusTimeout);
-      restoreFocusSafe(upiPayerModalLastFocus);
-      if (!window.isPaymentRequestInFlight) {
-        window.isPaymentActive = false;
-      }
+      closeUpiPayerModal();
     };
 
     modal.onclick = (e) => {
       if (e.target === modal && !window.isPaymentRequestInFlight) {
-        document.getElementById('closeUpiPayerBtn')?.click();
+        closeUpiPayerModal();
       }
     };
 
@@ -2478,20 +2590,32 @@ if (!requireAuth()) {
     };
 
     btnCancel.onclick = async () => {
+      if (!confirm("Cancelling this payment intent does not reverse any money already sent through your UPI app. Are you sure you want to cancel?")) {
+        return;
+      }
       stopStatusPolling();
+      const intentToCancel = currentPayerIntentId;
+      btnCancel.disabled = true;
+      const originalText = btnCancel.textContent;
+      btnCancel.textContent = 'Cancelling...';
       try {
         window.isPaymentRequestInFlight = true;
         await api('/payment/cancel', {
           method: 'POST',
-          body: JSON.stringify({ intentId: currentPayerIntentId })
+          body: JSON.stringify({ intentId: intentToCancel })
         });
-        modal.classList.remove('open');
+        window.isPaymentRequestInFlight = false;
+        window.isPaymentActive = false;
+        closeUpiPayerModal();
         await initLoadAll(true).catch(() => window.location.reload());
       } catch (err) {
+        window.isPaymentRequestInFlight = false;
         showAlert(alertBox, err.message);
       } finally {
+        btnCancel.disabled = false;
+        btnCancel.textContent = originalText;
         window.isPaymentRequestInFlight = false;
-        if (!document.getElementById('upiPayerModal').classList.contains('open')) {
+        if (!document.getElementById('upiPayerModal')?.classList.contains('open')) {
           window.isPaymentActive = false;
         }
       }
@@ -2592,4 +2716,5 @@ if (!requireAuth()) {
   window.startPayment = startPayment;
   window.startUpiPayment = startUpiPayment;
   window.openUpiPayerModal = openUpiPayerModal;
+  window.closeUpiPayerModal = closeUpiPayerModal;
 }

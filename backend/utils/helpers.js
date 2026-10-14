@@ -205,7 +205,77 @@ function computeBalances(expenses, members, payments = []) {
   return calculateLedger({ expenses, payments, members, nameMap });
 }
 
-module.exports = { signToken, computeBalances, getGroupLedger, checkParticipation, calculateLedger };
+/**
+ * Shared payment amount validation logic for both direct UPI and Razorpay.
+ * Enforces integer paise arithmetic, positive numbers, min ₹0.01,
+ * maximum of 2 decimal places, and caps at authorized settlement amount.
+ */
+function validatePaymentAmount(amount, authorizedAmount) {
+  if (amount === undefined || amount === null || (typeof amount === 'string' && amount.trim() === '')) {
+    return { valid: false, message: 'Payment amount is required' };
+  }
+
+  // Reject unsupported input types (e.g. booleans, arrays, objects)
+  if (typeof amount !== 'number' && typeof amount !== 'string') {
+    return { valid: false, message: 'Valid numeric amount is required' };
+  }
+
+  let numericAmount;
+
+  if (typeof amount === 'string') {
+    const trimmed = amount.trim();
+    if (!/^-?\d+(\.\d+)?$/.test(trimmed)) {
+      return { valid: false, message: 'Valid numeric amount is required' };
+    }
+    numericAmount = Number(trimmed);
+  } else {
+    if (!Number.isFinite(amount) || isNaN(amount)) {
+      return { valid: false, message: 'Valid numeric amount is required' };
+    }
+    numericAmount = amount;
+  }
+
+  if (numericAmount < 0.01) {
+    return { valid: false, message: 'Amount must be at least ₹0.01' };
+  }
+
+  // Check decimal places strictly (at most 2 decimal places)
+  if (typeof amount === 'string') {
+    const trimmed = amount.trim();
+    const dotIndex = trimmed.indexOf('.');
+    if (dotIndex !== -1 && trimmed.length - dotIndex - 1 > 2) {
+      return { valid: false, message: 'Amount cannot have more than 2 decimal places' };
+    }
+  } else {
+    const str = amount.toString();
+    const dotIndex = str.indexOf('.');
+    if (dotIndex !== -1 && str.length - dotIndex - 1 > 2) {
+      const requestedPaise = Math.round(amount * 100);
+      const diff = Math.abs(amount - requestedPaise / 100);
+      if (diff > 1e-9) {
+        return { valid: false, message: 'Amount cannot have more than 2 decimal places' };
+      }
+    }
+  }
+
+  const requestedPaise = Math.round(numericAmount * 100);
+
+  if (authorizedAmount !== undefined && authorizedAmount !== null) {
+    const authorizedPaise = Math.round(Number(authorizedAmount) * 100);
+    if (requestedPaise > authorizedPaise) {
+      return { valid: false, message: 'Payment exceeds authorized settlement amount' };
+    }
+  }
+
+  return {
+    valid: true,
+    numericAmount: requestedPaise / 100,
+    requestedPaise,
+    paymentAmount: requestedPaise / 100
+  };
+}
+
+module.exports = { signToken, computeBalances, getGroupLedger, checkParticipation, calculateLedger, validatePaymentAmount };
 
 async function getGroupLedger(groupId) {
   const Group = require('../models/Group');
