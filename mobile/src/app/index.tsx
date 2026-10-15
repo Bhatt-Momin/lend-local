@@ -1,11 +1,12 @@
 import * as Device from 'expo-device';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -13,17 +14,25 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { GroupCard } from '../components/GroupCard';
 import { ServerConfigModal } from '../components/ServerConfigModal';
 import { ThemedText } from '../components/themed-text';
 import { ThemedView } from '../components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
+import { useGroups } from '../hooks/useGroups';
+import type { GroupSummary } from '../types/api';
+import { formatINR } from '../utils/format';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, token, isLoading, serverUrl, logout } = useAuth();
+  const { user, isLoading, serverUrl, logout } = useAuth();
   const [showServerModal, setShowServerModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const groupsEnabled = !!user && !isLoading;
+  const { groups, isLoading: groupsLoading, isRefreshing, error: groupsError, refresh } =
+    useGroups(groupsEnabled, { onUnauthorized: logout });
 
   const platformName = Platform.select({
     android: 'Android',
@@ -33,6 +42,19 @@ export default function HomeScreen() {
   });
 
   const deviceName = Device.modelName || (Device.isDevice ? 'Physical Device' : 'Simulator / Emulator');
+
+  const totals = useMemo(() => {
+    let owedToMe = 0;
+    let iOwe = 0;
+    for (const g of groups) {
+      if (g.myBalance >= 0.01) {
+        owedToMe += g.myBalance;
+      } else if (g.myBalance <= -0.01) {
+        iOwe += Math.abs(g.myBalance);
+      }
+    }
+    return { owedToMe, iOwe };
+  }, [groups]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -58,6 +80,18 @@ export default function HomeScreen() {
     );
   };
 
+  const handleGroupPress = (group: GroupSummary) => {
+    router.push(`/group/${group.id}` as any);
+  };
+
+  const handleCreateGroup = () => {
+    Alert.alert(
+      'Create Group',
+      'Group creation arrives in Phase 3. Your groups list is live from GET /api/groups.',
+      [{ text: 'OK' }]
+    );
+  };
+
   if (isLoading) {
     return (
       <ThemedView style={styles.loadingContainer}>
@@ -73,6 +107,11 @@ export default function HomeScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            user ? (
+              <RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor="#2563EB" />
+            ) : undefined
+          }
         >
           {/* Brand Header */}
           <View style={styles.heroSection}>
@@ -90,58 +129,111 @@ export default function HomeScreen() {
             </ThemedText>
           </View>
 
-          {/* Authentication State Card */}
           {user ? (
-            /* Authenticated User View */
-            <ThemedView type="backgroundElement" style={styles.authProfileCard}>
-              <View style={styles.userHeaderRow}>
-                <View style={styles.avatarBadge}>
-                  <ThemedText style={styles.avatarText}>
-                    {user.name.charAt(0).toUpperCase()}
-                  </ThemedText>
+            <>
+              {/* Dashboard header */}
+              <ThemedView type="backgroundElement" style={styles.authProfileCard}>
+                <View style={styles.userHeaderRow}>
+                  <View style={styles.avatarBadge}>
+                    <ThemedText style={styles.avatarText}>
+                      {user.name.charAt(0).toUpperCase()}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.userHeaderText}>
+                    <ThemedText type="smallBold" style={styles.userName} numberOfLines={1}>
+                      {user.name}
+                    </ThemedText>
+                    <ThemedText type="small" style={styles.userEmail} numberOfLines={1}>
+                      {user.email}
+                    </ThemedText>
+                  </View>
+                  <TouchableOpacity onPress={() => setShowServerModal(true)}>
+                    <ThemedText type="smallBold" style={styles.editLink}>
+                      Server
+                    </ThemedText>
+                  </TouchableOpacity>
                 </View>
-                <View style={styles.userHeaderText}>
-                  <ThemedText type="smallBold" style={styles.userName}>
-                    {user.name}
-                  </ThemedText>
-                  <ThemedText type="small" style={styles.userEmail}>
-                    {user.email}
-                  </ThemedText>
+
+                <View style={styles.summaryRow}>
+                  <View style={styles.summaryBox}>
+                    <ThemedText type="small" style={styles.summaryLabel}>
+                      Net owed to you
+                    </ThemedText>
+                    <ThemedText type="smallBold" style={styles.summaryOwed}>
+                      {formatINR(totals.owedToMe)}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.summaryBox}>
+                    <ThemedText type="small" style={styles.summaryLabel}>
+                      Net you owe
+                    </ThemedText>
+                    <ThemedText type="smallBold" style={styles.summaryOwe}>
+                      {formatINR(totals.iOwe)}
+                    </ThemedText>
+                  </View>
                 </View>
-              </View>
 
-              <View style={styles.divider} />
+                <TouchableOpacity
+                  style={styles.logoutBtn}
+                  onPress={handleLogout}
+                  disabled={isLoggingOut}
+                  activeOpacity={0.8}
+                >
+                  {isLoggingOut ? (
+                    <ActivityIndicator size="small" color="#EF4444" />
+                  ) : (
+                    <ThemedText style={styles.logoutBtnText}>Sign Out</ThemedText>
+                  )}
+                </TouchableOpacity>
+              </ThemedView>
 
-              <View style={styles.infoRow}>
-                <ThemedText type="small" style={styles.infoLabel}>Account ID</ThemedText>
-                <ThemedText type="code" style={styles.infoValue}>{user.id}</ThemedText>
-              </View>
-
-              <View style={styles.infoRow}>
-                <ThemedText type="small" style={styles.infoLabel}>UPI ID (VPA)</ThemedText>
-                <ThemedText type="small" style={styles.infoValue}>
-                  {user.upiId || 'Not configured'}
+              {/* Groups dashboard */}
+              <View style={styles.sectionHeaderRow}>
+                <ThemedText type="smallBold" style={styles.sectionTitle}>
+                  Your Groups ({groups.length})
                 </ThemedText>
+                <TouchableOpacity onPress={handleCreateGroup} activeOpacity={0.8}>
+                  <ThemedText type="smallBold" style={styles.createLink}>
+                    + New
+                  </ThemedText>
+                </TouchableOpacity>
               </View>
 
-              <View style={styles.infoRow}>
-                <ThemedText type="small" style={styles.infoLabel}>Token Storage</ThemedText>
-                <ThemedText type="code" style={styles.infoValue}>expo-secure-store (Active)</ThemedText>
-              </View>
-
-              <TouchableOpacity
-                style={styles.logoutBtn}
-                onPress={handleLogout}
-                disabled={isLoggingOut}
-                activeOpacity={0.8}
-              >
-                {isLoggingOut ? (
-                  <ActivityIndicator size="small" color="#EF4444" />
-                ) : (
-                  <ThemedText style={styles.logoutBtnText}>Sign Out</ThemedText>
-                )}
-              </TouchableOpacity>
-            </ThemedView>
+              {groupsLoading ? (
+                <ThemedView type="backgroundElement" style={styles.stateCard}>
+                  <ActivityIndicator size="large" color="#2563EB" />
+                  <ThemedText type="small" style={styles.stateSub}>
+                    Loading groups from backend...
+                  </ThemedText>
+                </ThemedView>
+              ) : groupsError ? (
+                <ThemedView type="backgroundElement" style={styles.stateCard}>
+                  <ThemedText type="smallBold">Couldn&apos;t load groups</ThemedText>
+                  <ThemedText type="small" style={styles.stateSub}>
+                    {groupsError}
+                  </ThemedText>
+                  <TouchableOpacity style={styles.retryBtn} onPress={() => refresh()} activeOpacity={0.8}>
+                    <ThemedText style={styles.retryText}>Retry</ThemedText>
+                  </TouchableOpacity>
+                </ThemedView>
+              ) : groups.length === 0 ? (
+                <ThemedView type="backgroundElement" style={styles.stateCard}>
+                  <ThemedText type="smallBold">No groups yet</ThemedText>
+                  <ThemedText type="small" style={styles.stateSub}>
+                    Create your first group on web, or tap New when Phase 3 lands.
+                  </ThemedText>
+                  <TouchableOpacity style={styles.retryBtn} onPress={() => refresh()} activeOpacity={0.8}>
+                    <ThemedText style={styles.retryText}>Refresh</ThemedText>
+                  </TouchableOpacity>
+                </ThemedView>
+              ) : (
+                <View style={styles.groupList}>
+                  {groups.map((group) => (
+                    <GroupCard key={group.id} group={group} onPress={handleGroupPress} />
+                  ))}
+                </View>
+              )}
+            </>
           ) : (
             /* Unauthenticated View — Action Buttons */
             <ThemedView type="backgroundElement" style={styles.guestActionCard}>
@@ -177,7 +269,7 @@ export default function HomeScreen() {
             <View style={[styles.statusDot, user ? styles.statusDotAuth : styles.statusDotReady]} />
             <ThemedText type="smallBold" style={user ? styles.statusTextAuth : styles.statusTextReady}>
               {user
-                ? 'Stage 2 Verified: Authenticated Session Active'
+                ? 'Stage 3 Phase 2: Dashboard & Groups Live'
                 : 'Stage 2 Ready: Login & Registration Online'}
             </ThemedText>
           </View>
@@ -236,11 +328,11 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.milestoneRow}>
-              <ThemedText style={styles.milestoneIcon}>⏳</ThemedText>
+              <ThemedText style={styles.milestoneIcon}>⚡</ThemedText>
               <View style={styles.milestoneTextContainer}>
                 <ThemedText type="smallBold">Stage 3: Groups, Expenses & Ledger</ThemedText>
                 <ThemedText type="small" style={styles.milestoneSub}>
-                  Exact paise arithmetic, equal/custom splits
+                  Dashboard live — detail ledger next
                 </ThemedText>
               </View>
             </View>
@@ -348,10 +440,28 @@ const styles = StyleSheet.create({
   userEmail: {
     opacity: 0.75,
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#334155',
-    marginVertical: Spacing.one,
+  summaryRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    marginTop: Spacing.two,
+  },
+  summaryBox: {
+    flex: 1,
+    backgroundColor: '#0F172A0D',
+    borderRadius: 12,
+    padding: Spacing.three,
+    gap: 4,
+  },
+  summaryLabel: {
+    opacity: 0.7,
+  },
+  summaryOwed: {
+    color: '#10B981',
+    fontSize: 15,
+  },
+  summaryOwe: {
+    color: '#EF4444',
+    fontSize: 15,
   },
   logoutBtn: {
     marginTop: Spacing.two,
@@ -368,6 +478,43 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     fontWeight: '600',
     fontSize: 14,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.one,
+  },
+  sectionTitle: {
+    fontSize: 16,
+  },
+  createLink: {
+    color: '#2563EB',
+    fontSize: 14,
+  },
+  stateCard: {
+    padding: Spacing.four,
+    borderRadius: Spacing.three,
+    gap: Spacing.two,
+    alignItems: 'center',
+  },
+  stateSub: {
+    opacity: 0.7,
+    textAlign: 'center',
+  },
+  retryBtn: {
+    marginTop: Spacing.one,
+    backgroundColor: '#2563EB',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+  },
+  retryText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  groupList: {
+    gap: Spacing.two,
   },
   guestActionCard: {
     padding: Spacing.four,

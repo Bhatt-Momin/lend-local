@@ -98,3 +98,9 @@ export const authApi = {
     }, token);
   },
 };
+
+// Re-export domain services and types for convenient centralized access
+export { groupsApi } from './groupsApi';
+export { expensesApi } from './expensesApi';
+export { balancesApi } from './balancesApi';
+export * from '../types/api';
