@@ -15,9 +15,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../../components/themed-text';
 import { ThemedView } from '../../../components/themed-view';
+import { ExpenseModal } from '../../../components/ExpenseModal';
+import { ExpenseDetailModal } from '../../../components/ExpenseDetailModal';
 import { BottomTabInset, MaxContentWidth, Spacing } from '../../../constants/theme';
 import { useAuth } from '../../../context/AuthContext';
 import { useGroupDetail } from '../../../hooks/useGroupDetail';
+import type { ExpenseItem } from '../../../types/api';
 import { BALANCE_COLORS, formatINR, getBalanceLabel, getBalanceTone } from '../../../utils/format';
 
 type TabType = 'expenses' | 'balances' | 'members';
@@ -34,6 +37,7 @@ export default function GroupDetailScreen() {
     balances,
     isLoading,
     isRefreshing,
+    isMutating,
     error,
     myNetBalance,
     isCreator,
@@ -43,11 +47,17 @@ export default function GroupDetailScreen() {
     renameGroup,
     leaveGroup,
     deleteGroup,
+    createExpense,
+    updateExpense,
+    deleteExpense,
   } = useGroupDetail(groupId, !!groupId && !!user);
 
   const [activeTab, setActiveTab] = useState<TabType>('expenses');
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(null);
+  const [expenseToEdit, setExpenseToEdit] = useState<ExpenseItem | null>(null);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
 
   const [memberEmailInput, setMemberEmailInput] = useState('');
@@ -182,11 +192,8 @@ export default function GroupDetailScreen() {
   };
 
   const handleAddExpensePress = () => {
-    Alert.alert(
-      'Add Expense',
-      'Expense creation lands in Stage 3, Phase 4 with full equal & custom split support.',
-      [{ text: 'OK' }]
-    );
+    setExpenseToEdit(null);
+    setShowAddExpenseModal(true);
   };
 
   if (isLoading) {
@@ -367,8 +374,17 @@ export default function GroupDetailScreen() {
                 <ThemedView type="backgroundElement" style={styles.emptyCard}>
                   <ThemedText type="smallBold">No expenses recorded yet</ThemedText>
                   <ThemedText type="small" style={styles.emptySub}>
-                    Expenses added on website or in Phase 4 will appear here.
+                    Tap + Add Expense above to record the first expense for this group.
                   </ThemedText>
+                  {isActiveMember ? (
+                    <TouchableOpacity
+                      style={[styles.btn, styles.primaryBtn, { marginTop: Spacing.two }]}
+                      onPress={handleAddExpensePress}
+                      activeOpacity={0.8}
+                    >
+                      <ThemedText style={styles.primaryBtnText}>+ Add First Expense</ThemedText>
+                    </TouchableOpacity>
+                  ) : null}
                 </ThemedView>
               ) : (
                 <View style={styles.expenseList}>
@@ -383,26 +399,34 @@ export default function GroupDetailScreen() {
                       : 'Recently';
 
                     return (
-                      <ThemedView key={expense.id} type="backgroundElement" style={styles.expenseCard}>
-                        <View style={styles.expenseRow}>
-                          <View style={styles.expenseInfo}>
-                            <ThemedText type="smallBold" style={styles.expenseDesc} numberOfLines={1}>
-                              {expense.description}
-                            </ThemedText>
-                            <ThemedText type="small" style={styles.expenseSub}>
-                              {payerName} paid · {formattedDate}
-                            </ThemedText>
+                      <TouchableOpacity
+                        key={expense.id}
+                        onPress={() => setSelectedExpense(expense)}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Expense: ${expense.description}, ${formatINR(expense.amount)}`}
+                      >
+                        <ThemedView type="backgroundElement" style={styles.expenseCard}>
+                          <View style={styles.expenseRow}>
+                            <View style={styles.expenseInfo}>
+                              <ThemedText type="smallBold" style={styles.expenseDesc} numberOfLines={1}>
+                                {expense.description}
+                              </ThemedText>
+                              <ThemedText type="small" style={styles.expenseSub}>
+                                {payerName} paid · {formattedDate}
+                              </ThemedText>
+                            </View>
+                            <View style={styles.expenseAmountWrap}>
+                              <ThemedText type="smallBold" style={styles.expenseAmount}>
+                                {formatINR(expense.amount)}
+                              </ThemedText>
+                              <ThemedText type="small" style={styles.expenseSplitType}>
+                                {expense.splitType === 'custom' ? 'Custom' : 'Equal split'}
+                              </ThemedText>
+                            </View>
                           </View>
-                          <View style={styles.expenseAmountWrap}>
-                            <ThemedText type="smallBold" style={styles.expenseAmount}>
-                              {formatINR(expense.amount)}
-                            </ThemedText>
-                            <ThemedText type="small" style={styles.expenseSplitType}>
-                              {expense.splitType === 'custom' ? 'Custom' : 'Equal split'}
-                            </ThemedText>
-                          </View>
-                        </View>
-                      </ThemedView>
+                        </ThemedView>
+                      </TouchableOpacity>
                     );
                   })}
                 </View>
@@ -726,6 +750,39 @@ export default function GroupDetailScreen() {
             </ThemedView>
           </TouchableOpacity>
         </Modal>
+
+        {/* MODAL 4: ADD / EDIT EXPENSE */}
+        {group ? (
+          <ExpenseModal
+            visible={showAddExpenseModal}
+            onClose={() => {
+              setShowAddExpenseModal(false);
+              setExpenseToEdit(null);
+            }}
+            group={group}
+            currentUserId={user?.id}
+            onSubmit={createExpense}
+            onUpdate={updateExpense}
+            isMutating={isMutating}
+            expenseToEdit={expenseToEdit}
+          />
+        ) : null}
+
+        {/* MODAL 5: EXPENSE DETAILS */}
+        <ExpenseDetailModal
+          visible={Boolean(selectedExpense)}
+          onClose={() => setSelectedExpense(null)}
+          expense={selectedExpense}
+          group={group}
+          currentUserId={user?.id}
+          onEditPress={(exp) => {
+            setSelectedExpense(null);
+            setExpenseToEdit(exp);
+            setShowAddExpenseModal(true);
+          }}
+          onDeleteExpense={deleteExpense}
+          isMutating={isMutating}
+        />
       </SafeAreaView>
     </ThemedView>
   );

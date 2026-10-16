@@ -4,11 +4,21 @@ import { useAuth } from '../context/AuthContext';
 import { balancesApi, expensesApi, groupsApi } from '../services/api';
 import type {
   AddMemberResponse,
+  CreateExpensePayload,
+  DeleteExpenseResponse,
+  ExpenseDetailResponse,
   ExpenseItem,
   GroupBalancesResponse,
   GroupDetail,
   RenameGroupResponse,
+  UpdateExpensePayload,
 } from '../types/api';
+import {
+  MutationRefreshError,
+  executeMutationWithGuardedRefresh,
+} from '../utils/expenseForm';
+
+export { MutationRefreshError, executeMutationWithGuardedRefresh };
 
 export interface UseGroupDetailOptions {
   onUnauthorized?: () => void | Promise<void>;
@@ -20,6 +30,7 @@ export interface UseGroupDetailResult {
   balances: GroupBalancesResponse | null;
   isLoading: boolean;
   isRefreshing: boolean;
+  isMutating: boolean;
   error: string | null;
   myNetBalance: number;
   isCreator: boolean;
@@ -29,6 +40,9 @@ export interface UseGroupDetailResult {
   renameGroup: (name: string) => Promise<RenameGroupResponse>;
   leaveGroup: () => Promise<void>;
   deleteGroup: () => Promise<void>;
+  createExpense: (payload: Omit<CreateExpensePayload, 'groupId'> & { groupId?: string }) => Promise<ExpenseDetailResponse>;
+  updateExpense: (id: string, payload: UpdateExpensePayload) => Promise<ExpenseDetailResponse>;
+  deleteExpense: (id: string) => Promise<DeleteExpenseResponse>;
 }
 
 /**
@@ -51,21 +65,25 @@ export function useGroupDetail(
   const [balances, setBalances] = useState<GroupBalancesResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(enabled);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isMutating, setIsMutating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const prevGroupIdRef = useRef<string | null>(groupId);
   const prevUserIdRef = useRef<string | null>(user?.id ?? null);
   const requestIdRef = useRef<number>(0);
+  const isMutatingRef = useRef<boolean>(false);
   const onUnauthorizedRef = useRef(options?.onUnauthorized);
   onUnauthorizedRef.current = options?.onUnauthorized;
 
   const handleUnauthorized = useCallback(async () => {
+    isMutatingRef.current = false;
     setGroup(null);
     setExpenses([]);
     setBalances(null);
     setError(null);
     setIsLoading(false);
     setIsRefreshing(false);
+    setIsMutating(false);
     if (onUnauthorizedRef.current) {
       await onUnauthorizedRef.current();
     } else {
@@ -74,7 +92,7 @@ export function useGroupDetail(
   }, [logout]);
 
   const load = useCallback(
-    async (isRefresh = false) => {
+    async (isRefresh = false, throwOnError = false) => {
       if (!groupId) return;
       const currentRequestId = ++requestIdRef.current;
 
@@ -98,14 +116,19 @@ export function useGroupDetail(
         setExpenses(expensesRes.expenses ?? []);
         setBalances(balancesRes);
       } catch (err: any) {
-        if (currentRequestId !== requestIdRef.current) return;
+        if (currentRequestId !== requestIdRef.current) {
+          if (throwOnError) throw err;
+          return;
+        }
 
         if (err?.status === 401) {
           await handleUnauthorized();
+          if (throwOnError) throw err;
           return;
         }
 
         setError(err?.message || 'Failed to load group details');
+        if (throwOnError) throw err;
       } finally {
         if (currentRequestId === requestIdRef.current) {
           setIsLoading(false);
@@ -125,6 +148,8 @@ export function useGroupDetail(
       setError(null);
       setIsLoading(false);
       setIsRefreshing(false);
+      setIsMutating(false);
+      isMutatingRef.current = false;
       prevGroupIdRef.current = null;
       prevUserIdRef.current = null;
       return;
@@ -136,6 +161,8 @@ export function useGroupDetail(
       setExpenses([]);
       setBalances(null);
       setError(null);
+      setIsMutating(false);
+      isMutatingRef.current = false;
       prevGroupIdRef.current = groupId;
       prevUserIdRef.current = user.id;
     }
@@ -147,32 +174,123 @@ export function useGroupDetail(
 
   const addMember = useCallback(
     async (email: string): Promise<AddMemberResponse> => {
-      const res = await groupsApi.addMember(groupId, { email });
-      // Refresh to ensure updated memberCount, members list, and ledger
-      await load(true);
-      return res;
+      return executeMutationWithGuardedRefresh(
+        () => groupsApi.addMember(groupId, { email }),
+        () => load(true, true),
+        handleUnauthorized,
+        setIsMutating,
+        'Member added, but updating group details failed. Please pull to refresh.',
+        isMutatingRef
+      );
     },
-    [groupId, load]
+    [groupId, handleUnauthorized, load]
   );
 
   const renameGroup = useCallback(
     async (name: string): Promise<RenameGroupResponse> => {
-      const res = await groupsApi.rename(groupId, { name });
-      // Update local state with confirmed name from server
-      setGroup((prev) => (prev ? { ...prev, name: res.group.name, updatedAt: res.group.updatedAt } : null));
-      await load(true);
-      return res;
+      return executeMutationWithGuardedRefresh(
+        async () => {
+          const res = await groupsApi.rename(groupId, { name });
+          setGroup((prev) => (prev ? { ...prev, name: res.group.name, updatedAt: res.group.updatedAt } : null));
+          return res;
+        },
+        () => load(true, true),
+        handleUnauthorized,
+        setIsMutating,
+        'Group renamed, but updating group details failed. Please pull to refresh.',
+        isMutatingRef
+      );
     },
-    [groupId, load]
+    [groupId, handleUnauthorized, load]
   );
 
   const leaveGroup = useCallback(async (): Promise<void> => {
-    await groupsApi.leave(groupId);
-  }, [groupId]);
+    if (isMutatingRef.current) {
+      const err: any = new Error('A mutation is already in progress');
+      err.code = 'MUTATION_IN_PROGRESS';
+      throw err;
+    }
+    isMutatingRef.current = true;
+    setIsMutating(true);
+    try {
+      await groupsApi.leave(groupId);
+    } catch (err: any) {
+      if (err?.status === 401) {
+        await handleUnauthorized();
+      }
+      throw err;
+    } finally {
+      isMutatingRef.current = false;
+      setIsMutating(false);
+    }
+  }, [groupId, handleUnauthorized]);
 
   const deleteGroup = useCallback(async (): Promise<void> => {
-    await groupsApi.delete(groupId);
-  }, [groupId]);
+    if (isMutatingRef.current) {
+      const err: any = new Error('A mutation is already in progress');
+      err.code = 'MUTATION_IN_PROGRESS';
+      throw err;
+    }
+    isMutatingRef.current = true;
+    setIsMutating(true);
+    try {
+      await groupsApi.delete(groupId);
+    } catch (err: any) {
+      if (err?.status === 401) {
+        await handleUnauthorized();
+      }
+      throw err;
+    } finally {
+      isMutatingRef.current = false;
+      setIsMutating(false);
+    }
+  }, [groupId, handleUnauthorized]);
+
+  const createExpense = useCallback(
+    async (payload: Omit<CreateExpensePayload, 'groupId'> & { groupId?: string }): Promise<ExpenseDetailResponse> => {
+      return executeMutationWithGuardedRefresh(
+        () =>
+          expensesApi.create({
+            ...payload,
+            groupId: payload.groupId || groupId,
+          }),
+        () => load(true, true),
+        handleUnauthorized,
+        setIsMutating,
+        'Expense saved, but updating group ledger failed. Please pull to refresh.',
+        isMutatingRef
+      );
+    },
+    [groupId, handleUnauthorized, load]
+  );
+
+  const updateExpense = useCallback(
+    async (id: string, payload: UpdateExpensePayload): Promise<ExpenseDetailResponse> => {
+      return executeMutationWithGuardedRefresh(
+        () => expensesApi.update(id, payload),
+        () => load(true, true),
+        handleUnauthorized,
+        setIsMutating,
+        'Expense updated, but updating group ledger failed. Please pull to refresh.',
+        isMutatingRef
+      );
+    },
+    [handleUnauthorized, load]
+  );
+
+  const deleteExpense = useCallback(
+    async (id: string): Promise<DeleteExpenseResponse> => {
+      return executeMutationWithGuardedRefresh(
+        () => expensesApi.delete(id),
+        () => load(true, true),
+        handleUnauthorized,
+        setIsMutating,
+        'Expense deleted, but updating group ledger failed. Please pull to refresh.',
+        isMutatingRef
+      );
+    },
+    [handleUnauthorized, load]
+  );
 
   const myNetBalance = useMemo(() => {
     if (!balances?.balances || !user?.id) return 0;
@@ -194,6 +312,7 @@ export function useGroupDetail(
     balances,
     isLoading,
     isRefreshing,
+    isMutating,
     error,
     myNetBalance,
     isCreator,
@@ -203,5 +322,8 @@ export function useGroupDetail(
     renameGroup,
     leaveGroup,
     deleteGroup,
+    createExpense,
+    updateExpense,
+    deleteExpense,
   };
 }

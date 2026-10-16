@@ -58,7 +58,14 @@ export const expensesApi = {
 
   /**
    * Updates an existing expense.
-   * Permitted for the expense creator, original payer, or group creator.
+   *
+   * Backend authorization rules (PUT /api/expenses/:id):
+   * - Caller must be an active group member (assertMember).
+   * - Permitted for the group creator (group.createdBy).
+   * - Modern expenses (with createdBy): Permitted only for the expense creator.
+   *   Payer-only users are NOT permitted to edit modern expenses.
+   * - Legacy expenses (where createdBy is absent): Falls back to permitting the original payer.
+   *
    * Enforces the exact same paise arithmetic and membership rules as creation.
    */
   update: async (id: string, payload: UpdateExpensePayload): Promise<ExpenseDetailResponse> => {
@@ -70,7 +77,12 @@ export const expensesApi = {
 
   /**
    * Deletes an expense.
-   * Permitted for the expense creator, original payer, or group creator.
+   *
+   * Backend authorization rules (DELETE /api/expenses/:id):
+   * - Permitted for the group creator (group.createdBy).
+   * - Modern expenses (with createdBy): Permitted only for the expense creator.
+   *   Payer-only users are NOT permitted to delete modern expenses.
+   * - Legacy expenses (where createdBy is absent): Falls back to permitting the original payer.
    */
   delete: async (id: string): Promise<DeleteExpenseResponse> => {
     return apiRequest<DeleteExpenseResponse>(`/expenses/${id}`, {
