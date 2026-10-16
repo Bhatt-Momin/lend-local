@@ -96,68 +96,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const login = async (email: string, password: string): Promise<void> => {
+  const login = React.useCallback(async (email: string, password: string): Promise<void> => {
     const res = await authApi.login({ email, password });
     await saveAuthToken(res.token);
     await saveUserData(res.user);
     setToken(res.token);
     setUser(res.user);
-  };
+  }, []);
 
-  const register = async (name: string, email: string, password: string): Promise<void> => {
+  const register = React.useCallback(async (name: string, email: string, password: string): Promise<void> => {
     const res = await authApi.register({ name, email, password });
     await saveAuthToken(res.token);
     await saveUserData(res.user);
     setToken(res.token);
     setUser(res.user);
-  };
+  }, []);
 
-  const logout = async (): Promise<void> => {
+  const logout = React.useCallback(async (): Promise<void> => {
     await clearAllAuth();
     setToken(null);
     setUser(null);
-  };
+  }, []);
 
-  const refreshUser = async (): Promise<void> => {
-    if (!token) return;
+  const refreshUser = React.useCallback(async (): Promise<void> => {
+    const currentToken = await getAuthToken();
+    if (!currentToken) return;
     try {
-      const { user: freshUser } = await authApi.getMe(token);
+      const { user: freshUser } = await authApi.getMe(currentToken);
       setUser(freshUser);
       await saveUserData(freshUser);
     } catch (err: any) {
       if (err?.status === 401) {
-        await logout();
+        await clearAllAuth();
+        setToken(null);
+        setUser(null);
       }
     }
-  };
+  }, []);
 
-  const updateServerUrl = async (url: string): Promise<void> => {
+  const updateServerUrl = React.useCallback(async (url: string): Promise<void> => {
     await setCustomApiBaseUrl(url);
     const active = await getActiveApiBaseUrl();
     setServerUrl(active);
-  };
+  }, []);
 
-  const resetToDefaultServerUrl = async (): Promise<void> => {
+  const resetToDefaultServerUrl = React.useCallback(async (): Promise<void> => {
     await resetApiBaseUrl();
     const active = await getActiveApiBaseUrl();
     setServerUrl(active);
-  };
+  }, []);
+
+  const contextValue = React.useMemo<AuthContextType>(
+    () => ({
+      user,
+      token,
+      isLoading,
+      serverUrl,
+      login,
+      register,
+      logout,
+      refreshUser,
+      updateServerUrl,
+      resetToDefaultServerUrl,
+    }),
+    [
+      user,
+      token,
+      isLoading,
+      serverUrl,
+      login,
+      register,
+      logout,
+      refreshUser,
+      updateServerUrl,
+      resetToDefaultServerUrl,
+    ]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        isLoading,
-        serverUrl,
-        login,
-        register,
-        logout,
-        refreshUser,
-        updateServerUrl,
-        resetToDefaultServerUrl,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

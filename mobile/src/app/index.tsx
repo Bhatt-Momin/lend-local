@@ -81,15 +81,11 @@ export default function HomeScreen() {
   };
 
   const handleGroupPress = (group: GroupSummary) => {
-    router.push(`/group/${group.id}` as any);
+    router.push(`/group/${group.id}`);
   };
 
   const handleCreateGroup = () => {
-    Alert.alert(
-      'Create Group',
-      'Group creation arrives in Phase 3. Your groups list is live from GET /api/groups.',
-      [{ text: 'OK' }]
-    );
+    router.push('/group/new');
   };
 
   if (isLoading) {
@@ -220,10 +216,14 @@ export default function HomeScreen() {
                 <ThemedView type="backgroundElement" style={styles.stateCard}>
                   <ThemedText type="smallBold">No groups yet</ThemedText>
                   <ThemedText type="small" style={styles.stateSub}>
-                    Create your first group on web, or tap New when Phase 3 lands.
+                    Tap + New above to create your first group and start sharing expenses.
                   </ThemedText>
-                  <TouchableOpacity style={styles.retryBtn} onPress={() => refresh()} activeOpacity={0.8}>
-                    <ThemedText style={styles.retryText}>Refresh</ThemedText>
+                  <TouchableOpacity
+                    style={styles.retryBtn}
+                    onPress={() => router.push('/group/new')}
+                    activeOpacity={0.8}
+                  >
+                    <ThemedText style={styles.retryText}>Create Group</ThemedText>
                   </TouchableOpacity>
                 </ThemedView>
               ) : (
@@ -269,7 +269,7 @@ export default function HomeScreen() {
             <View style={[styles.statusDot, user ? styles.statusDotAuth : styles.statusDotReady]} />
             <ThemedText type="smallBold" style={user ? styles.statusTextAuth : styles.statusTextReady}>
               {user
-                ? 'Stage 3 Phase 2: Dashboard & Groups Live'
+                ? 'Stage 3: Groups & Management Active'
                 : 'Stage 2 Ready: Login & Registration Online'}
             </ThemedText>
           </View>
@@ -332,7 +332,7 @@ export default function HomeScreen() {
               <View style={styles.milestoneTextContainer}>
                 <ThemedText type="smallBold">Stage 3: Groups, Expenses & Ledger</ThemedText>
                 <ThemedText type="small" style={styles.milestoneSub}>
-                  Dashboard live — detail ledger next
+                  Dashboard, group details & management live
                 </ThemedText>
               </View>
             </View>

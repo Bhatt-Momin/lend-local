@@ -38,6 +38,7 @@ export function useGroups(
   const prevUserIdRef = useRef<string | null>(user?.id ?? null);
   const onUnauthorizedRef = useRef(options?.onUnauthorized);
   onUnauthorizedRef.current = options?.onUnauthorized;
+  const requestIdRef = useRef<number>(0);
 
   const handleUnauthorized = useCallback(async () => {
     setGroups([]);
@@ -53,6 +54,7 @@ export function useGroups(
 
   const load = useCallback(
     async (isRefresh = false) => {
+      const currentRequestId = ++requestIdRef.current;
       if (isRefresh) {
         setIsRefreshing(true);
       } else {
@@ -61,16 +63,20 @@ export function useGroups(
       setError(null);
       try {
         const res = await groupsApi.list();
+        if (currentRequestId !== requestIdRef.current) return;
         setGroups(res.groups ?? []);
       } catch (err: any) {
+        if (currentRequestId !== requestIdRef.current) return;
         if (err?.status === 401) {
           await handleUnauthorized();
           return;
         }
         setError(err?.message || 'Failed to load groups');
       } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
+        if (currentRequestId === requestIdRef.current) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
     },
     [handleUnauthorized]
@@ -78,7 +84,8 @@ export function useGroups(
 
   useEffect(() => {
     if (!enabled || !user) {
-      // Clear previous user's groups immediately when disabled or signed out
+      // Invalidate any in-flight requests and clear state immediately
+      requestIdRef.current += 1;
       setGroups([]);
       setError(null);
       setIsLoading(false);
@@ -89,6 +96,7 @@ export function useGroups(
 
     // Clear stale data immediately if switching user accounts
     if (prevUserIdRef.current !== user.id) {
+      requestIdRef.current += 1;
       setGroups([]);
       setError(null);
       prevUserIdRef.current = user.id;
