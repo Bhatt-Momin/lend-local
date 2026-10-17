@@ -227,6 +227,24 @@ export function canCancelIntent(status: PaymentStatus, isPayer: boolean): boolea
 }
 
 /**
+ * Determines whether an incoming payment intent can be confirmed by the user.
+ * FINANCIAL RULE: Only the creditor/recipient (intent.to) can confirm receipt,
+ * and strictly while the status is 'payer_claimed'.
+ */
+export function canConfirmIntent(status: PaymentStatus, isRecipient: boolean): boolean {
+  return Boolean(isRecipient && status === 'payer_claimed');
+}
+
+/**
+ * Determines whether an incoming payment intent can be rejected by the user.
+ * FINANCIAL RULE: Only the creditor/recipient (intent.to) can reject a claim,
+ * and strictly while the status is 'payer_claimed'.
+ */
+export function canRejectIntent(status: PaymentStatus, isRecipient: boolean): boolean {
+  return Boolean(isRecipient && status === 'payer_claimed');
+}
+
+/**
  * Checks whether an intent status has reached a terminal state.
  * Terminal states require stopping all polling and refreshing.
  */

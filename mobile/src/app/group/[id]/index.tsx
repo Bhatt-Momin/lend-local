@@ -536,10 +536,20 @@ export default function GroupDetailScreen() {
                                 }}
                                 activeOpacity={0.8}
                                 accessibilityRole="button"
-                                accessibilityLabel={`Manage payment status for ${toName}`}
+                                accessibilityLabel={
+                                  isReceiverMe && debtActiveIntent.status === 'payer_claimed'
+                                    ? `Review payment from ${fromName}`
+                                    : isPayerMe
+                                    ? `Manage payment status for ${toName}`
+                                    : `Payment status for ${fromName}`
+                                }
                               >
                                 <ThemedText style={styles.settlementPayBtnText}>
-                                  {isPayerMe ? 'Manage' : 'Status'}
+                                  {isPayerMe
+                                    ? 'Manage'
+                                    : isReceiverMe && debtActiveIntent.status === 'payer_claimed'
+                                    ? 'Review'
+                                    : 'Status'}
                                 </ThemedText>
                               </TouchableOpacity>
                             ) : canPay ? (

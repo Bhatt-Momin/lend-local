@@ -29,6 +29,8 @@ import {
   buildIntentActionPayload,
   canCancelIntent,
   canClaimIntent,
+  canConfirmIntent,
+  canRejectIntent,
   getPaymentStatusBadge,
   isTerminalStatus,
   validatePaymentAmount,
@@ -41,7 +43,7 @@ export interface PaymentModalProps {
   settlement: SettlementDebt | null;
   currentUserId?: string | null;
   existingIntent?: PaymentIntentItem | null;
-  onIntentUpdated?: () => void;
+  onIntentUpdated?: () => void | Promise<void>;
 }
 
 export function PaymentModal({
@@ -60,6 +62,7 @@ export function PaymentModal({
   const [isRefreshingStatus, setIsRefreshingStatus] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
   const [isConflict, setIsConflict] = useState<boolean>(false);
   const [isRecipientUpiMissing, setIsRecipientUpiMissing] = useState<boolean>(false);
 
@@ -68,9 +71,11 @@ export function PaymentModal({
   const [currentStatus, setCurrentStatus] = useState<PaymentStatus | null>(null);
   const [currentAmount, setCurrentAmount] = useState<number | null>(null);
   const [currentPayeeName, setCurrentPayeeName] = useState<string | null>(null);
+  const [currentPayerName, setCurrentPayerName] = useState<string | null>(null);
   const [currentPayeeUpiId, setCurrentPayeeUpiId] = useState<string | null>(null);
   const [currentUpiUri, setCurrentUpiUri] = useState<string | null>(null);
   const [currentFromId, setCurrentFromId] = useState<string | null>(null);
+  const [currentToId, setCurrentToId] = useState<string | null>(null);
 
   // UPI launch feedback state
   const [launchStatus, setLaunchStatus] = useState<'idle' | 'launched' | 'fallback'>('idle');
@@ -97,6 +102,7 @@ export function PaymentModal({
     if (visible && settlement) {
       setFormError(null);
       setFormSuccess(null);
+      setRefreshWarning(null);
       setIsConflict(false);
       setIsRecipientUpiMissing(false);
       setIsSubmitting(false);
@@ -109,23 +115,33 @@ export function PaymentModal({
             ? (existingIntent.from as any)._id || (existingIntent.from as any).id
             : existingIntent.from
         );
+        const toId = String(
+          typeof existingIntent.to === 'object' && existingIntent.to
+            ? (existingIntent.to as any)._id || (existingIntent.to as any).id
+            : existingIntent.to
+        );
         setCurrentIntentId(existingIntent.intentId);
         setCurrentStatus(existingIntent.status);
         setCurrentAmount(existingIntent.amount);
         setCurrentPayeeName(existingIntent.payeeName || settlement.to?.name || 'Recipient');
+        setCurrentPayerName(existingIntent.payerName || settlement.from?.name || 'Payer');
         setCurrentPayeeUpiId((existingIntent as any).payeeUpiId || null);
         setCurrentUpiUri(existingIntent.upiUri || null);
         setCurrentFromId(fromId);
+        setCurrentToId(toId);
         setLaunchStatus('idle');
         setAmountInput(existingIntent.amount.toFixed(2));
       } else {
+        const toId = String(settlement.to?.userId ?? settlement.to?.id ?? '');
         setCurrentIntentId(null);
         setCurrentStatus(null);
         setCurrentAmount(null);
         setCurrentPayeeName(settlement.to?.name || 'Recipient');
+        setCurrentPayerName(settlement.from?.name || 'Payer');
         setCurrentPayeeUpiId(null);
         setCurrentUpiUri(null);
         setCurrentFromId(String(currentUserId || ''));
+        setCurrentToId(toId);
         setLaunchStatus('idle');
         setAmountInput(settlement.amount.toFixed(2));
       }
@@ -201,6 +217,11 @@ export function PaymentModal({
     currentFromId &&
     String(currentFromId) === String(currentUserId)
   );
+  const isRecipient = Boolean(
+    currentUserId &&
+    currentToId &&
+    String(currentToId) === String(currentUserId)
+  );
 
   const canClaim = Boolean(
     currentIntentId && currentStatus && canClaimIntent(currentStatus, isPayer)
@@ -208,10 +229,18 @@ export function PaymentModal({
   const canCancel = Boolean(
     currentIntentId && currentStatus && canCancelIntent(currentStatus, isPayer)
   );
+  const canConfirm = Boolean(
+    currentIntentId && currentStatus && canConfirmIntent(currentStatus, isRecipient)
+  );
+  const canReject = Boolean(
+    currentIntentId && currentStatus && canRejectIntent(currentStatus, isRecipient)
+  );
+
   const isTerminal = Boolean(currentStatus && isTerminalStatus(currentStatus));
   const badgeInfo = currentStatus ? getPaymentStatusBadge(currentStatus) : null;
 
   const displayPayeeName = currentPayeeName || settlement.to?.name || 'Group Member';
+  const displayPayerName = currentPayerName || settlement.from?.name || 'Group Member';
   const displayAmount = currentAmount ?? authorizedAmount;
 
   const handleFullAmount = () => {
@@ -234,6 +263,7 @@ export function PaymentModal({
 
     setFormError(null);
     setFormSuccess(null);
+    setRefreshWarning(null);
     setIsConflict(false);
     setIsRecipientUpiMissing(false);
 
@@ -268,12 +298,18 @@ export function PaymentModal({
       setCurrentStatus(res.status || 'pending');
       setCurrentAmount(res.amount);
       setCurrentPayeeName(res.payeeName);
+      setCurrentPayerName(settlement.from?.name || 'You');
       setCurrentPayeeUpiId(res.payeeUpiId);
       setCurrentUpiUri(res.upiUri);
       setCurrentFromId(String(currentUserId || ''));
+      setCurrentToId(recipientId);
 
       if (onIntentUpdated) {
-        onIntentUpdated();
+        try {
+          await onIntentUpdated();
+        } catch {
+          // Non-blocking
+        }
       }
 
       // Attempt to launch external UPI app
@@ -316,13 +352,18 @@ export function PaymentModal({
             setIsActionInProgress(true);
             setFormError(null);
             setFormSuccess(null);
+            setRefreshWarning(null);
             try {
               const payload = buildIntentActionPayload(currentIntentId);
               const res = await paymentApi.claim(payload);
               setCurrentStatus(res.status);
               setFormSuccess(res.message || 'Payment claimed successfully');
               if (onIntentUpdated) {
-                onIntentUpdated();
+                try {
+                  await onIntentUpdated();
+                } catch {
+                  setRefreshWarning('Payment was claimed on the server, but balances could not be refreshed immediately. Please pull down to refresh.');
+                }
               }
             } catch (err: any) {
               setFormError(err?.message || 'Failed to claim payment');
@@ -351,6 +392,7 @@ export function PaymentModal({
             setIsActionInProgress(true);
             setFormError(null);
             setFormSuccess(null);
+            setRefreshWarning(null);
             try {
               const payload = buildIntentActionPayload(currentIntentId);
               const res = await paymentApi.cancel(payload);
@@ -358,7 +400,11 @@ export function PaymentModal({
               stopPolling();
               setFormSuccess(res.message || 'Payment intent cancelled');
               if (onIntentUpdated) {
-                onIntentUpdated();
+                try {
+                  await onIntentUpdated();
+                } catch {
+                  setRefreshWarning('Payment was cancelled on the server, but balances could not be refreshed immediately. Please pull down to refresh.');
+                }
               }
             } catch (err: any) {
               setFormError(err?.message || 'Failed to cancel payment');
@@ -371,13 +417,95 @@ export function PaymentModal({
     );
   };
 
-  // M3: Manual Status Refresh
+  // M4: Recipient Confirm Receipt flow (strictly allowed only while status === 'payer_claimed')
+  const handleConfirmReceipt = () => {
+    if (isActionInProgress || !canConfirm || !currentIntentId) return;
+
+    Alert.alert(
+      'Confirm Payment Receipt',
+      `Did you check your bank account or UPI app and confirm that ${formatINR(displayAmount)} was received from ${displayPayerName}?\n\n⚠️ Once confirmed, this settlement will be authoritatively applied to the group balances.`,
+      [
+        { text: 'Not Yet', style: 'cancel' },
+        {
+          text: 'Yes, Confirm Receipt',
+          onPress: async () => {
+            setIsActionInProgress(true);
+            setFormError(null);
+            setFormSuccess(null);
+            setRefreshWarning(null);
+            try {
+              const payload = buildIntentActionPayload(currentIntentId);
+              const res = await paymentApi.confirm(payload);
+              setCurrentStatus(res.status);
+              stopPolling();
+              setFormSuccess(res.message || 'Payment confirmed. The settlement has been applied to the ledger.');
+              if (onIntentUpdated) {
+                try {
+                  await onIntentUpdated();
+                } catch {
+                  setRefreshWarning('Payment was confirmed successfully on the server, but group balances could not be refreshed immediately. Please pull down to refresh.');
+                }
+              }
+            } catch (err: any) {
+              setFormError(err?.message || 'Failed to confirm payment receipt');
+            } finally {
+              setIsActionInProgress(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // M4: Recipient Reject Claim flow (strictly allowed only while status === 'payer_claimed')
+  const handleRejectClaim = () => {
+    if (isActionInProgress || !canReject || !currentIntentId) return;
+
+    Alert.alert(
+      'Reject Payment Claim',
+      `Are you sure you want to reject this payment claim from ${displayPayerName}?\n\n⚠️ Confirm only if you verified that you did NOT receive ${formatINR(displayAmount)}. No changes will be made to group balances.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject Claim',
+          style: 'destructive',
+          onPress: async () => {
+            setIsActionInProgress(true);
+            setFormError(null);
+            setFormSuccess(null);
+            setRefreshWarning(null);
+            try {
+              const payload = buildIntentActionPayload(currentIntentId);
+              const res = await paymentApi.reject(payload);
+              setCurrentStatus(res.status);
+              stopPolling();
+              setFormSuccess(res.message || 'Payment rejected. No ledger change has been made.');
+              if (onIntentUpdated) {
+                try {
+                  await onIntentUpdated();
+                } catch {
+                  setRefreshWarning('Payment was rejected on the server, but group balances could not be refreshed immediately. Please pull down to refresh.');
+                }
+              }
+            } catch (err: any) {
+              setFormError(err?.message || 'Failed to reject payment claim');
+            } finally {
+              setIsActionInProgress(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Manual Status Refresh
   const handleManualRefresh = async () => {
     if (!currentIntentId || isActionInProgress || isRefreshingStatus) return;
 
     setIsRefreshingStatus(true);
     setFormError(null);
     setFormSuccess(null);
+    setRefreshWarning(null);
 
     const currentReqId = ++statusRequestIdRef.current;
     try {
@@ -385,7 +513,11 @@ export function PaymentModal({
       if (currentReqId === statusRequestIdRef.current) {
         setCurrentStatus(res.status);
         if (onIntentUpdated) {
-          onIntentUpdated();
+          try {
+            await onIntentUpdated();
+          } catch {
+            // Non-blocking for manual status check
+          }
         }
         if (isTerminalStatus(res.status)) {
           stopPolling();
@@ -406,6 +538,7 @@ export function PaymentModal({
     setLaunchStatus('idle');
     setFormError(null);
     setFormSuccess(null);
+    setRefreshWarning(null);
     setAmountInput(authorizedAmount.toFixed(2));
   };
 
@@ -438,11 +571,17 @@ export function PaymentModal({
             <View style={styles.dialogHeader}>
               <View style={styles.titleWrap}>
                 <ThemedText type="smallBold" style={styles.dialogTitle}>
-                  {currentIntentId ? 'UPI Payment Status' : 'Pay via Direct UPI'}
+                  {currentIntentId
+                    ? isRecipient
+                      ? 'Review Payment Claim'
+                      : 'UPI Payment Status'
+                    : 'Pay via Direct UPI'}
                 </ThemedText>
                 <ThemedText type="small" style={styles.dialogSubtitle}>
                   {currentIntentId
-                    ? 'Track and manage peer-to-peer settlement'
+                    ? isRecipient
+                      ? 'Verify and confirm incoming funds'
+                      : 'Track and manage peer-to-peer settlement'
                     : 'Settle your share peer-to-peer'}
                 </ThemedText>
               </View>
@@ -461,10 +600,10 @@ export function PaymentModal({
             <View style={styles.debtSummaryCard}>
               <View style={styles.debtSummaryRow}>
                 <ThemedText type="small" style={styles.debtSummaryLabel}>
-                  {isPayer ? 'Paying To:' : 'From:'}
+                  {isRecipient ? 'Payer:' : 'Paying To:'}
                 </ThemedText>
                 <ThemedText type="smallBold" style={styles.debtSummaryValue}>
-                  {displayPayeeName}
+                  {isRecipient ? displayPayerName : displayPayeeName}
                 </ThemedText>
               </View>
               <View style={styles.debtSummaryRow}>
@@ -477,7 +616,7 @@ export function PaymentModal({
               </View>
             </View>
 
-            {/* Error / Success Feedback Banners */}
+            {/* Error / Success / Warning Feedback Banners */}
             {formError ? (
               <View
                 style={[
@@ -496,6 +635,12 @@ export function PaymentModal({
             {formSuccess ? (
               <View style={styles.successBox}>
                 <ThemedText style={styles.successText}>✓ {formSuccess}</ThemedText>
+              </View>
+            ) : null}
+
+            {refreshWarning ? (
+              <View style={styles.warningBox}>
+                <ThemedText style={styles.warningText}>⚠️ {refreshWarning}</ThemedText>
               </View>
             ) : null}
 
@@ -539,7 +684,7 @@ export function PaymentModal({
                 <View style={styles.intentDetailsCard}>
                   <View style={styles.detailRow}>
                     <ThemedText type="small" style={styles.detailLabel}>
-                      Initiated Amount:
+                      {isRecipient ? 'Claimed Amount:' : 'Initiated Amount:'}
                     </ThemedText>
                     <ThemedText type="smallBold" style={styles.detailValue}>
                       {formatINR(displayAmount)}
@@ -571,8 +716,8 @@ export function PaymentModal({
                   </View>
                 </View>
 
-                {/* Status Guidance Card */}
-                {currentStatus === 'pending' ? (
+                {/* Status Guidance Card for Payer */}
+                {isPayer && currentStatus === 'pending' ? (
                   <View style={styles.noticeBox}>
                     <ThemedText type="small" style={styles.noticeText}>
                       ℹ️ <ThemedText type="smallBold" style={styles.boldNotice}>Action Required:</ThemedText>{' '}
@@ -585,7 +730,7 @@ export function PaymentModal({
                   </View>
                 ) : null}
 
-                {currentStatus === 'payer_claimed' ? (
+                {isPayer && currentStatus === 'payer_claimed' ? (
                   <View style={styles.claimedNoticeBox}>
                     <ThemedText type="small" style={styles.claimedNoticeText}>
                       ⏳ <ThemedText type="smallBold" style={styles.boldNotice}>Awaiting Recipient Confirmation:</ThemedText>{' '}
@@ -598,11 +743,33 @@ export function PaymentModal({
                   </View>
                 ) : null}
 
+                {/* Status Guidance Card for Recipient (M4) */}
+                {isRecipient && currentStatus === 'payer_claimed' ? (
+                  <View style={styles.verificationCard}>
+                    <ThemedText style={styles.verificationTitle}>
+                      ⚠️ Verification Required
+                    </ThemedText>
+                    <ThemedText type="small" style={styles.verificationSub}>
+                      {displayPayerName} states they transferred {formatINR(displayAmount)} to you via UPI. Please check your bank account or UPI app (Google Pay, PhonePe, Paytm, etc.) to verify receipt before confirming.
+                    </ThemedText>
+                  </View>
+                ) : null}
+
+                {isRecipient && currentStatus === 'pending' ? (
+                  <View style={styles.noticeBox}>
+                    <ThemedText type="small" style={styles.noticeText}>
+                      ℹ️ {displayPayerName} initiated this payment intent, but has not yet claimed that the payment was sent.
+                    </ThemedText>
+                  </View>
+                ) : null}
+
                 {currentStatus === 'recipient_confirmed' ? (
                   <View style={styles.confirmedNoticeBox}>
                     <ThemedText type="small" style={styles.confirmedNoticeText}>
                       🎉 <ThemedText type="smallBold" style={styles.boldNotice}>Confirmed!</ThemedText>{' '}
-                      The recipient confirmed receipt. This settlement is authoritatively recorded on the ledger.
+                      {isRecipient
+                        ? 'You confirmed receiving this payment. The settlement has been applied to group balances.'
+                        : 'The recipient confirmed receipt. This settlement is authoritatively recorded on the ledger.'}
                     </ThemedText>
                   </View>
                 ) : null}
@@ -611,7 +778,9 @@ export function PaymentModal({
                   <View style={styles.errorBox}>
                     <ThemedText style={styles.errorText}>
                       ❌ <ThemedText type="smallBold" style={styles.boldNotice}>Payment Rejected:</ThemedText>{' '}
-                      The recipient stated they did not receive this payment. No ledger changes were made.
+                      {isRecipient
+                        ? 'You rejected this payment claim. No ledger changes were made.'
+                        : 'The recipient stated they did not receive this payment. No ledger changes were made.'}
                     </ThemedText>
                   </View>
                 ) : null}
@@ -624,18 +793,49 @@ export function PaymentModal({
                   </View>
                 ) : null}
 
-                {/* Read-Only Notice for Incoming/Receiver intents */}
-                {!isPayer ? (
+                {/* Third-party observer notice */}
+                {!isPayer && !isRecipient ? (
                   <View style={styles.noticeBox}>
                     <ThemedText type="small" style={styles.noticeText}>
-                      ℹ️ You are the recipient for this payment. Confirmation and rejection controls will be available in the verification center.
+                      ℹ️ You are viewing this settlement intent in read-only mode.
                     </ThemedText>
                   </View>
                 ) : null}
 
                 {/* Action Buttons */}
                 <View style={styles.intentActionsWrap}>
-                  {/* Payer Pending Controls: Claim and Cancel */}
+                  {/* M4: Recipient Actions (Confirm & Reject) */}
+                  {canConfirm ? (
+                    <TouchableOpacity
+                      style={[styles.btn, styles.confirmBtn, isBusy && styles.btnDisabled]}
+                      onPress={handleConfirmReceipt}
+                      disabled={isBusy}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Confirm payment receipt"
+                    >
+                      {isActionInProgress ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <ThemedText style={styles.confirmBtnText}>✓ Confirm Receipt</ThemedText>
+                      )}
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {canReject ? (
+                    <TouchableOpacity
+                      style={[styles.btn, styles.rejectBtn, isBusy && styles.btnDisabled]}
+                      onPress={handleRejectClaim}
+                      disabled={isBusy}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Reject payment claim"
+                    >
+                      <ThemedText style={styles.rejectBtnText}>✕ Reject Claim</ThemedText>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {/* M3: Payer Pending Controls: Claim and Cancel */}
                   {canClaim ? (
                     <TouchableOpacity
                       style={[styles.btn, styles.claimBtn, isBusy && styles.btnDisabled]}
@@ -654,7 +854,7 @@ export function PaymentModal({
                   ) : null}
 
                   {/* Re-launch UPI App if URI is available and status is pending */}
-                  {currentUpiUri && currentStatus === 'pending' ? (
+                  {currentUpiUri && currentStatus === 'pending' && isPayer ? (
                     <TouchableOpacity
                       style={[styles.btn, styles.secondaryBtn, isBusy && styles.btnDisabled]}
                       onPress={() => handleLaunchUpi(currentUpiUri)}
@@ -922,6 +1122,14 @@ const styles = StyleSheet.create({
   warningBox: {
     backgroundColor: '#F59E0B1A',
     borderColor: '#F59E0B66',
+    borderWidth: 1,
+    borderRadius: Spacing.one + 2,
+    padding: Spacing.two + 1,
+  },
+  warningText: {
+    color: '#FCD34D',
+    fontSize: 12,
+    lineHeight: 17,
   },
   errorText: {
     color: '#FCA5A5',
@@ -965,6 +1173,24 @@ const styles = StyleSheet.create({
     color: '#38BDF8',
     fontSize: 12,
     lineHeight: 17,
+  },
+  verificationCard: {
+    backgroundColor: '#0284C71A',
+    borderColor: '#0284C780',
+    borderWidth: 1.5,
+    borderRadius: Spacing.two,
+    padding: Spacing.three,
+    gap: Spacing.one,
+  },
+  verificationTitle: {
+    color: '#38BDF8',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  verificationSub: {
+    color: '#E2E8F0',
+    fontSize: 12,
+    lineHeight: 18,
   },
   subNoticeText: {
     color: '#94A3B8',
@@ -1082,6 +1308,24 @@ const styles = StyleSheet.create({
   intentActionsWrap: {
     gap: Spacing.two,
     marginTop: Spacing.one,
+  },
+  confirmBtn: {
+    backgroundColor: '#10B981',
+  },
+  confirmBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  rejectBtn: {
+    backgroundColor: '#EF44441A',
+    borderColor: '#EF444480',
+    borderWidth: 1,
+  },
+  rejectBtnText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '700',
   },
   claimBtn: {
     backgroundColor: '#10B981',
