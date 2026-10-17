@@ -17,10 +17,11 @@ import { ThemedText } from '../../../components/themed-text';
 import { ThemedView } from '../../../components/themed-view';
 import { ExpenseModal } from '../../../components/ExpenseModal';
 import { ExpenseDetailModal } from '../../../components/ExpenseDetailModal';
+import { PaymentModal } from '../../../components/PaymentModal';
 import { BottomTabInset, MaxContentWidth, Spacing } from '../../../constants/theme';
 import { useAuth } from '../../../context/AuthContext';
 import { useGroupDetail } from '../../../hooks/useGroupDetail';
-import type { ExpenseItem } from '../../../types/api';
+import type { ExpenseItem, SettlementDebt } from '../../../types/api';
 import { BALANCE_COLORS, formatINR, getBalanceLabel, getBalanceTone } from '../../../utils/format';
 
 type TabType = 'expenses' | 'balances' | 'members';
@@ -58,6 +59,7 @@ export default function GroupDetailScreen() {
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(null);
   const [expenseToEdit, setExpenseToEdit] = useState<ExpenseItem | null>(null);
+  const [selectedSettlement, setSelectedSettlement] = useState<SettlementDebt | null>(null);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
 
   const [memberEmailInput, setMemberEmailInput] = useState('');
@@ -454,6 +456,7 @@ export default function GroupDetailScreen() {
                       const currentUserId = String(user?.id ?? '');
                       const isPayerMe = Boolean(currentUserId && fromId === currentUserId);
                       const isReceiverMe = Boolean(currentUserId && toId === currentUserId);
+                      const canPay = isPayerMe && isActiveMember;
                       const fromName = s.from?.name || 'Someone';
                       const toName = s.to?.name || 'Someone';
 
@@ -472,16 +475,29 @@ export default function GroupDetailScreen() {
                           >
                             {label}
                           </ThemedText>
-                          <ThemedText
-                            type="smallBold"
-                            style={[
-                              styles.settlementAmount,
-                              isPayerMe && styles.amountOwe,
-                              isReceiverMe && styles.amountOwed,
-                            ]}
-                          >
-                            {formatINR(s.amount)}
-                          </ThemedText>
+                          <View style={styles.settlementRight}>
+                            <ThemedText
+                              type="smallBold"
+                              style={[
+                                styles.settlementAmount,
+                                isPayerMe && styles.amountOwe,
+                                isReceiverMe && styles.amountOwed,
+                              ]}
+                            >
+                              {formatINR(s.amount)}
+                            </ThemedText>
+                            {canPay ? (
+                              <TouchableOpacity
+                                style={styles.settlementPayBtn}
+                                onPress={() => setSelectedSettlement(s)}
+                                activeOpacity={0.8}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Pay ${toName} ${formatINR(s.amount)}`}
+                              >
+                                <ThemedText style={styles.settlementPayBtnText}>Pay</ThemedText>
+                              </TouchableOpacity>
+                            ) : null}
+                          </View>
                         </View>
                       );
                     })}
@@ -783,6 +799,15 @@ export default function GroupDetailScreen() {
           onDeleteExpense={deleteExpense}
           isMutating={isMutating}
         />
+
+        {/* MODAL 6: DIRECT UPI PAYMENT */}
+        <PaymentModal
+          visible={Boolean(selectedSettlement)}
+          onClose={() => setSelectedSettlement(null)}
+          groupId={groupId}
+          settlement={selectedSettlement}
+          currentUserId={user?.id}
+        />
       </SafeAreaView>
     </ThemedView>
   );
@@ -970,6 +995,25 @@ const styles = StyleSheet.create({
   settlementAmount: { fontSize: 14 },
   amountOwe: { color: '#EF4444' },
   amountOwed: { color: '#10B981' },
+  settlementRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  settlementPayBtn: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Spacing.one,
+    minHeight: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settlementPayBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 12,
+  },
   memberBalanceList: { gap: Spacing.one },
   memberBalanceRow: {
     flexDirection: 'row',

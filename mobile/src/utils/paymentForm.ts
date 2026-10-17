@@ -7,6 +7,8 @@
  * - backend/models/payment.js
  */
 
+import type { CreateUpiIntentPayload } from '../types/api';
+
 /**
  * Standard UPI Virtual Payment Address (VPA) regex matching backend auth.js.
  * Conservative validation: username@bank
@@ -81,5 +83,124 @@ export function buildUpdateUpiIdPayload(input: string | null | undefined): { upi
     throw new Error(result.error || 'Invalid UPI ID format');
   }
   return { upiId: result.upiId };
+}
+
+export interface ValidatePaymentAmountResult {
+  valid: boolean;
+  message?: string;
+  numericAmount?: number;
+  requestedPaise?: number;
+  paymentAmount?: number;
+}
+
+/**
+ * Validates a payment amount matching backend helpers.js validatePaymentAmount.
+ * Enforces integer paise arithmetic, positive numbers, min ₹0.01,
+ * maximum 2 decimal places, and caps at authorized settlement amount.
+ */
+export function validatePaymentAmount(
+  amount: unknown,
+  authorizedAmount?: number | null
+): ValidatePaymentAmountResult {
+  if (amount === undefined || amount === null || (typeof amount === 'string' && amount.trim() === '')) {
+    return { valid: false, message: 'Payment amount is required' };
+  }
+
+  // Reject unsupported input types (e.g. booleans, arrays, objects)
+  if (typeof amount !== 'number' && typeof amount !== 'string') {
+    return { valid: false, message: 'Valid numeric amount is required' };
+  }
+
+  let numericAmount: number;
+
+  if (typeof amount === 'string') {
+    const trimmed = amount.trim();
+    if (!/^-?\d+(\.\d+)?$/.test(trimmed)) {
+      return { valid: false, message: 'Valid numeric amount is required' };
+    }
+    numericAmount = Number(trimmed);
+  } else {
+    if (!Number.isFinite(amount) || isNaN(amount)) {
+      return { valid: false, message: 'Valid numeric amount is required' };
+    }
+    numericAmount = amount;
+  }
+
+  if (numericAmount < 0.01) {
+    return { valid: false, message: 'Amount must be at least ₹0.01' };
+  }
+
+  // Check decimal places strictly (at most 2 decimal places)
+  if (typeof amount === 'string') {
+    const trimmed = amount.trim();
+    const dotIndex = trimmed.indexOf('.');
+    if (dotIndex !== -1 && trimmed.length - dotIndex - 1 > 2) {
+      return { valid: false, message: 'Amount cannot have more than 2 decimal places' };
+    }
+  } else {
+    const str = amount.toString();
+    const dotIndex = str.indexOf('.');
+    if (dotIndex !== -1 && str.length - dotIndex - 1 > 2) {
+      const requestedPaise = Math.round(amount * 100);
+      const diff = Math.abs(amount - requestedPaise / 100);
+      if (diff > 1e-9) {
+        return { valid: false, message: 'Amount cannot have more than 2 decimal places' };
+      }
+    }
+  }
+
+  const requestedPaise = Math.round(numericAmount * 100);
+
+  if (authorizedAmount !== undefined && authorizedAmount !== null) {
+    const authorizedPaise = Math.round(Number(authorizedAmount) * 100);
+    if (requestedPaise > authorizedPaise) {
+      return { valid: false, message: 'Payment exceeds authorized settlement amount' };
+    }
+  }
+
+  return {
+    valid: true,
+    numericAmount: requestedPaise / 100,
+    requestedPaise,
+    paymentAmount: requestedPaise / 100,
+  };
+}
+
+export interface BuildCreateIntentParams {
+  groupId: string;
+  toUserId: string;
+  amount: string | number;
+  authorizedAmount?: number | null;
+  currentUserId?: string | null;
+}
+
+/**
+ * Validates and constructs the payload for POST /api/payment/intent.
+ */
+export function buildCreateIntentPayload(params: BuildCreateIntentParams): CreateUpiIntentPayload {
+  const { groupId, toUserId, amount, authorizedAmount, currentUserId } = params;
+
+  if (!groupId || typeof groupId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(groupId)) {
+    throw new Error('Valid group and receiver IDs are required');
+  }
+
+  if (!toUserId || typeof toUserId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(toUserId)) {
+    throw new Error('Valid group and receiver IDs are required');
+  }
+
+  if (currentUserId && String(currentUserId) === String(toUserId)) {
+    throw new Error('You cannot pay yourself');
+  }
+
+  const result = validatePaymentAmount(amount, authorizedAmount);
+  if (!result.valid || result.paymentAmount === undefined) {
+    throw new Error(result.message || 'Valid amount is required');
+  }
+
+  return {
+    groupId,
+    toUserId,
+    amount: result.paymentAmount,
+  };
 }
 
