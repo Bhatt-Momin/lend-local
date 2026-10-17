@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GroupCard } from '../components/GroupCard';
 import { ServerConfigModal } from '../components/ServerConfigModal';
+import { UpiConfigModal } from '../components/UpiConfigModal';
 import { ThemedText } from '../components/themed-text';
 import { ThemedView } from '../components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '../constants/theme';
@@ -28,6 +29,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user, isLoading, serverUrl, logout } = useAuth();
   const [showServerModal, setShowServerModal] = useState(false);
+  const [showUpiModal, setShowUpiModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const groupsEnabled = !!user && !isLoading;
@@ -149,6 +151,35 @@ export default function HomeScreen() {
                     </ThemedText>
                   </TouchableOpacity>
                 </View>
+
+                {/* Direct UPI ID Profile Setting */}
+                <TouchableOpacity
+                  style={styles.upiRow}
+                  onPress={() => setShowUpiModal(true)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    user.upiId
+                      ? `UPI ID: ${user.upiId}. Tap to edit.`
+                      : 'UPI ID not set. Tap to configure.'
+                  }
+                >
+                  <View style={styles.upiInfo}>
+                    <ThemedText type="small" style={styles.upiLabel}>
+                      UPI ID (for receiving payments)
+                    </ThemedText>
+                    <ThemedText
+                      type="smallBold"
+                      style={[styles.upiValue, !user.upiId && styles.upiNotSet]}
+                      numberOfLines={1}
+                    >
+                      {user.upiId || 'Not configured (tap to set)'}
+                    </ThemedText>
+                  </View>
+                  <ThemedText type="smallBold" style={styles.upiEditBtn}>
+                    {user.upiId ? 'Edit' : '+ Set'}
+                  </ThemedText>
+                </TouchableOpacity>
 
                 <View style={styles.summaryRow}>
                   <View style={styles.summaryBox}>
@@ -353,6 +384,11 @@ export default function HomeScreen() {
           visible={showServerModal}
           onClose={() => setShowServerModal(false)}
         />
+
+        <UpiConfigModal
+          visible={showUpiModal}
+          onClose={() => setShowUpiModal(false)}
+        />
       </SafeAreaView>
     </ThemedView>
   );
@@ -439,6 +475,41 @@ const styles = StyleSheet.create({
   },
   userEmail: {
     opacity: 0.75,
+  },
+  upiRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0F172A2B',
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    marginTop: Spacing.two,
+    borderWidth: 1,
+    borderColor: '#33415566',
+  },
+  upiInfo: {
+    flex: 1,
+    marginRight: Spacing.two,
+  },
+  upiLabel: {
+    opacity: 0.65,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  upiValue: {
+    color: '#38BDF8',
+    fontSize: 13,
+    marginTop: 1,
+  },
+  upiNotSet: {
+    color: '#94A3B8',
+    fontStyle: 'italic',
+  },
+  upiEditBtn: {
+    color: '#3B82F6',
+    fontSize: 13,
   },
   summaryRow: {
     flexDirection: 'row',

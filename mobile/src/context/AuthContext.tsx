@@ -13,6 +13,7 @@ import {
   saveUserData,
   UserProfile,
 } from '../services/secureStore';
+import type { UpdateUpiIdResponse } from '../types/api';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -23,6 +24,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  updateUpiId: (upiId: string | null) => Promise<UpdateUpiIdResponse>;
   updateServerUrl: (url: string) => Promise<void>;
   resetToDefaultServerUrl: () => Promise<void>;
 }
@@ -134,6 +136,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const updateUpiId = React.useCallback(async (upiId: string | null): Promise<UpdateUpiIdResponse> => {
+    try {
+      const res = await authApi.updateUpiId({ upiId });
+      setUser((prev) => {
+        if (!prev) return null;
+        const updated: UserProfile = { ...prev, upiId: res.upiId };
+        saveUserData(updated).catch((e) => console.warn('Failed to cache user profile:', e));
+        return updated;
+      });
+      return res;
+    } catch (err: any) {
+      if (err?.status === 401) {
+        await clearAllAuth();
+        setToken(null);
+        setUser(null);
+      }
+      throw err;
+    }
+  }, []);
+
   const updateServerUrl = React.useCallback(async (url: string): Promise<void> => {
     await setCustomApiBaseUrl(url);
     const active = await getActiveApiBaseUrl();
@@ -156,6 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       register,
       logout,
       refreshUser,
+      updateUpiId,
       updateServerUrl,
       resetToDefaultServerUrl,
     }),
@@ -168,6 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       register,
       logout,
       refreshUser,
+      updateUpiId,
       updateServerUrl,
       resetToDefaultServerUrl,
     ]

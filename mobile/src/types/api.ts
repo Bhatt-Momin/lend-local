@@ -254,3 +254,82 @@ export interface GroupBalancesResponse {
   balances: BalanceEntry[];
   settlements: SettlementDebt[];
 }
+
+// ============================================================================
+// PAYMENTS & DIRECT UPI DOMAIN CONTRACTS
+// ============================================================================
+
+export type PaymentMethod = 'razorpay' | 'upi_direct';
+
+export type PaymentStatus =
+  | 'pending'
+  | 'payer_claimed'
+  | 'recipient_confirmed'
+  | 'recipient_rejected'
+  | 'cancelled'
+  | 'paid'
+  | 'failed'
+  | 'reversed';
+
+export interface CreateUpiIntentPayload {
+  groupId: string;
+  toUserId: string;
+  amount: number;
+}
+
+export interface UpiIntentResponse {
+  intentId: string;
+  upiUri: string;
+  payeeName: string;
+  payeeUpiId: string;
+  amount: number;
+  status: PaymentStatus;
+}
+
+export interface IntentActionPayload {
+  intentId: string;
+}
+
+export interface IntentActionResponse {
+  message: string;
+  intentId: string;
+  status: PaymentStatus;
+  amount: number;
+  notificationSent?: boolean;
+}
+
+export interface PaymentIntentItem {
+  intentId: string;
+  groupId: string;
+  from: string | { _id: string; name: string };
+  to: string | { _id: string; name: string };
+  payerName: string;
+  payeeName: string;
+  amount: number;
+  status: PaymentStatus;
+  upiUri: string | null;
+  createdAt: string;
+  claimedAt: string | null;
+}
+
+export interface ActiveIntentsResponse {
+  intents: PaymentIntentItem[];
+}
+
+export interface IntentStatusResponse {
+  intentId: string;
+  status: PaymentStatus;
+}
+
+export interface ServerConfigResponse {
+  razorpayEnabled: boolean;
+}
+
+export interface UpdateUpiIdPayload {
+  upiId: string | null;
+}
+
+export interface UpdateUpiIdResponse {
+  message: string;
+  upiId: string | null;
+}

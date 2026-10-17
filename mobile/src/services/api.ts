@@ -1,5 +1,6 @@
 import { getActiveApiBaseUrl } from './config';
 import { getAuthToken, UserProfile } from './secureStore';
+import type { UpdateUpiIdResponse } from '../types/api';
 
 export interface ApiError {
   message: string;
@@ -97,10 +98,18 @@ export const authApi = {
       method: 'GET',
     }, token);
   },
+
+  updateUpiId: async (payload: { upiId: string | null }): Promise<UpdateUpiIdResponse> => {
+    return apiRequest<UpdateUpiIdResponse>('/auth/upi-id', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
 };
 
 // Re-export domain services and types for convenient centralized access
 export { groupsApi } from './groupsApi';
 export { expensesApi } from './expensesApi';
 export { balancesApi } from './balancesApi';
+export { paymentApi } from './paymentApi';
 export * from '../types/api';
