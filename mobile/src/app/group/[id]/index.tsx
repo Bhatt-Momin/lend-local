@@ -41,6 +41,7 @@ export default function GroupDetailScreen() {
     isRefreshing,
     isMutating,
     error,
+    refreshError,
     myNetBalance,
     isCreator,
     isActiveMember,
@@ -305,6 +306,15 @@ export default function GroupDetailScreen() {
               </ThemedText>
             ) : null}
           </View>
+
+          {/* Stale data indication on refresh failure */}
+          {refreshError ? (
+            <View style={styles.staleDataBanner}>
+              <ThemedText style={styles.staleDataText}>
+                ⚠️ Balances may be out of date ({refreshError}). Pull down to refresh.
+              </ThemedText>
+            </View>
+          ) : null}
 
           {/* Balance Hero Card */}
           <ThemedView type="backgroundElement" style={styles.balanceHeroCard}>
@@ -923,7 +933,7 @@ export default function GroupDetailScreen() {
           settlement={selectedSettlement}
           currentUserId={user?.id}
           existingIntent={selectedIntent}
-          onIntentUpdated={refresh}
+          onIntentUpdated={() => refresh(true)}
         />
       </SafeAreaView>
     </ThemedView>
@@ -1308,4 +1318,17 @@ const styles = StyleSheet.create({
     borderTopColor: '#334155',
   },
   actionMenuCloseText: { color: '#94A3B8', fontSize: 14 },
+  staleDataBanner: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    borderRadius: 8,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+  },
+  staleDataText: {
+    color: '#92400E',
+    fontSize: 13,
+    fontWeight: '500',
+  },
 });

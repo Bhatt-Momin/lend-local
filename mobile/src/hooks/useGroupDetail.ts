@@ -34,10 +34,11 @@ export interface UseGroupDetailResult {
   isRefreshing: boolean;
   isMutating: boolean;
   error: string | null;
+  refreshError: string | null;
   myNetBalance: number;
   isCreator: boolean;
   isActiveMember: boolean;
-  refresh: () => Promise<void>;
+  refresh: (throwOnError?: boolean) => Promise<void>;
   addMember: (email: string) => Promise<AddMemberResponse>;
   renameGroup: (name: string) => Promise<RenameGroupResponse>;
   leaveGroup: () => Promise<void>;
@@ -70,21 +71,27 @@ export function useGroupDetail(
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [isMutating, setIsMutating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   const prevGroupIdRef = useRef<string | null>(groupId);
   const prevUserIdRef = useRef<string | null>(user?.id ?? null);
   const requestIdRef = useRef<number>(0);
   const isMutatingRef = useRef<boolean>(false);
+  const hasLoadedRef = useRef<boolean>(false);
+  const lastActiveIntentsRef = useRef<PaymentIntentItem[] | null>(null);
   const onUnauthorizedRef = useRef(options?.onUnauthorized);
   onUnauthorizedRef.current = options?.onUnauthorized;
 
   const handleUnauthorized = useCallback(async () => {
     isMutatingRef.current = false;
+    hasLoadedRef.current = false;
+    lastActiveIntentsRef.current = null;
     setGroup(null);
     setExpenses([]);
     setBalances(null);
     setActiveIntents([]);
     setError(null);
+    setRefreshError(null);
     setIsLoading(false);
     setIsRefreshing(false);
     setIsMutating(false);
@@ -102,17 +109,37 @@ export function useGroupDetail(
 
       if (isRefresh) {
         setIsRefreshing(true);
-      } else {
+      } else if (!hasLoadedRef.current) {
         setIsLoading(true);
       }
-      setError(null);
 
       try {
-        const [groupRes, expensesRes, balancesRes, activeIntentsRes] = await Promise.all([
+        let activeIntentsFetchSucceeded = false;
+        let fetchedActiveIntents: PaymentIntentItem[] = [];
+
+        const activeIntentsPromise = paymentApi
+          .getActiveIntents(groupId)
+          .then((res) => {
+            activeIntentsFetchSucceeded = true;
+            fetchedActiveIntents = res?.intents ?? [];
+            return res;
+          })
+          .catch((err: any) => {
+            // Do not mask 401 unauthorized
+            if (err?.status === 401) {
+              throw err;
+            }
+            if (throwOnError) {
+              throw err;
+            }
+            return null;
+          });
+
+        const [groupRes, expensesRes, balancesRes] = await Promise.all([
           groupsApi.getById(groupId),
           expensesApi.list(groupId),
           balancesApi.get(groupId),
-          paymentApi.getActiveIntents(groupId).catch(() => ({ intents: [] as PaymentIntentItem[] })),
+          activeIntentsPromise,
         ]);
 
         if (currentRequestId !== requestIdRef.current) return;
@@ -120,7 +147,21 @@ export function useGroupDetail(
         setGroup(groupRes.group);
         setExpenses(expensesRes.expenses ?? []);
         setBalances(balancesRes);
-        setActiveIntents(activeIntentsRes?.intents ?? []);
+
+        if (activeIntentsFetchSucceeded) {
+          lastActiveIntentsRef.current = fetchedActiveIntents;
+          setActiveIntents(fetchedActiveIntents);
+        } else if (lastActiveIntentsRef.current !== null) {
+          // Preserve the last successfully fetched active intents
+          setActiveIntents(lastActiveIntentsRef.current);
+        } else {
+          // On initial load, keep the existing empty initial state
+          setActiveIntents([]);
+        }
+
+        setError(null);
+        setRefreshError(null);
+        hasLoadedRef.current = true;
       } catch (err: any) {
         if (currentRequestId !== requestIdRef.current) {
           if (throwOnError) throw err;
@@ -133,7 +174,12 @@ export function useGroupDetail(
           return;
         }
 
-        setError(err?.message || 'Failed to load group details');
+        if (!hasLoadedRef.current) {
+          setError(err?.message || 'Failed to load group details');
+        } else {
+          setRefreshError(err?.message || 'Failed to refresh group details');
+        }
+
         if (throwOnError) throw err;
       } finally {
         if (currentRequestId === requestIdRef.current) {
@@ -148,11 +194,14 @@ export function useGroupDetail(
   useEffect(() => {
     if (!enabled || !user || !groupId) {
       requestIdRef.current += 1;
+      hasLoadedRef.current = false;
+      lastActiveIntentsRef.current = null;
       setGroup(null);
       setExpenses([]);
       setBalances(null);
       setActiveIntents([]);
       setError(null);
+      setRefreshError(null);
       setIsLoading(false);
       setIsRefreshing(false);
       setIsMutating(false);
@@ -164,11 +213,14 @@ export function useGroupDetail(
 
     if (prevGroupIdRef.current !== groupId || prevUserIdRef.current !== user.id) {
       requestIdRef.current += 1;
+      hasLoadedRef.current = false;
+      lastActiveIntentsRef.current = null;
       setGroup(null);
       setExpenses([]);
       setBalances(null);
       setActiveIntents([]);
       setError(null);
+      setRefreshError(null);
       setIsMutating(false);
       isMutatingRef.current = false;
       prevGroupIdRef.current = groupId;
@@ -178,7 +230,10 @@ export function useGroupDetail(
     load(false);
   }, [enabled, user, groupId, load]);
 
-  const refresh = useCallback(() => load(true), [load]);
+  const refresh = useCallback(
+    (throwOnError: boolean = false) => load(true, typeof throwOnError === 'boolean' ? throwOnError : false),
+    [load]
+  );
 
   const addMember = useCallback(
     async (email: string): Promise<AddMemberResponse> => {
@@ -323,6 +378,7 @@ export function useGroupDetail(
     isRefreshing,
     isMutating,
     error,
+    refreshError,
     myNetBalance,
     isCreator,
     isActiveMember,

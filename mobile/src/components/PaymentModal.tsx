@@ -373,7 +373,7 @@ export function PaymentModal({
                 try {
                   await onIntentUpdated();
                 } catch {
-                  setRefreshWarning('Payment was claimed on the server, but balances could not be refreshed immediately. Please pull down to refresh.');
+                  setRefreshWarning('Payment was claimed on the server, but balances could not be refreshed immediately. Displayed balances may be out of date until you pull down to refresh.');
                 }
               }
             } catch (err: any) {
@@ -414,7 +414,7 @@ export function PaymentModal({
                 try {
                   await onIntentUpdated();
                 } catch {
-                  setRefreshWarning('Payment was cancelled on the server, but balances could not be refreshed immediately. Please pull down to refresh.');
+                  setRefreshWarning('Payment was cancelled on the server, but balances could not be refreshed immediately. Displayed balances may be out of date until you pull down to refresh.');
                 }
               }
             } catch (err: any) {
@@ -454,7 +454,7 @@ export function PaymentModal({
                 try {
                   await onIntentUpdated();
                 } catch {
-                  setRefreshWarning('Payment was confirmed successfully on the server, but group balances could not be refreshed immediately. Please pull down to refresh.');
+                  setRefreshWarning('Payment was confirmed on the server, but group balances could not be updated immediately. Displayed balances may be out of date until you pull down to refresh.');
                 }
               }
             } catch (err: any) {
@@ -495,7 +495,7 @@ export function PaymentModal({
                 try {
                   await onIntentUpdated();
                 } catch {
-                  setRefreshWarning('Payment was rejected on the server, but group balances could not be refreshed immediately. Please pull down to refresh.');
+                  setRefreshWarning('Payment was rejected on the server, but group balances could not be updated immediately. Displayed balances may be out of date until you pull down to refresh.');
                 }
               }
             } catch (err: any) {
