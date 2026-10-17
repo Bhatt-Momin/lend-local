@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,9 +17,22 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 import { Spacing } from '../constants/theme';
 import { paymentApi } from '../services/paymentApi';
-import type { SettlementDebt, UpiIntentResponse } from '../types/api';
+import type {
+  PaymentIntentItem,
+  PaymentStatus,
+  SettlementDebt,
+  UpiIntentResponse,
+} from '../types/api';
 import { formatINR } from '../utils/format';
-import { buildCreateIntentPayload, validatePaymentAmount } from '../utils/paymentForm';
+import {
+  buildCreateIntentPayload,
+  buildIntentActionPayload,
+  canCancelIntent,
+  canClaimIntent,
+  getPaymentStatusBadge,
+  isTerminalStatus,
+  validatePaymentAmount,
+} from '../utils/paymentForm';
 
 export interface PaymentModalProps {
   visible: boolean;
@@ -26,6 +40,8 @@ export interface PaymentModalProps {
   groupId: string;
   settlement: SettlementDebt | null;
   currentUserId?: string | null;
+  existingIntent?: PaymentIntentItem | null;
+  onIntentUpdated?: () => void;
 }
 
 export function PaymentModal({
@@ -34,35 +50,169 @@ export function PaymentModal({
   groupId,
   settlement,
   currentUserId,
+  existingIntent,
+  onIntentUpdated,
 }: PaymentModalProps) {
+  // Creation form state
   const [amountInput, setAmountInput] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isActionInProgress, setIsActionInProgress] = useState<boolean>(false);
+  const [isRefreshingStatus, setIsRefreshingStatus] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [isConflict, setIsConflict] = useState<boolean>(false);
   const [isRecipientUpiMissing, setIsRecipientUpiMissing] = useState<boolean>(false);
 
-  // Result state after intent creation
-  const [intentResult, setIntentResult] = useState<UpiIntentResponse | null>(null);
+  // Active / Tracked Intent State
+  const [currentIntentId, setCurrentIntentId] = useState<string | null>(null);
+  const [currentStatus, setCurrentStatus] = useState<PaymentStatus | null>(null);
+  const [currentAmount, setCurrentAmount] = useState<number | null>(null);
+  const [currentPayeeName, setCurrentPayeeName] = useState<string | null>(null);
+  const [currentPayeeUpiId, setCurrentPayeeUpiId] = useState<string | null>(null);
+  const [currentUpiUri, setCurrentUpiUri] = useState<string | null>(null);
+  const [currentFromId, setCurrentFromId] = useState<string | null>(null);
+
+  // UPI launch feedback state
   const [launchStatus, setLaunchStatus] = useState<'idle' | 'launched' | 'fallback'>('idle');
 
-  // Pre-fill full amount on visible or settlement change
+  // Refs for bounded polling and preventing stale / overlapping updates
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollCountRef = useRef<number>(0);
+  const isPollingFetchRef = useRef<boolean>(false);
+  const statusRequestIdRef = useRef<number>(0);
+  const MAX_POLL_COUNT = 12; // 12 iterations * 5000ms = 60s max
+  const POLL_INTERVAL_MS = 5000;
+
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    pollCountRef.current = 0;
+    isPollingFetchRef.current = false;
+  }, []);
+
+  // Initialize or reset modal state
   useEffect(() => {
     if (visible && settlement) {
-      setAmountInput(settlement.amount.toFixed(2));
       setFormError(null);
+      setFormSuccess(null);
       setIsConflict(false);
       setIsRecipientUpiMissing(false);
-      setIntentResult(null);
-      setLaunchStatus('idle');
       setIsSubmitting(false);
+      setIsActionInProgress(false);
+      setIsRefreshingStatus(false);
+
+      if (existingIntent) {
+        const fromId = String(
+          typeof existingIntent.from === 'object' && existingIntent.from
+            ? (existingIntent.from as any)._id || (existingIntent.from as any).id
+            : existingIntent.from
+        );
+        setCurrentIntentId(existingIntent.intentId);
+        setCurrentStatus(existingIntent.status);
+        setCurrentAmount(existingIntent.amount);
+        setCurrentPayeeName(existingIntent.payeeName || settlement.to?.name || 'Recipient');
+        setCurrentPayeeUpiId((existingIntent as any).payeeUpiId || null);
+        setCurrentUpiUri(existingIntent.upiUri || null);
+        setCurrentFromId(fromId);
+        setLaunchStatus('idle');
+        setAmountInput(existingIntent.amount.toFixed(2));
+      } else {
+        setCurrentIntentId(null);
+        setCurrentStatus(null);
+        setCurrentAmount(null);
+        setCurrentPayeeName(settlement.to?.name || 'Recipient');
+        setCurrentPayeeUpiId(null);
+        setCurrentUpiUri(null);
+        setCurrentFromId(String(currentUserId || ''));
+        setLaunchStatus('idle');
+        setAmountInput(settlement.amount.toFixed(2));
+      }
+    } else {
+      stopPolling();
     }
-  }, [visible, settlement]);
+  }, [visible, settlement, existingIntent, currentUserId, stopPolling]);
+
+  // Bounded polling tick implementation
+  const pollStatusTick = useCallback(async () => {
+    if (!currentIntentId || !currentStatus || isTerminalStatus(currentStatus)) {
+      stopPolling();
+      return;
+    }
+
+    if (pollCountRef.current >= MAX_POLL_COUNT) {
+      stopPolling();
+      return;
+    }
+
+    // Guard: prevent overlapping concurrent polling requests
+    if (isPollingFetchRef.current || isActionInProgress) return;
+    isPollingFetchRef.current = true;
+    pollCountRef.current += 1;
+
+    const currentReqId = ++statusRequestIdRef.current;
+    try {
+      const res = await paymentApi.getStatus(currentIntentId);
+      // Guard: ignore stale responses if another request completed in between
+      if (currentReqId === statusRequestIdRef.current) {
+        if (res.status !== currentStatus) {
+          setCurrentStatus(res.status);
+          if (onIntentUpdated) {
+            onIntentUpdated();
+          }
+        }
+        if (isTerminalStatus(res.status)) {
+          stopPolling();
+        }
+      }
+    } catch {
+      // Background polling errors are caught silently to prevent UI disruption
+    } finally {
+      isPollingFetchRef.current = false;
+    }
+  }, [currentIntentId, currentStatus, isActionInProgress, stopPolling, onIntentUpdated]);
+
+  // Manage polling timer: active when visible and non-terminal status
+  useEffect(() => {
+    stopPolling();
+
+    if (
+      visible &&
+      currentIntentId &&
+      currentStatus &&
+      !isTerminalStatus(currentStatus) &&
+      (currentStatus === 'payer_claimed' || currentStatus === 'pending')
+    ) {
+      pollCountRef.current = 0;
+      pollTimerRef.current = setInterval(pollStatusTick, POLL_INTERVAL_MS);
+    }
+
+    return () => {
+      stopPolling();
+    };
+  }, [visible, currentIntentId, currentStatus, stopPolling, pollStatusTick]);
 
   if (!settlement) return null;
 
-  const recipientName = settlement.to?.name || 'Group Member';
-  const recipientId = String(settlement.to?.userId ?? settlement.to?.id ?? '');
   const authorizedAmount = settlement.amount;
+  const isPayer = Boolean(
+    currentUserId &&
+    currentFromId &&
+    String(currentFromId) === String(currentUserId)
+  );
+
+  const canClaim = Boolean(
+    currentIntentId && currentStatus && canClaimIntent(currentStatus, isPayer)
+  );
+  const canCancel = Boolean(
+    currentIntentId && currentStatus && canCancelIntent(currentStatus, isPayer)
+  );
+  const isTerminal = Boolean(currentStatus && isTerminalStatus(currentStatus));
+  const badgeInfo = currentStatus ? getPaymentStatusBadge(currentStatus) : null;
+
+  const displayPayeeName = currentPayeeName || settlement.to?.name || 'Group Member';
+  const displayAmount = currentAmount ?? authorizedAmount;
 
   const handleFullAmount = () => {
     setAmountInput(authorizedAmount.toFixed(2));
@@ -73,16 +223,17 @@ export function PaymentModal({
     try {
       await Linking.openURL(upiUri);
       setLaunchStatus('launched');
-    } catch (linkErr) {
-      // Gracefully fall back to manual details if no UPI app can be opened
+    } catch {
       setLaunchStatus('fallback');
     }
   };
 
+  // M2: Create Intent flow
   const handlePay = async () => {
     if (isSubmitting) return;
 
     setFormError(null);
+    setFormSuccess(null);
     setIsConflict(false);
     setIsRecipientUpiMissing(false);
 
@@ -94,6 +245,7 @@ export function PaymentModal({
     }
 
     // 2. Build payload
+    const recipientId = String(settlement.to?.userId ?? settlement.to?.id ?? '');
     let payload;
     try {
       payload = buildCreateIntentPayload({
@@ -112,9 +264,19 @@ export function PaymentModal({
     setIsSubmitting(true);
     try {
       const res = await paymentApi.createIntent(payload);
-      setIntentResult(res);
+      setCurrentIntentId(res.intentId);
+      setCurrentStatus(res.status || 'pending');
+      setCurrentAmount(res.amount);
+      setCurrentPayeeName(res.payeeName);
+      setCurrentPayeeUpiId(res.payeeUpiId);
+      setCurrentUpiUri(res.upiUri);
+      setCurrentFromId(String(currentUserId || ''));
 
-      // Attempt to launch the external UPI app
+      if (onIntentUpdated) {
+        onIntentUpdated();
+      }
+
+      // Attempt to launch external UPI app
       await handleLaunchUpi(res.upiUri);
     } catch (err: any) {
       const status = err?.status;
@@ -129,7 +291,7 @@ export function PaymentModal({
       ) {
         setIsRecipientUpiMissing(true);
         setFormError(
-          `${recipientName} has not set up a UPI ID yet. Please ask them to add their UPI ID in their Profile Settings.`
+          `${displayPayeeName} has not set up a UPI ID yet. Please ask them to add their UPI ID in Profile Settings.`
         );
       } else {
         setFormError(message);
@@ -139,12 +301,122 @@ export function PaymentModal({
     }
   };
 
+  // M3: Payer Claim flow
+  const handleClaim = () => {
+    if (isActionInProgress || !canClaim || !currentIntentId) return;
+
+    Alert.alert(
+      'Confirm Payment Claim',
+      `Did you finish sending ${formatINR(displayAmount)} via UPI to ${displayPayeeName}?\n\nOnce claimed, the recipient will be notified to confirm receipt. The debt remains on your balance until confirmed.`,
+      [
+        { text: 'Not Yet', style: 'cancel' },
+        {
+          text: "Yes, I've Paid",
+          onPress: async () => {
+            setIsActionInProgress(true);
+            setFormError(null);
+            setFormSuccess(null);
+            try {
+              const payload = buildIntentActionPayload(currentIntentId);
+              const res = await paymentApi.claim(payload);
+              setCurrentStatus(res.status);
+              setFormSuccess(res.message || 'Payment claimed successfully');
+              if (onIntentUpdated) {
+                onIntentUpdated();
+              }
+            } catch (err: any) {
+              setFormError(err?.message || 'Failed to claim payment');
+            } finally {
+              setIsActionInProgress(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // M3: Payer Cancel flow (strictly allowed only while status === 'pending')
+  const handleCancel = () => {
+    if (isActionInProgress || !canCancel || !currentIntentId) return;
+
+    Alert.alert(
+      'Cancel Payment Intent',
+      'Are you sure you want to cancel this pending payment intent?\n\n⚠️ Note: Cancellation does NOT reverse any money already sent through your UPI app.',
+      [
+        { text: 'Keep Intent', style: 'cancel' },
+        {
+          text: 'Cancel Payment',
+          style: 'destructive',
+          onPress: async () => {
+            setIsActionInProgress(true);
+            setFormError(null);
+            setFormSuccess(null);
+            try {
+              const payload = buildIntentActionPayload(currentIntentId);
+              const res = await paymentApi.cancel(payload);
+              setCurrentStatus(res.status);
+              stopPolling();
+              setFormSuccess(res.message || 'Payment intent cancelled');
+              if (onIntentUpdated) {
+                onIntentUpdated();
+              }
+            } catch (err: any) {
+              setFormError(err?.message || 'Failed to cancel payment');
+            } finally {
+              setIsActionInProgress(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // M3: Manual Status Refresh
+  const handleManualRefresh = async () => {
+    if (!currentIntentId || isActionInProgress || isRefreshingStatus) return;
+
+    setIsRefreshingStatus(true);
+    setFormError(null);
+    setFormSuccess(null);
+
+    const currentReqId = ++statusRequestIdRef.current;
+    try {
+      const res = await paymentApi.getStatus(currentIntentId);
+      if (currentReqId === statusRequestIdRef.current) {
+        setCurrentStatus(res.status);
+        if (onIntentUpdated) {
+          onIntentUpdated();
+        }
+        if (isTerminalStatus(res.status)) {
+          stopPolling();
+        }
+      }
+    } catch (err: any) {
+      setFormError(err?.message || 'Failed to refresh payment status');
+    } finally {
+      setIsRefreshingStatus(false);
+    }
+  };
+
+  const handleStartNewPayment = () => {
+    setCurrentIntentId(null);
+    setCurrentStatus(null);
+    setCurrentAmount(null);
+    setCurrentUpiUri(null);
+    setLaunchStatus('idle');
+    setFormError(null);
+    setFormSuccess(null);
+    setAmountInput(authorizedAmount.toFixed(2));
+  };
+
+  const isBusy = isSubmitting || isActionInProgress;
+
   return (
     <Modal
       visible={visible}
       animationType="fade"
       transparent
-      onRequestClose={isSubmitting ? undefined : onClose}
+      onRequestClose={isBusy ? undefined : onClose}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -153,7 +425,7 @@ export function PaymentModal({
         <TouchableOpacity
           style={styles.backdrop}
           activeOpacity={1}
-          onPress={isSubmitting ? undefined : onClose}
+          onPress={isBusy ? undefined : onClose}
         />
 
         <ThemedView type="backgroundElement" style={styles.dialog}>
@@ -166,15 +438,17 @@ export function PaymentModal({
             <View style={styles.dialogHeader}>
               <View style={styles.titleWrap}>
                 <ThemedText type="smallBold" style={styles.dialogTitle}>
-                  Pay via Direct UPI
+                  {currentIntentId ? 'UPI Payment Status' : 'Pay via Direct UPI'}
                 </ThemedText>
                 <ThemedText type="small" style={styles.dialogSubtitle}>
-                  Settle your share peer-to-peer
+                  {currentIntentId
+                    ? 'Track and manage peer-to-peer settlement'
+                    : 'Settle your share peer-to-peer'}
                 </ThemedText>
               </View>
               <TouchableOpacity
                 onPress={onClose}
-                disabled={isSubmitting}
+                disabled={isBusy}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 accessibilityRole="button"
                 accessibilityLabel="Close payment dialog"
@@ -187,15 +461,15 @@ export function PaymentModal({
             <View style={styles.debtSummaryCard}>
               <View style={styles.debtSummaryRow}>
                 <ThemedText type="small" style={styles.debtSummaryLabel}>
-                  Paying To:
+                  {isPayer ? 'Paying To:' : 'From:'}
                 </ThemedText>
                 <ThemedText type="smallBold" style={styles.debtSummaryValue}>
-                  {recipientName}
+                  {displayPayeeName}
                 </ThemedText>
               </View>
               <View style={styles.debtSummaryRow}>
                 <ThemedText type="small" style={styles.debtSummaryLabel}>
-                  Total Debt:
+                  Authorized Debt:
                 </ThemedText>
                 <ThemedText type="smallBold" style={styles.debtAmountValue}>
                   {formatINR(authorizedAmount)}
@@ -203,137 +477,244 @@ export function PaymentModal({
               </View>
             </View>
 
-            {/* View State: LAUNCHED */}
-            {launchStatus === 'launched' && intentResult ? (
-              <View style={styles.resultContainer}>
-                <View style={styles.launchedBanner}>
-                  <ThemedText style={styles.badgeSuccess}>✓ UPI App Launched</ThemedText>
-                  <ThemedText style={styles.launchedTitle}>
-                    Payment of {formatINR(intentResult.amount)} Initiated
-                  </ThemedText>
-                  <ThemedText type="small" style={styles.launchedSub}>
-                    Check your UPI app to authorize and finish the payment to{' '}
-                    <ThemedText type="smallBold" style={styles.boldWhite}>
-                      {intentResult.payeeName}
-                    </ThemedText>{' '}
-                    ({intentResult.payeeUpiId}).
-                  </ThemedText>
-                </View>
-
-                {/* Important notice: debt not cleared until recipient confirms */}
-                <View style={styles.noticeBox}>
-                  <ThemedText type="small" style={styles.noticeText}>
-                    ℹ️ <ThemedText type="smallBold" style={styles.boldNotice}>Note:</ThemedText>{' '}
-                    Your balance is not cleared immediately. Once you finish payment in your UPI app,
-                    the recipient must confirm receipt before the debt is removed from group balances.
-                  </ThemedText>
-                </View>
-
-                <View style={styles.resultActions}>
-                  <TouchableOpacity
-                    style={[styles.btn, styles.secondaryBtn]}
-                    onPress={() => handleLaunchUpi(intentResult.upiUri)}
-                    activeOpacity={0.8}
-                  >
-                    <ThemedText style={styles.secondaryBtnText}>
-                      Re-launch UPI App
-                    </ThemedText>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.btn, styles.primaryBtn]}
-                    onPress={onClose}
-                    activeOpacity={0.8}
-                  >
-                    <ThemedText style={styles.primaryBtnText}>Done</ThemedText>
-                  </TouchableOpacity>
-                </View>
+            {/* Error / Success Feedback Banners */}
+            {formError ? (
+              <View
+                style={[
+                  styles.errorBox,
+                  isConflict && styles.conflictBox,
+                  isRecipientUpiMissing && styles.warningBox,
+                ]}
+              >
+                <ThemedText style={styles.errorText}>
+                  {isRecipientUpiMissing ? '⚠️ ' : isConflict ? '⏳ ' : '⚠️ '}
+                  {formError}
+                </ThemedText>
               </View>
             ) : null}
 
-            {/* View State: FALLBACK (Manual UPI Details) */}
-            {launchStatus === 'fallback' && intentResult ? (
-              <View style={styles.resultContainer}>
-                <View style={styles.fallbackBanner}>
-                  <ThemedText style={styles.badgeWarning}>⚠️ Manual Transfer Required</ThemedText>
-                  <ThemedText style={styles.fallbackTitle}>
-                    Could Not Open UPI App Automatically
+            {formSuccess ? (
+              <View style={styles.successBox}>
+                <ThemedText style={styles.successText}>✓ {formSuccess}</ThemedText>
+              </View>
+            ) : null}
+
+            {/* ========================================================= */}
+            {/* VIEW A: TRACKING EXISTING OR FRESHLY INITIATED INTENT     */}
+            {/* ========================================================= */}
+            {currentIntentId && currentStatus ? (
+              <View style={styles.intentStatusContainer}>
+                {/* Status Badge & Header */}
+                <View
+                  style={[
+                    styles.statusBadgeRow,
+                    badgeInfo ? { backgroundColor: badgeInfo.bgColor } : null,
+                  ]}
+                >
+                  <ThemedText
+                    style={[
+                      styles.statusBadgeText,
+                      badgeInfo ? { color: badgeInfo.color } : null,
+                    ]}
+                  >
+                    {badgeInfo?.label ?? currentStatus}
                   </ThemedText>
-                  <ThemedText type="small" style={styles.fallbackSub}>
-                    No compatible UPI app could be launched on this device. Open Google Pay, PhonePe, Paytm, or BHIM and transfer manually:
-                  </ThemedText>
+                  <TouchableOpacity
+                    style={styles.refreshBtn}
+                    onPress={handleManualRefresh}
+                    disabled={isRefreshingStatus || isBusy}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Refresh status"
+                  >
+                    {isRefreshingStatus ? (
+                      <ActivityIndicator size="small" color="#38BDF8" />
+                    ) : (
+                      <ThemedText style={styles.refreshBtnText}>🔄 Refresh</ThemedText>
+                    )}
+                  </TouchableOpacity>
                 </View>
 
-                <View style={styles.manualDetailsBox}>
-                  <View style={styles.manualDetailRow}>
-                    <ThemedText type="small" style={styles.manualLabel}>
-                      Payee Name:
+                {/* Intent Details Box */}
+                <View style={styles.intentDetailsCard}>
+                  <View style={styles.detailRow}>
+                    <ThemedText type="small" style={styles.detailLabel}>
+                      Initiated Amount:
                     </ThemedText>
-                    <ThemedText type="smallBold" style={styles.manualValue}>
-                      {intentResult.payeeName}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.manualDetailRow}>
-                    <ThemedText type="small" style={styles.manualLabel}>
-                      UPI ID (VPA):
-                    </ThemedText>
-                    <ThemedText
-                      type="smallBold"
-                      style={[styles.manualValue, styles.vpaHighlight]}
-                      selectable
-                    >
-                      {intentResult.payeeUpiId}
+                    <ThemedText type="smallBold" style={styles.detailValue}>
+                      {formatINR(displayAmount)}
                     </ThemedText>
                   </View>
-                  <View style={styles.manualDetailRow}>
-                    <ThemedText type="small" style={styles.manualLabel}>
-                      Amount:
+
+                  {currentPayeeUpiId ? (
+                    <View style={styles.detailRow}>
+                      <ThemedText type="small" style={styles.detailLabel}>
+                        Recipient VPA:
+                      </ThemedText>
+                      <ThemedText
+                        type="smallBold"
+                        style={[styles.detailValue, styles.vpaText]}
+                        selectable
+                      >
+                        {currentPayeeUpiId}
+                      </ThemedText>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.detailRow}>
+                    <ThemedText type="small" style={styles.detailLabel}>
+                      Payment Note:
                     </ThemedText>
-                    <ThemedText type="smallBold" style={styles.manualValue}>
-                      {formatINR(intentResult.amount)}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.manualDetailRow}>
-                    <ThemedText type="small" style={styles.manualLabel}>
-                      Note / Reference:
-                    </ThemedText>
-                    <ThemedText type="small" style={styles.manualValue}>
+                    <ThemedText type="small" style={styles.detailValue}>
                       LendLocal Settlement
                     </ThemedText>
                   </View>
                 </View>
 
-                <View style={styles.noticeBox}>
-                  <ThemedText type="small" style={styles.noticeText}>
-                    ℹ️ <ThemedText type="smallBold" style={styles.boldNotice}>Note:</ThemedText>{' '}
-                    After sending the money, the recipient will confirm receipt to update the ledger.
-                  </ThemedText>
-                </View>
-
-                <View style={styles.resultActions}>
-                  <TouchableOpacity
-                    style={[styles.btn, styles.secondaryBtn]}
-                    onPress={() => handleLaunchUpi(intentResult.upiUri)}
-                    activeOpacity={0.8}
-                  >
-                    <ThemedText style={styles.secondaryBtnText}>
-                      Retry UPI App
+                {/* Status Guidance Card */}
+                {currentStatus === 'pending' ? (
+                  <View style={styles.noticeBox}>
+                    <ThemedText type="small" style={styles.noticeText}>
+                      ℹ️ <ThemedText type="smallBold" style={styles.boldNotice}>Action Required:</ThemedText>{' '}
+                      If you sent the money via your UPI app, tap{' '}
+                      <ThemedText type="smallBold" style={styles.boldWhite}>
+                        &ldquo;I Have Paid&rdquo;
+                      </ThemedText>{' '}
+                      below so the recipient is notified to confirm receipt. If you did not send it, you can safely cancel.
                     </ThemedText>
-                  </TouchableOpacity>
+                  </View>
+                ) : null}
 
+                {currentStatus === 'payer_claimed' ? (
+                  <View style={styles.claimedNoticeBox}>
+                    <ThemedText type="small" style={styles.claimedNoticeText}>
+                      ⏳ <ThemedText type="smallBold" style={styles.boldNotice}>Awaiting Recipient Confirmation:</ThemedText>{' '}
+                      You claimed this payment. The recipient must confirm receipt before your group balance is updated.
+                    </ThemedText>
+                    <ThemedText type="small" style={styles.subNoticeText}>
+                      • Once claimed, this payment cannot be cancelled.
+                      {'\n'}• Status updates automatically when confirmed.
+                    </ThemedText>
+                  </View>
+                ) : null}
+
+                {currentStatus === 'recipient_confirmed' ? (
+                  <View style={styles.confirmedNoticeBox}>
+                    <ThemedText type="small" style={styles.confirmedNoticeText}>
+                      🎉 <ThemedText type="smallBold" style={styles.boldNotice}>Confirmed!</ThemedText>{' '}
+                      The recipient confirmed receipt. This settlement is authoritatively recorded on the ledger.
+                    </ThemedText>
+                  </View>
+                ) : null}
+
+                {currentStatus === 'recipient_rejected' ? (
+                  <View style={styles.errorBox}>
+                    <ThemedText style={styles.errorText}>
+                      ❌ <ThemedText type="smallBold" style={styles.boldNotice}>Payment Rejected:</ThemedText>{' '}
+                      The recipient stated they did not receive this payment. No ledger changes were made.
+                    </ThemedText>
+                  </View>
+                ) : null}
+
+                {currentStatus === 'cancelled' ? (
+                  <View style={styles.noticeBox}>
+                    <ThemedText type="small" style={styles.noticeText}>
+                      ℹ️ This payment intent was cancelled. No money was recorded as settled.
+                    </ThemedText>
+                  </View>
+                ) : null}
+
+                {/* Read-Only Notice for Incoming/Receiver intents */}
+                {!isPayer ? (
+                  <View style={styles.noticeBox}>
+                    <ThemedText type="small" style={styles.noticeText}>
+                      ℹ️ You are the recipient for this payment. Confirmation and rejection controls will be available in the verification center.
+                    </ThemedText>
+                  </View>
+                ) : null}
+
+                {/* Action Buttons */}
+                <View style={styles.intentActionsWrap}>
+                  {/* Payer Pending Controls: Claim and Cancel */}
+                  {canClaim ? (
+                    <TouchableOpacity
+                      style={[styles.btn, styles.claimBtn, isBusy && styles.btnDisabled]}
+                      onPress={handleClaim}
+                      disabled={isBusy}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel="I have completed this UPI payment"
+                    >
+                      {isActionInProgress ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <ThemedText style={styles.claimBtnText}>✓ I Have Paid</ThemedText>
+                      )}
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {/* Re-launch UPI App if URI is available and status is pending */}
+                  {currentUpiUri && currentStatus === 'pending' ? (
+                    <TouchableOpacity
+                      style={[styles.btn, styles.secondaryBtn, isBusy && styles.btnDisabled]}
+                      onPress={() => handleLaunchUpi(currentUpiUri)}
+                      disabled={isBusy}
+                      activeOpacity={0.8}
+                    >
+                      <ThemedText style={styles.secondaryBtnText}>
+                        Re-open UPI App
+                      </ThemedText>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {/* Cancel button: strictly allowed only while status === 'pending' */}
+                  {canCancel ? (
+                    <TouchableOpacity
+                      style={[styles.btn, styles.cancelPaymentBtn, isBusy && styles.btnDisabled]}
+                      onPress={handleCancel}
+                      disabled={isBusy}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancel payment intent"
+                    >
+                      <ThemedText style={styles.cancelPaymentBtnText}>
+                        Cancel Payment
+                      </ThemedText>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {/* If cancelled, allow starting a fresh payment */}
+                  {currentStatus === 'cancelled' && isPayer ? (
+                    <TouchableOpacity
+                      style={[styles.btn, styles.primaryBtn]}
+                      onPress={handleStartNewPayment}
+                      activeOpacity={0.8}
+                    >
+                      <ThemedText style={styles.primaryBtnText}>
+                        New Payment
+                      </ThemedText>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {/* Close / Done Button */}
                   <TouchableOpacity
-                    style={[styles.btn, styles.primaryBtn]}
+                    style={[styles.btn, styles.closeBtn]}
                     onPress={onClose}
+                    disabled={isBusy}
                     activeOpacity={0.8}
                   >
-                    <ThemedText style={styles.primaryBtnText}>Close</ThemedText>
+                    <ThemedText style={styles.closeBtnDisplayText}>
+                      {isTerminal ? 'Close' : 'Done'}
+                    </ThemedText>
                   </TouchableOpacity>
                 </View>
               </View>
             ) : null}
 
-            {/* View State: IDLE (Amount input and pay initiation) */}
-            {launchStatus === 'idle' ? (
+            {/* ========================================================= */}
+            {/* VIEW B: M2 CREATE NEW PAYMENT INTENT FORM                 */}
+            {/* ========================================================= */}
+            {!currentIntentId ? (
               <View style={styles.formContainer}>
                 {/* Amount Input */}
                 <View style={styles.inputWrap}>
@@ -370,26 +751,10 @@ export function PaymentModal({
                   </ThemedText>
                 </View>
 
-                {/* Error Banner */}
-                {formError ? (
-                  <View
-                    style={[
-                      styles.errorBox,
-                      isConflict && styles.conflictBox,
-                      isRecipientUpiMissing && styles.warningBox,
-                    ]}
-                  >
-                    <ThemedText style={styles.errorText}>
-                      {isRecipientUpiMissing ? '⚠️ ' : isConflict ? '⏳ ' : '⚠️ '}
-                      {formError}
-                    </ThemedText>
-                  </View>
-                ) : null}
-
-                {/* Info Notice */}
+                {/* Informational Guidance */}
                 <View style={styles.noticeBox}>
                   <ThemedText type="small" style={styles.noticeText}>
-                    ℹ️ Tapping &ldquo;Pay via UPI&rdquo; will open your installed UPI app (Google Pay, PhonePe, Paytm, etc.) to complete payment directly to {recipientName}.
+                    ℹ️ Tapping &ldquo;Pay via UPI&rdquo; initiates a direct payment intent and opens your installed UPI app (Google Pay, PhonePe, Paytm, etc.).
                   </ThemedText>
                 </View>
 
@@ -563,6 +928,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
   },
+  successBox: {
+    backgroundColor: '#10B9811A',
+    borderColor: '#10B9814D',
+    borderWidth: 1,
+    borderRadius: Spacing.one + 2,
+    padding: Spacing.two + 1,
+  },
+  successText: {
+    color: '#10B981',
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 17,
+  },
   noticeBox: {
     backgroundColor: '#0F172A40',
     borderRadius: Spacing.two,
@@ -574,6 +952,37 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 11,
     lineHeight: 16,
+  },
+  claimedNoticeBox: {
+    backgroundColor: '#0284C71A',
+    borderColor: '#0284C74D',
+    borderWidth: 1,
+    borderRadius: Spacing.two,
+    padding: Spacing.two + 2,
+    gap: 4,
+  },
+  claimedNoticeText: {
+    color: '#38BDF8',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  subNoticeText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  confirmedNoticeBox: {
+    backgroundColor: '#10B9811A',
+    borderColor: '#10B9814D',
+    borderWidth: 1,
+    borderRadius: Spacing.two,
+    padding: Spacing.two + 2,
+  },
+  confirmedNoticeText: {
+    color: '#34D399',
+    fontSize: 12,
+    lineHeight: 17,
   },
   boldNotice: {
     color: '#CBD5E1',
@@ -615,59 +1024,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  // Result states
-  resultContainer: {
+  // Intent tracking status view styles
+  intentStatusContainer: {
     gap: Spacing.three,
   },
-  launchedBanner: {
-    backgroundColor: '#10B9811A',
-    borderColor: '#10B9814D',
-    borderWidth: 1,
+  statusBadgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
     borderRadius: Spacing.two,
-    padding: Spacing.three,
-    gap: Spacing.one,
   },
-  badgeSuccess: {
-    color: '#10B981',
-    fontSize: 12,
+  statusBadgeText: {
+    fontSize: 13,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
-  launchedTitle: {
-    color: '#F8FAFC',
-    fontSize: 16,
-    fontWeight: '700',
+  refreshBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 4,
+    backgroundColor: '#0F172A66',
+    borderRadius: Spacing.one,
   },
-  launchedSub: {
-    color: '#94A3B8',
+  refreshBtnText: {
     fontSize: 12,
-    lineHeight: 18,
+    color: '#38BDF8',
+    fontWeight: '600',
   },
-  fallbackBanner: {
-    backgroundColor: '#F59E0B1A',
-    borderColor: '#F59E0B66',
-    borderWidth: 1,
-    borderRadius: Spacing.two,
-    padding: Spacing.three,
-    gap: Spacing.one,
-  },
-  badgeWarning: {
-    color: '#F59E0B',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  fallbackTitle: {
-    color: '#F8FAFC',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  fallbackSub: {
-    color: '#94A3B8',
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  manualDetailsBox: {
+  intentDetailsCard: {
     backgroundColor: '#0F172A',
     borderRadius: Spacing.two,
     padding: Spacing.three,
@@ -675,32 +1062,47 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#334155',
   },
-  manualDetailRow: {
+  detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  manualLabel: {
+  detailLabel: {
     color: '#94A3B8',
     fontSize: 12,
   },
-  manualValue: {
+  detailValue: {
     color: '#F8FAFC',
     fontSize: 13,
   },
-  vpaHighlight: {
+  vpaText: {
     color: '#38BDF8',
-    fontSize: 14,
     fontWeight: '700',
   },
-  resultActions: {
-    flexDirection: 'row',
+  intentActionsWrap: {
     gap: Spacing.two,
     marginTop: Spacing.one,
   },
+  claimBtn: {
+    backgroundColor: '#10B981',
+  },
+  claimBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  cancelPaymentBtn: {
+    backgroundColor: '#EF44441A',
+    borderColor: '#EF444466',
+    borderWidth: 1,
+  },
+  cancelPaymentBtnText: {
+    color: '#EF4444',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   primaryBtn: {
     backgroundColor: '#2563EB',
-    flex: 1,
   },
   primaryBtnText: {
     color: '#FFFFFF',
@@ -709,12 +1111,20 @@ const styles = StyleSheet.create({
   },
   secondaryBtn: {
     backgroundColor: '#334155',
-    flex: 1,
   },
   secondaryBtnText: {
     color: '#F8FAFC',
     fontSize: 13,
     fontWeight: '600',
   },
+  closeBtn: {
+    backgroundColor: '#1E293B',
+    borderColor: '#334155',
+    borderWidth: 1,
+  },
+  closeBtnDisplayText: {
+    color: '#94A3B8',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });
-

@@ -21,7 +21,7 @@ import { PaymentModal } from '../../../components/PaymentModal';
 import { BottomTabInset, MaxContentWidth, Spacing } from '../../../constants/theme';
 import { useAuth } from '../../../context/AuthContext';
 import { useGroupDetail } from '../../../hooks/useGroupDetail';
-import type { ExpenseItem, SettlementDebt } from '../../../types/api';
+import type { ExpenseItem, PaymentIntentItem, SettlementDebt } from '../../../types/api';
 import { BALANCE_COLORS, formatINR, getBalanceLabel, getBalanceTone } from '../../../utils/format';
 
 type TabType = 'expenses' | 'balances' | 'members';
@@ -36,6 +36,7 @@ export default function GroupDetailScreen() {
     group,
     expenses,
     balances,
+    activeIntents,
     isLoading,
     isRefreshing,
     isMutating,
@@ -60,6 +61,7 @@ export default function GroupDetailScreen() {
   const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(null);
   const [expenseToEdit, setExpenseToEdit] = useState<ExpenseItem | null>(null);
   const [selectedSettlement, setSelectedSettlement] = useState<SettlementDebt | null>(null);
+  const [selectedIntent, setSelectedIntent] = useState<PaymentIntentItem | null>(null);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
 
   const [memberEmailInput, setMemberEmailInput] = useState('');
@@ -464,6 +466,21 @@ export default function GroupDetailScreen() {
                       if (isPayerMe) label = `You owe ${toName}`;
                       else if (isReceiverMe) label = `${fromName} owes you`;
 
+                      // Match active direct UPI intent for this pairwise settlement
+                      const debtActiveIntent = activeIntents?.find((intent) => {
+                        const iFrom = String(
+                          typeof intent.from === 'object' && intent.from
+                            ? (intent.from as any)._id || (intent.from as any).id
+                            : intent.from
+                        );
+                        const iTo = String(
+                          typeof intent.to === 'object' && intent.to
+                            ? (intent.to as any)._id || (intent.to as any).id
+                            : intent.to
+                        );
+                        return iFrom === fromId && iTo === toId;
+                      });
+
                       return (
                         <View key={`${fromId}-${toId}-${idx}`} style={styles.settlementRow}>
                           <ThemedText
@@ -476,20 +493,62 @@ export default function GroupDetailScreen() {
                             {label}
                           </ThemedText>
                           <View style={styles.settlementRight}>
-                            <ThemedText
-                              type="smallBold"
-                              style={[
-                                styles.settlementAmount,
-                                isPayerMe && styles.amountOwe,
-                                isReceiverMe && styles.amountOwed,
-                              ]}
-                            >
-                              {formatINR(s.amount)}
-                            </ThemedText>
-                            {canPay ? (
+                            <View style={styles.settlementAmountWrap}>
+                              <ThemedText
+                                type="smallBold"
+                                style={[
+                                  styles.settlementAmount,
+                                  isPayerMe && styles.amountOwe,
+                                  isReceiverMe && styles.amountOwed,
+                                ]}
+                              >
+                                {formatINR(s.amount)}
+                              </ThemedText>
+                              {debtActiveIntent ? (
+                                <View
+                                  style={[
+                                    styles.settlementStatusChip,
+                                    debtActiveIntent.status === 'payer_claimed'
+                                      ? styles.statusChipClaimed
+                                      : styles.statusChipPending,
+                                  ]}
+                                >
+                                  <ThemedText style={styles.settlementStatusChipText}>
+                                    {debtActiveIntent.status === 'payer_claimed'
+                                      ? 'Claimed'
+                                      : 'Pending'}
+                                  </ThemedText>
+                                </View>
+                              ) : null}
+                            </View>
+
+                            {debtActiveIntent ? (
+                              <TouchableOpacity
+                                style={[
+                                  styles.settlementPayBtn,
+                                  debtActiveIntent.status === 'payer_claimed'
+                                    ? styles.settlementClaimedBtn
+                                    : styles.settlementPendingBtn,
+                                ]}
+                                onPress={() => {
+                                  setSelectedSettlement(s);
+                                  setSelectedIntent(debtActiveIntent);
+                                }}
+                                activeOpacity={0.8}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Manage payment status for ${toName}`}
+                              >
+                                <ThemedText style={styles.settlementPayBtnText}>
+                                  {isPayerMe ? 'Manage' : 'Status'}
+                                </ThemedText>
+                              </TouchableOpacity>
+                            ) : canPay ? (
                               <TouchableOpacity
                                 style={styles.settlementPayBtn}
-                                onPress={() => setSelectedSettlement(s)}
+                                onPress={() => {
+                                  setSelectedSettlement(s);
+                                  setSelectedIntent(null);
+                                }}
                                 activeOpacity={0.8}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Pay ${toName} ${formatINR(s.amount)}`}
@@ -800,13 +859,18 @@ export default function GroupDetailScreen() {
           isMutating={isMutating}
         />
 
-        {/* MODAL 6: DIRECT UPI PAYMENT */}
+        {/* MODAL 6: DIRECT UPI PAYMENT & INTENT STATUS */}
         <PaymentModal
           visible={Boolean(selectedSettlement)}
-          onClose={() => setSelectedSettlement(null)}
+          onClose={() => {
+            setSelectedSettlement(null);
+            setSelectedIntent(null);
+          }}
           groupId={groupId}
           settlement={selectedSettlement}
           currentUserId={user?.id}
+          existingIntent={selectedIntent}
+          onIntentUpdated={refresh}
         />
       </SafeAreaView>
     </ThemedView>
@@ -1013,6 +1077,37 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 12,
+  },
+  settlementAmountWrap: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  settlementStatusChip: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  statusChipPending: {
+    backgroundColor: '#F59E0B22',
+    borderColor: '#F59E0B66',
+    borderWidth: 1,
+  },
+  statusChipClaimed: {
+    backgroundColor: '#0284C722',
+    borderColor: '#0284C766',
+    borderWidth: 1,
+  },
+  settlementStatusChipText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    textTransform: 'uppercase',
+  },
+  settlementPendingBtn: {
+    backgroundColor: '#F59E0B',
+  },
+  settlementClaimedBtn: {
+    backgroundColor: '#0284C7',
   },
   memberBalanceList: { gap: Spacing.one },
   memberBalanceRow: {

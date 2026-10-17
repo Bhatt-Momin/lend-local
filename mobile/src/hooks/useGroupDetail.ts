@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useAuth } from '../context/AuthContext';
-import { balancesApi, expensesApi, groupsApi } from '../services/api';
+import { balancesApi, expensesApi, groupsApi, paymentApi } from '../services/api';
 import type {
   AddMemberResponse,
   CreateExpensePayload,
@@ -10,6 +10,7 @@ import type {
   ExpenseItem,
   GroupBalancesResponse,
   GroupDetail,
+  PaymentIntentItem,
   RenameGroupResponse,
   UpdateExpensePayload,
 } from '../types/api';
@@ -28,6 +29,7 @@ export interface UseGroupDetailResult {
   group: GroupDetail | null;
   expenses: ExpenseItem[];
   balances: GroupBalancesResponse | null;
+  activeIntents: PaymentIntentItem[];
   isLoading: boolean;
   isRefreshing: boolean;
   isMutating: boolean;
@@ -63,6 +65,7 @@ export function useGroupDetail(
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [balances, setBalances] = useState<GroupBalancesResponse | null>(null);
+  const [activeIntents, setActiveIntents] = useState<PaymentIntentItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(enabled);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [isMutating, setIsMutating] = useState<boolean>(false);
@@ -80,6 +83,7 @@ export function useGroupDetail(
     setGroup(null);
     setExpenses([]);
     setBalances(null);
+    setActiveIntents([]);
     setError(null);
     setIsLoading(false);
     setIsRefreshing(false);
@@ -104,10 +108,11 @@ export function useGroupDetail(
       setError(null);
 
       try {
-        const [groupRes, expensesRes, balancesRes] = await Promise.all([
+        const [groupRes, expensesRes, balancesRes, activeIntentsRes] = await Promise.all([
           groupsApi.getById(groupId),
           expensesApi.list(groupId),
           balancesApi.get(groupId),
+          paymentApi.getActiveIntents(groupId).catch(() => ({ intents: [] as PaymentIntentItem[] })),
         ]);
 
         if (currentRequestId !== requestIdRef.current) return;
@@ -115,6 +120,7 @@ export function useGroupDetail(
         setGroup(groupRes.group);
         setExpenses(expensesRes.expenses ?? []);
         setBalances(balancesRes);
+        setActiveIntents(activeIntentsRes?.intents ?? []);
       } catch (err: any) {
         if (currentRequestId !== requestIdRef.current) {
           if (throwOnError) throw err;
@@ -145,6 +151,7 @@ export function useGroupDetail(
       setGroup(null);
       setExpenses([]);
       setBalances(null);
+      setActiveIntents([]);
       setError(null);
       setIsLoading(false);
       setIsRefreshing(false);
@@ -160,6 +167,7 @@ export function useGroupDetail(
       setGroup(null);
       setExpenses([]);
       setBalances(null);
+      setActiveIntents([]);
       setError(null);
       setIsMutating(false);
       isMutatingRef.current = false;
@@ -310,6 +318,7 @@ export function useGroupDetail(
     group,
     expenses,
     balances,
+    activeIntents,
     isLoading,
     isRefreshing,
     isMutating,

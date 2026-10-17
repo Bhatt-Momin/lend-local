@@ -7,7 +7,11 @@
  * - backend/models/payment.js
  */
 
-import type { CreateUpiIntentPayload } from '../types/api';
+import type {
+  CreateUpiIntentPayload,
+  IntentActionPayload,
+  PaymentStatus,
+} from '../types/api';
 
 /**
  * Standard UPI Virtual Payment Address (VPA) regex matching backend auth.js.
@@ -202,5 +206,110 @@ export function buildCreateIntentPayload(params: BuildCreateIntentParams): Creat
     toUserId,
     amount: result.paymentAmount,
   };
+}
+
+/**
+ * Determines whether a payment intent can be claimed by the user.
+ * FINANCIAL RULE: Only the debtor/payer (intent.from) can claim payment,
+ * and only while the intent is in 'pending' status.
+ */
+export function canClaimIntent(status: PaymentStatus, isPayer: boolean): boolean {
+  return Boolean(isPayer && status === 'pending');
+}
+
+/**
+ * Determines whether a payment intent can be cancelled.
+ * FINANCIAL RULE: Only the debtor/payer (intent.from) can cancel payment,
+ * and strictly while the status is 'pending'. Once claimed, cancellation is forbidden.
+ */
+export function canCancelIntent(status: PaymentStatus, isPayer: boolean): boolean {
+  return Boolean(isPayer && status === 'pending');
+}
+
+/**
+ * Checks whether an intent status has reached a terminal state.
+ * Terminal states require stopping all polling and refreshing.
+ */
+export function isTerminalStatus(status: PaymentStatus): boolean {
+  return (
+    status === 'recipient_confirmed' ||
+    status === 'recipient_rejected' ||
+    status === 'cancelled' ||
+    status === 'paid' ||
+    status === 'failed' ||
+    status === 'reversed'
+  );
+}
+
+/**
+ * Validates an intentId for /api/payment/claim, /cancel, /status.
+ */
+export function buildIntentActionPayload(intentId: string): IntentActionPayload {
+  if (!intentId || typeof intentId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(intentId.trim())) {
+    throw new Error('Valid intentId is required');
+  }
+  return { intentId: intentId.trim() };
+}
+
+export type PaymentBadgeTone = 'pending' | 'claimed' | 'confirmed' | 'rejected' | 'cancelled' | 'unknown';
+
+export interface PaymentStatusBadgeInfo {
+  label: string;
+  color: string;
+  bgColor: string;
+  tone: PaymentBadgeTone;
+}
+
+/**
+ * Returns human-readable UI presentation badge details for payment statuses.
+ */
+export function getPaymentStatusBadge(status: PaymentStatus | string): PaymentStatusBadgeInfo {
+  switch (status) {
+    case 'pending':
+      return {
+        label: 'Payment Pending',
+        color: '#F59E0B',
+        bgColor: '#F59E0B1A',
+        tone: 'pending',
+      };
+    case 'payer_claimed':
+      return {
+        label: 'Claimed (Awaiting Confirmation)',
+        color: '#38BDF8',
+        bgColor: '#38BDF81A',
+        tone: 'claimed',
+      };
+    case 'recipient_confirmed':
+    case 'paid':
+      return {
+        label: 'Confirmed & Settled',
+        color: '#10B981',
+        bgColor: '#10B9811A',
+        tone: 'confirmed',
+      };
+    case 'recipient_rejected':
+    case 'failed':
+      return {
+        label: 'Rejected',
+        color: '#EF4444',
+        bgColor: '#EF44441A',
+        tone: 'rejected',
+      };
+    case 'cancelled':
+    case 'reversed':
+      return {
+        label: 'Cancelled',
+        color: '#94A3B8',
+        bgColor: '#94A3B81A',
+        tone: 'cancelled',
+      };
+    default:
+      return {
+        label: 'Unknown',
+        color: '#94A3B8',
+        bgColor: '#94A3B81A',
+        tone: 'unknown',
+      };
+  }
 }
 
