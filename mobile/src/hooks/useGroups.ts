@@ -14,6 +14,7 @@ export interface UseGroupsResult {
   isRefreshing: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  refreshOnFocus: () => Promise<void>;
 }
 
 /**
@@ -24,6 +25,7 @@ export interface UseGroupsResult {
  * - Automatically clears previous user's groups on sign out or when user identity changes.
  * - Handles HTTP 401 as an expired session by clearing credentials via logout.
  * - Keeps standard network and server errors visible with retry support.
+ * - Supports silent background focus refresh preserving existing data on failure.
  */
 export function useGroups(
   enabled: boolean,
@@ -39,8 +41,12 @@ export function useGroups(
   const onUnauthorizedRef = useRef(options?.onUnauthorized);
   onUnauthorizedRef.current = options?.onUnauthorized;
   const requestIdRef = useRef<number>(0);
+  const inFlightRef = useRef<boolean>(false);
+  const hasLoadedRef = useRef<boolean>(false);
 
   const handleUnauthorized = useCallback(async () => {
+    inFlightRef.current = false;
+    hasLoadedRef.current = false;
     setGroups([]);
     setError(null);
     setIsLoading(false);
@@ -54,10 +60,12 @@ export function useGroups(
 
   const load = useCallback(
     async (isRefresh = false) => {
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
       const currentRequestId = ++requestIdRef.current;
       if (isRefresh) {
         setIsRefreshing(true);
-      } else {
+      } else if (!hasLoadedRef.current) {
         setIsLoading(true);
       }
       setError(null);
@@ -65,14 +73,19 @@ export function useGroups(
         const res = await groupsApi.list();
         if (currentRequestId !== requestIdRef.current) return;
         setGroups(res.groups ?? []);
+        hasLoadedRef.current = true;
       } catch (err: any) {
         if (currentRequestId !== requestIdRef.current) return;
         if (err?.status === 401) {
           await handleUnauthorized();
           return;
         }
-        setError(err?.message || 'Failed to load groups');
+        // Preserve existing group summaries on refresh failure
+        if (!hasLoadedRef.current) {
+          setError(err?.message || 'Failed to load groups');
+        }
       } finally {
+        inFlightRef.current = false;
         if (currentRequestId === requestIdRef.current) {
           setIsLoading(false);
           setIsRefreshing(false);
@@ -86,6 +99,8 @@ export function useGroups(
     if (!enabled || !user) {
       // Invalidate any in-flight requests and clear state immediately
       requestIdRef.current += 1;
+      inFlightRef.current = false;
+      hasLoadedRef.current = false;
       setGroups([]);
       setError(null);
       setIsLoading(false);
@@ -97,6 +112,8 @@ export function useGroups(
     // Clear stale data immediately if switching user accounts
     if (prevUserIdRef.current !== user.id) {
       requestIdRef.current += 1;
+      inFlightRef.current = false;
+      hasLoadedRef.current = false;
       setGroups([]);
       setError(null);
       prevUserIdRef.current = user.id;
@@ -107,5 +124,30 @@ export function useGroups(
 
   const refresh = useCallback(() => load(true), [load]);
 
-  return { groups, isLoading, isRefreshing, error, refresh };
+  const refreshOnFocus = useCallback(async () => {
+    if (inFlightRef.current || !enabled || !user) return;
+    inFlightRef.current = true;
+    const currentRequestId = ++requestIdRef.current;
+    try {
+      const res = await groupsApi.list();
+      if (currentRequestId !== requestIdRef.current) return;
+      setGroups(res.groups ?? []);
+      setError(null);
+      hasLoadedRef.current = true;
+    } catch (err: any) {
+      if (currentRequestId !== requestIdRef.current) return;
+      if (err?.status === 401) {
+        await handleUnauthorized();
+        return;
+      }
+      // On focus failure, preserve existing groups and totals without wiping them out
+      if (!hasLoadedRef.current) {
+        setError(err?.message || 'Failed to load groups');
+      }
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, [enabled, user, handleUnauthorized]);
+
+  return { groups, isLoading, isRefreshing, error, refresh, refreshOnFocus };
 }

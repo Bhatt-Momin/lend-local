@@ -5,6 +5,7 @@ import type { UpdateUpiIdResponse } from '../types/api';
 export interface ApiError {
   message: string;
   status: number;
+  data?: any;
 }
 
 export interface AuthResponse {
@@ -72,6 +73,7 @@ export async function apiRequest<T = any>(
     throw {
       message,
       status: response.status,
+      data,
     } as ApiError;
   }
 

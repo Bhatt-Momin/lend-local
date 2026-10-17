@@ -64,6 +64,7 @@ export function PaymentModal({
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
   const [isConflict, setIsConflict] = useState<boolean>(false);
+  const [conflictIntentId, setConflictIntentId] = useState<string | null>(null);
   const [isRecipientUpiMissing, setIsRecipientUpiMissing] = useState<boolean>(false);
 
   // Active / Tracked Intent State
@@ -104,6 +105,7 @@ export function PaymentModal({
       setFormSuccess(null);
       setRefreshWarning(null);
       setIsConflict(false);
+      setConflictIntentId(null);
       setIsRecipientUpiMissing(false);
       setIsSubmitting(false);
       setIsActionInProgress(false);
@@ -321,6 +323,15 @@ export function PaymentModal({
       if (status === 409) {
         setIsConflict(true);
         setFormError(message);
+        const resolvedConflictId = err?.data?.intentId ? String(err.data.intentId) : null;
+        setConflictIntentId(resolvedConflictId);
+        if (onIntentUpdated) {
+          try {
+            await onIntentUpdated();
+          } catch {
+            // Non-blocking background refresh on conflict
+          }
+        }
       } else if (
         status === 400 &&
         message.toLowerCase().includes('not configured a upi')
@@ -530,12 +541,100 @@ export function PaymentModal({
     }
   };
 
+  // M5: HTTP 409 conflict recovery — resolves and opens the existing active payment intent
+  const handleResolveConflict = async (targetIntentId?: string | null) => {
+    if (isActionInProgress) return;
+    setIsActionInProgress(true);
+    setFormError(null);
+    setRefreshWarning(null);
+
+    const recipientId = String(settlement.to?.userId ?? settlement.to?.id ?? '');
+    const debtorId = String(settlement.from?.userId ?? settlement.from?.id ?? currentUserId ?? '');
+
+    try {
+      // 1. Fetch active intents for this group from backend
+      const activeRes = await paymentApi.getActiveIntents(groupId);
+      const intents = activeRes?.intents ?? [];
+
+      // 2. Locate exact matching intent verifying group ID, payer/payee IDs, and debt direction
+      const matched = intents.find((i) => {
+        const iFrom = String(
+          typeof i.from === 'object' && i.from
+            ? (i.from as any)._id || (i.from as any).id
+            : i.from
+        );
+        const iTo = String(
+          typeof i.to === 'object' && i.to
+            ? (i.to as any)._id || (i.to as any).id
+            : i.to
+        );
+        const iGroup = String(i.groupId || groupId);
+
+        const idMatches = targetIntentId ? String(i.intentId) === String(targetIntentId) : true;
+        const groupMatches = iGroup === groupId;
+        const participantsMatch = iFrom === debtorId && iTo === recipientId;
+        const statusActive = i.status === 'pending' || i.status === 'payer_claimed';
+
+        return idMatches && groupMatches && participantsMatch && statusActive;
+      });
+
+      if (!matched) {
+        setFormError(
+          'An active payment exists on the server, but could not be safely verified for this settlement. Please close this modal and pull down to refresh the group screen.'
+        );
+        return;
+      }
+
+      // 3. Populate modal with confirmed matching intent and switch to View A
+      const fromId = String(
+        typeof matched.from === 'object' && matched.from
+          ? (matched.from as any)._id || (matched.from as any).id
+          : matched.from
+      );
+      const toId = String(
+        typeof matched.to === 'object' && matched.to
+          ? (matched.to as any)._id || (matched.to as any).id
+          : matched.to
+      );
+
+      setCurrentIntentId(matched.intentId);
+      setCurrentStatus(matched.status);
+      setCurrentAmount(matched.amount);
+      setCurrentPayeeName(matched.payeeName || settlement.to?.name || 'Recipient');
+      setCurrentPayerName(matched.payerName || settlement.from?.name || 'Payer');
+      setCurrentPayeeUpiId((matched as any).payeeUpiId || null);
+      setCurrentUpiUri(matched.upiUri || null);
+      setCurrentFromId(fromId);
+      setCurrentToId(toId);
+      setLaunchStatus('idle');
+      setIsConflict(false);
+      setConflictIntentId(null);
+      setFormError(null);
+
+      if (onIntentUpdated) {
+        try {
+          await onIntentUpdated();
+        } catch {
+          // Non-blocking
+        }
+      }
+    } catch (err: any) {
+      setFormError(
+        err?.message || 'Failed to resolve active payment. Please pull down to refresh.'
+      );
+    } finally {
+      setIsActionInProgress(false);
+    }
+  };
+
   const handleStartNewPayment = () => {
     setCurrentIntentId(null);
     setCurrentStatus(null);
     setCurrentAmount(null);
     setCurrentUpiUri(null);
     setLaunchStatus('idle');
+    setIsConflict(false);
+    setConflictIntentId(null);
     setFormError(null);
     setFormSuccess(null);
     setRefreshWarning(null);
@@ -629,6 +728,24 @@ export function PaymentModal({
                   {isRecipientUpiMissing ? '⚠️ ' : isConflict ? '⏳ ' : '⚠️ '}
                   {formError}
                 </ThemedText>
+                {isConflict ? (
+                  <TouchableOpacity
+                    style={styles.resolveConflictBtn}
+                    onPress={() => handleResolveConflict(conflictIntentId)}
+                    disabled={isActionInProgress}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="View and manage active payment intent"
+                  >
+                    {isActionInProgress ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <ThemedText style={styles.resolveConflictBtnText}>
+                        👁️ View Active Payment
+                      </ThemedText>
+                    )}
+                  </TouchableOpacity>
+                ) : null}
               </View>
             ) : null}
 
@@ -1118,6 +1235,21 @@ const styles = StyleSheet.create({
   conflictBox: {
     backgroundColor: '#F59E0B1A',
     borderColor: '#F59E0B66',
+  },
+  resolveConflictBtn: {
+    backgroundColor: '#D97706',
+    borderRadius: Spacing.one,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    marginTop: Spacing.one,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
+  },
+  resolveConflictBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
   },
   warningBox: {
     backgroundColor: '#F59E0B1A',

@@ -1,6 +1,6 @@
 import * as Device from 'expo-device';
-import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -33,8 +33,16 @@ export default function HomeScreen() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const groupsEnabled = !!user && !isLoading;
-  const { groups, isLoading: groupsLoading, isRefreshing, error: groupsError, refresh } =
+  const { groups, isLoading: groupsLoading, isRefreshing, error: groupsError, refresh, refreshOnFocus } =
     useGroups(groupsEnabled, { onUnauthorized: logout });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (groupsEnabled) {
+        refreshOnFocus();
+      }
+    }, [groupsEnabled, refreshOnFocus])
+  );
 
   const platformName = Platform.select({
     android: 'Android',

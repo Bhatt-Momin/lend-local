@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -78,6 +78,34 @@ export default function GroupDetailScreen() {
   const tone = getBalanceTone(myNetBalance);
   const balanceColor = BALANCE_COLORS[tone];
   const balanceText = getBalanceLabel(myNetBalance);
+
+  const currentUserId = String(user?.id ?? '');
+
+  // M5: Count active incoming payment claims awaiting verification by the authenticated recipient
+  const unconfirmedClaimsCount = useMemo(() => {
+    if (!currentUserId || !activeIntents || activeIntents.length === 0) return 0;
+    const seenIntentIds = new Set<string>();
+
+    return activeIntents.filter((intent) => {
+      if (!intent || intent.status !== 'payer_claimed') return false;
+
+      const toId = String(
+        typeof intent.to === 'object' && intent.to
+          ? (intent.to as any)._id || (intent.to as any).id
+          : intent.to
+      );
+
+      // Must be intended for current user (recipient)
+      if (toId !== currentUserId) return false;
+
+      // De-duplicate any multiple appearances of the same intentId
+      const intentId = String(intent.intentId || '');
+      if (intentId && seenIntentIds.has(intentId)) return false;
+      if (intentId) seenIntentIds.add(intentId);
+
+      return true;
+    }).length;
+  }, [activeIntents, currentUserId]);
 
   const handleOpenAddMember = () => {
     setMemberEmailInput('');
@@ -354,10 +382,25 @@ export default function GroupDetailScreen() {
               style={[styles.tabItem, activeTab === 'balances' && styles.tabItemActive]}
               onPress={() => setActiveTab('balances')}
               activeOpacity={0.8}
+              accessibilityRole="tab"
+              accessibilityLabel={
+                unconfirmedClaimsCount > 0
+                  ? `Balances and Debts, ${unconfirmedClaimsCount} claim${unconfirmedClaimsCount === 1 ? '' : 's'} awaiting review`
+                  : 'Balances and Debts'
+              }
             >
-              <ThemedText style={[styles.tabText, activeTab === 'balances' && styles.tabTextActive]}>
-                Balances & Debts
-              </ThemedText>
+              <View style={styles.tabItemContent}>
+                <ThemedText style={[styles.tabText, activeTab === 'balances' && styles.tabTextActive]}>
+                  Balances & Debts
+                </ThemedText>
+                {unconfirmedClaimsCount > 0 ? (
+                  <View style={styles.tabBadge}>
+                    <ThemedText style={styles.tabBadgeText}>
+                      {unconfirmedClaimsCount}
+                    </ThemedText>
+                  </View>
+                ) : null}
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -1004,6 +1047,26 @@ const styles = StyleSheet.create({
   },
   tabItemActive: {
     backgroundColor: '#1E293B',
+  },
+  tabItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  tabBadge: {
+    backgroundColor: '#0284C7',
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    minWidth: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
   tabText: {
     fontSize: 12,
