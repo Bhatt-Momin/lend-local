@@ -961,6 +961,42 @@ router.get("/status/:intentId", protect, async (req, res) => {
 // =====================================================
 // GET ACTIVE DIRECT UPI INTENTS
 // =====================================================
+
+/**
+ * Minimal production helper to map an internal Payment Mongoose document
+ * to the client-facing active payment intent JSON contract.
+ */
+function mapActivePaymentIntent(intent) {
+  let upiUri = null;
+  if (intent.method === 'upi_direct' && intent.payeeUpiId && intent.upiTransactionRef) {
+    const pa = encodeURIComponent(intent.payeeUpiId);
+    const pn = encodeURIComponent(intent.payeeName || "Unknown");
+    const tr = encodeURIComponent(intent.upiTransactionRef);
+    const am = encodeURIComponent(intent.amount.toFixed(2));
+    const cu = encodeURIComponent("INR");
+    const tn = encodeURIComponent("LendLocal Settlement");
+    upiUri = `upi://pay?pa=${pa}&pn=${pn}&tr=${tr}&am=${am}&cu=${cu}&tn=${tn}`;
+  }
+
+  const fromId = intent.from?._id ? intent.from._id : (intent.from || null);
+  const toId = intent.to?._id ? intent.to._id : (intent.to || null);
+
+  return {
+    intentId: intent._id,
+    groupId: intent.group,
+    from: fromId,
+    to: toId,
+    payerName: intent.from?.name || "Unknown",
+    payeeName: intent.to?.name || intent.payeeName || "Unknown",
+    amount: intent.amount,
+    status: intent.status,
+    payeeUpiId: intent.payeeUpiId || null,
+    upiUri,
+    createdAt: intent.createdAt,
+    claimedAt: intent.claimedAt
+  };
+}
+
 router.get("/active/:groupId", protect, async (req, res) => {
   try {
     const groupId = req.params.groupId;
@@ -1000,35 +1036,7 @@ router.get("/active/:groupId", protect, async (req, res) => {
       activeIntents.push(intent);
     }
 
-    const mappedIntents = activeIntents.map(intent => {
-      let upiUri = null;
-      if (intent.method === 'upi_direct' && intent.payeeUpiId && intent.upiTransactionRef) {
-        const pa = encodeURIComponent(intent.payeeUpiId);
-        const pn = encodeURIComponent(intent.payeeName || "Unknown");
-        const tr = encodeURIComponent(intent.upiTransactionRef);
-        const am = encodeURIComponent(intent.amount.toFixed(2));
-        const cu = encodeURIComponent("INR");
-        const tn = encodeURIComponent("LendLocal Settlement");
-        upiUri = `upi://pay?pa=${pa}&pn=${pn}&tr=${tr}&am=${am}&cu=${cu}&tn=${tn}`;
-      }
-
-      const fromId = intent.from?._id ? intent.from._id : (intent.from || null);
-      const toId = intent.to?._id ? intent.to._id : (intent.to || null);
-
-      return {
-        intentId: intent._id,
-        groupId: intent.group,
-        from: fromId,
-        to: toId,
-        payerName: intent.from?.name || "Unknown",
-        payeeName: intent.to?.name || intent.payeeName || "Unknown",
-        amount: intent.amount,
-        status: intent.status,
-        upiUri,
-        createdAt: intent.createdAt,
-        claimedAt: intent.claimedAt
-      };
-    });
+    const mappedIntents = activeIntents.map(mapActivePaymentIntent);
 
     return res.status(200).json({ intents: mappedIntents });
   } catch (error) {
@@ -1036,5 +1044,7 @@ router.get("/active/:groupId", protect, async (req, res) => {
     res.status(500).json({ message: "Failed to fetch active intents" });
   }
 });
+
+router.mapActivePaymentIntent = mapActivePaymentIntent;
 
 module.exports = router;

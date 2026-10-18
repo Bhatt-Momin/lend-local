@@ -66,7 +66,8 @@ router.post('/register', authLimiter, async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        upiId: user.upiId || null
       },
     });
 
@@ -116,7 +117,8 @@ router.post('/login', authLimiter, async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        upiId: user.upiId || null
       },
     });
 

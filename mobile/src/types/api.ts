@@ -307,6 +307,7 @@ export interface PaymentIntentItem {
   payeeName: string;
   amount: number;
   status: PaymentStatus;
+  payeeUpiId?: string | null;
   upiUri: string | null;
   createdAt: string;
   claimedAt: string | null;

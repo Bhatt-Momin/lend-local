@@ -146,7 +146,7 @@ export function UpiConfigModal({ visible, onClose }: UpiConfigModalProps) {
               style={[styles.statusValue, !user?.upiId && styles.statusNotConfigured]}
               numberOfLines={1}
             >
-              {user?.upiId || 'Not configured'}
+              {user?.upiId ? user.upiId : user?.upiId === null ? 'Not configured' : 'Status unknown'}
             </ThemedText>
           </View>
 

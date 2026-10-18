@@ -331,3 +331,24 @@ export function getPaymentStatusBadge(status: PaymentStatus | string): PaymentSt
   }
 }
 
+/**
+ * Safely extracts the payee UPI VPA ('pa' query parameter) from a UPI intent URI.
+ * e.g., 'upi://pay?pa=alice%40okhdfcbank&pn=Alice&...' -> 'alice@okhdfcbank'
+ * Returns null if URI is absent, malformed, or does not contain a valid 'pa' parameter.
+ */
+export function extractUpiVpa(upiUri?: string | null): string | null {
+  if (!upiUri || typeof upiUri !== 'string') {
+    return null;
+  }
+  try {
+    const match = upiUri.match(/[?&]pa=([^&]+)/);
+    if (!match || !match[1]) {
+      return null;
+    }
+    const decoded = decodeURIComponent(match[1]).trim();
+    return decoded || null;
+  } catch {
+    return null;
+  }
+}
+

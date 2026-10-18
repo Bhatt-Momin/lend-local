@@ -31,6 +31,7 @@ import {
   canClaimIntent,
   canConfirmIntent,
   canRejectIntent,
+  extractUpiVpa,
   getPaymentStatusBadge,
   isTerminalStatus,
   validatePaymentAmount,
@@ -127,7 +128,7 @@ export function PaymentModal({
         setCurrentAmount(existingIntent.amount);
         setCurrentPayeeName(existingIntent.payeeName || settlement.to?.name || 'Recipient');
         setCurrentPayerName(existingIntent.payerName || settlement.from?.name || 'Payer');
-        setCurrentPayeeUpiId((existingIntent as any).payeeUpiId || null);
+        setCurrentPayeeUpiId(existingIntent.payeeUpiId || extractUpiVpa(existingIntent.upiUri) || null);
         setCurrentUpiUri(existingIntent.upiUri || null);
         setCurrentFromId(fromId);
         setCurrentToId(toId);
@@ -602,7 +603,7 @@ export function PaymentModal({
       setCurrentAmount(matched.amount);
       setCurrentPayeeName(matched.payeeName || settlement.to?.name || 'Recipient');
       setCurrentPayerName(matched.payerName || settlement.from?.name || 'Payer');
-      setCurrentPayeeUpiId((matched as any).payeeUpiId || null);
+      setCurrentPayeeUpiId(matched.payeeUpiId || extractUpiVpa(matched.upiUri) || null);
       setCurrentUpiUri(matched.upiUri || null);
       setCurrentFromId(fromId);
       setCurrentToId(toId);

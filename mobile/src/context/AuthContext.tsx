@@ -19,6 +19,7 @@ interface AuthContextType {
   user: UserProfile | null;
   token: string | null;
   isLoading: boolean;
+  isRefreshingUser: boolean;
   serverUrl: string;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
@@ -35,7 +36,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshingUser, setIsRefreshingUser] = useState<boolean>(false);
   const [serverUrl, setServerUrl] = useState<string>('');
+
+  const userRef = React.useRef<UserProfile | null>(null);
+  const refreshingUserPromiseRef = React.useRef<Promise<void> | null>(null);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   useEffect(() => {
     let isMounted = true;
@@ -53,14 +62,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (storedToken) {
           if (isMounted) {
             setToken(storedToken);
-            if (cachedUser) setUser(cachedUser);
+            if (cachedUser) {
+              setUser(cachedUser);
+              userRef.current = cachedUser;
+            }
           }
 
           // 3. Verify token with backend
           try {
             const { user: freshUser } = await authApi.getMe(storedToken);
-            if (isMounted) {
+            if (isMounted && freshUser) {
               setUser(freshUser);
+              userRef.current = freshUser;
               await saveUserData(freshUser);
             }
           } catch (err: any) {
@@ -71,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (isMounted) {
                 setToken(null);
                 setUser(null);
+                userRef.current = null;
               }
             } else {
               console.warn('Backend verification network issue, using cached profile:', err?.message);
@@ -101,56 +115,118 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = React.useCallback(async (email: string, password: string): Promise<void> => {
     const res = await authApi.login({ email, password });
     await saveAuthToken(res.token);
-    await saveUserData(res.user);
     setToken(res.token);
-    setUser(res.user);
+
+    // Hydrate authoritative user profile via GET /api/auth/me
+    let profile: UserProfile = res.user;
+    try {
+      const { user: freshUser } = await authApi.getMe(res.token);
+      if (freshUser) {
+        profile = freshUser;
+      }
+    } catch (hydrateErr: any) {
+      console.warn('Post-login profile hydration from /auth/me failed, using login payload:', hydrateErr?.message);
+    }
+
+    await saveUserData(profile);
+    setUser(profile);
+    userRef.current = profile;
   }, []);
 
   const register = React.useCallback(async (name: string, email: string, password: string): Promise<void> => {
     const res = await authApi.register({ name, email, password });
     await saveAuthToken(res.token);
-    await saveUserData(res.user);
     setToken(res.token);
-    setUser(res.user);
+
+    let profile: UserProfile = res.user;
+    try {
+      const { user: freshUser } = await authApi.getMe(res.token);
+      if (freshUser) {
+        profile = freshUser;
+      }
+    } catch (hydrateErr: any) {
+      console.warn('Post-registration profile hydration from /auth/me failed, using register payload:', hydrateErr?.message);
+    }
+
+    await saveUserData(profile);
+    setUser(profile);
+    userRef.current = profile;
   }, []);
 
   const logout = React.useCallback(async (): Promise<void> => {
     await clearAllAuth();
     setToken(null);
     setUser(null);
+    userRef.current = null;
   }, []);
 
-  const refreshUser = React.useCallback(async (): Promise<void> => {
-    const currentToken = await getAuthToken();
-    if (!currentToken) return;
-    try {
-      const { user: freshUser } = await authApi.getMe(currentToken);
-      setUser(freshUser);
-      await saveUserData(freshUser);
-    } catch (err: any) {
-      if (err?.status === 401) {
-        await clearAllAuth();
-        setToken(null);
-        setUser(null);
-      }
+  const refreshUser = React.useCallback((): Promise<void> => {
+    if (refreshingUserPromiseRef.current) {
+      return refreshingUserPromiseRef.current;
     }
+
+    const promise = (async () => {
+      try {
+        const currentToken = await getAuthToken();
+        if (!currentToken) return;
+
+        setIsRefreshingUser(true);
+        const { user: freshUser } = await authApi.getMe(currentToken);
+        if (freshUser) {
+          setUser(freshUser);
+          userRef.current = freshUser;
+          await saveUserData(freshUser);
+        }
+      } catch (err: any) {
+        if (err?.status === 401) {
+          await clearAllAuth();
+          setToken(null);
+          setUser(null);
+          userRef.current = null;
+        } else {
+          console.warn('Failed to refresh user profile:', err?.message);
+        }
+      } finally {
+        setIsRefreshingUser(false);
+        refreshingUserPromiseRef.current = null;
+      }
+    })();
+
+    refreshingUserPromiseRef.current = promise;
+    return promise;
   }, []);
 
   const updateUpiId = React.useCallback(async (upiId: string | null): Promise<UpdateUpiIdResponse> => {
     try {
       const res = await authApi.updateUpiId({ upiId });
+
+      let updatedProfile: UserProfile | null = userRef.current
+        ? { ...userRef.current, upiId: res.upiId }
+        : null;
+
       setUser((prev) => {
         if (!prev) return null;
-        const updated: UserProfile = { ...prev, upiId: res.upiId };
-        saveUserData(updated).catch((e) => console.warn('Failed to cache user profile:', e));
-        return updated;
+        const next = { ...prev, upiId: res.upiId };
+        if (!updatedProfile) updatedProfile = next;
+        return next;
       });
+
+      if (updatedProfile) {
+        userRef.current = updatedProfile;
+        try {
+          await saveUserData(updatedProfile);
+        } catch (storageErr) {
+          console.warn('Failed to persist updated UPI profile to SecureStore:', storageErr);
+        }
+      }
+
       return res;
     } catch (err: any) {
       if (err?.status === 401) {
         await clearAllAuth();
         setToken(null);
         setUser(null);
+        userRef.current = null;
       }
       throw err;
     }
@@ -173,6 +249,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       token,
       isLoading,
+      isRefreshingUser,
       serverUrl,
       login,
       register,
@@ -186,6 +263,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       token,
       isLoading,
+      isRefreshingUser,
       serverUrl,
       login,
       register,

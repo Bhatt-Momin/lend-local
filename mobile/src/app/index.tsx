@@ -27,7 +27,7 @@ import { formatINR } from '../utils/format';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, isLoading, serverUrl, logout } = useAuth();
+  const { user, isLoading, isRefreshingUser, serverUrl, logout, refreshUser } = useAuth();
   const [showServerModal, setShowServerModal] = useState(false);
   const [showUpiModal, setShowUpiModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -40,9 +40,16 @@ export default function HomeScreen() {
     useCallback(() => {
       if (groupsEnabled) {
         refreshOnFocus();
+        refreshUser().catch((err) => {
+          console.warn('Dashboard focus user refresh failed:', err?.message);
+        });
       }
-    }, [groupsEnabled, refreshOnFocus])
+    }, [groupsEnabled, refreshOnFocus, refreshUser])
   );
+
+  const handleRefresh = useCallback(async () => {
+    await Promise.allSettled([refresh(), refreshUser()]);
+  }, [refresh, refreshUser]);
 
   const platformName = Platform.select({
     android: 'Android',
@@ -115,7 +122,7 @@ export default function HomeScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={
             user ? (
-              <RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor="#2563EB" />
+              <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#2563EB" />
             ) : undefined
           }
         >
@@ -163,13 +170,24 @@ export default function HomeScreen() {
                 {/* Direct UPI ID Profile Setting */}
                 <TouchableOpacity
                   style={styles.upiRow}
-                  onPress={() => setShowUpiModal(true)}
+                  onPress={() => {
+                    if (user.upiId === undefined && !isRefreshingUser) {
+                      refreshUser().catch(() => {});
+                    } else {
+                      setShowUpiModal(true);
+                    }
+                  }}
+                  onLongPress={() => setShowUpiModal(true)}
                   activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel={
                     user.upiId
                       ? `UPI ID: ${user.upiId}. Tap to edit.`
-                      : 'UPI ID not set. Tap to configure.'
+                      : user.upiId === null
+                      ? 'UPI ID not set. Tap to configure.'
+                      : isRefreshingUser
+                      ? 'Checking UPI ID status.'
+                      : 'UPI ID status unknown. Tap to retry loading.'
                   }
                 >
                   <View style={styles.upiInfo}>
@@ -181,11 +199,33 @@ export default function HomeScreen() {
                       style={[styles.upiValue, !user.upiId && styles.upiNotSet]}
                       numberOfLines={1}
                     >
-                      {user.upiId || 'Not configured (tap to set)'}
+                      {user.upiId
+                        ? user.upiId
+                        : user.upiId === null
+                        ? 'Not configured (tap to set)'
+                        : isRefreshingUser
+                        ? 'Checking status...'
+                        : 'Status unknown (tap to retry)'}
                     </ThemedText>
                   </View>
-                  <ThemedText type="smallBold" style={styles.upiEditBtn}>
-                    {user.upiId ? 'Edit' : '+ Set'}
+                  <ThemedText
+                    type="smallBold"
+                    style={styles.upiEditBtn}
+                    onPress={() => {
+                      if (user.upiId === undefined && !isRefreshingUser) {
+                        refreshUser().catch(() => {});
+                      } else {
+                        setShowUpiModal(true);
+                      }
+                    }}
+                  >
+                    {user.upiId
+                      ? 'Edit'
+                      : user.upiId === null
+                      ? '+ Set'
+                      : isRefreshingUser
+                      ? '...'
+                      : 'Retry'}
                   </ThemedText>
                 </TouchableOpacity>
 

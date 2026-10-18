@@ -30,6 +30,8 @@ export interface UseGroupDetailResult {
   expenses: ExpenseItem[];
   balances: GroupBalancesResponse | null;
   activeIntents: PaymentIntentItem[];
+  activeIntentsVerified: boolean;
+  activeIntentsError: string | null;
   isLoading: boolean;
   isRefreshing: boolean;
   isMutating: boolean;
@@ -67,6 +69,8 @@ export function useGroupDetail(
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [balances, setBalances] = useState<GroupBalancesResponse | null>(null);
   const [activeIntents, setActiveIntents] = useState<PaymentIntentItem[]>([]);
+  const [activeIntentsVerified, setActiveIntentsVerified] = useState<boolean>(true);
+  const [activeIntentsError, setActiveIntentsError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(enabled);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [isMutating, setIsMutating] = useState<boolean>(false);
@@ -90,6 +94,8 @@ export function useGroupDetail(
     setExpenses([]);
     setBalances(null);
     setActiveIntents([]);
+    setActiveIntentsVerified(true);
+    setActiveIntentsError(null);
     setError(null);
     setRefreshError(null);
     setIsLoading(false);
@@ -115,6 +121,7 @@ export function useGroupDetail(
 
       try {
         let activeIntentsFetchSucceeded = false;
+        let activeIntentsFetchError: any = null;
         let fetchedActiveIntents: PaymentIntentItem[] = [];
 
         const activeIntentsPromise = paymentApi
@@ -132,6 +139,7 @@ export function useGroupDetail(
             if (throwOnError) {
               throw err;
             }
+            activeIntentsFetchError = err;
             return null;
           });
 
@@ -151,12 +159,20 @@ export function useGroupDetail(
         if (activeIntentsFetchSucceeded) {
           lastActiveIntentsRef.current = fetchedActiveIntents;
           setActiveIntents(fetchedActiveIntents);
+          setActiveIntentsVerified(true);
+          setActiveIntentsError(null);
         } else if (lastActiveIntentsRef.current !== null) {
           // Preserve the last successfully fetched active intents
           setActiveIntents(lastActiveIntentsRef.current);
+          setActiveIntentsVerified(true);
+          setActiveIntentsError(null);
         } else {
-          // On initial load, keep the existing empty initial state
+          // On initial load failure, keep empty state and mark unverified
           setActiveIntents([]);
+          setActiveIntentsVerified(false);
+          setActiveIntentsError(
+            activeIntentsFetchError?.message || 'Failed to verify active payment intents'
+          );
         }
 
         setError(null);
@@ -200,6 +216,8 @@ export function useGroupDetail(
       setExpenses([]);
       setBalances(null);
       setActiveIntents([]);
+      setActiveIntentsVerified(true);
+      setActiveIntentsError(null);
       setError(null);
       setRefreshError(null);
       setIsLoading(false);
@@ -219,6 +237,8 @@ export function useGroupDetail(
       setExpenses([]);
       setBalances(null);
       setActiveIntents([]);
+      setActiveIntentsVerified(true);
+      setActiveIntentsError(null);
       setError(null);
       setRefreshError(null);
       setIsMutating(false);
@@ -374,6 +394,8 @@ export function useGroupDetail(
     expenses,
     balances,
     activeIntents,
+    activeIntentsVerified,
+    activeIntentsError,
     isLoading,
     isRefreshing,
     isMutating,

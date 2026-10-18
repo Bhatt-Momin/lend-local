@@ -37,6 +37,8 @@ export default function GroupDetailScreen() {
     expenses,
     balances,
     activeIntents,
+    activeIntentsVerified,
+    activeIntentsError,
     isLoading,
     isRefreshing,
     isMutating,
@@ -314,6 +316,12 @@ export default function GroupDetailScreen() {
                 ⚠️ Balances may be out of date ({refreshError}). Pull down to refresh.
               </ThemedText>
             </View>
+          ) : !activeIntentsVerified && activeIntentsError ? (
+            <View style={styles.staleDataBanner}>
+              <ThemedText style={styles.staleDataText}>
+                ⚠️ Payment status could not be verified ({activeIntentsError}). Pull down to refresh before initiating payments.
+              </ThemedText>
+            </View>
           ) : null}
 
           {/* Balance Hero Card */}
@@ -499,6 +507,13 @@ export default function GroupDetailScreen() {
                 <ThemedText type="smallBold" style={styles.sectionTitle}>
                   Who Owes Whom
                 </ThemedText>
+                {!activeIntentsVerified && activeIntentsError ? (
+                  <View style={styles.unverifiedIntentsCard}>
+                    <ThemedText style={styles.unverifiedIntentsText}>
+                      ⚠️ Active payments and claims could not be verified ({activeIntentsError}). Pending claims and payment statuses may be missing. Pull down to refresh.
+                    </ThemedText>
+                  </View>
+                ) : null}
                 {!balances?.settlements || balances.settlements.length === 0 ? (
                   <ThemedText type="small" style={styles.settledText}>
                     ✨ All settled up! No outstanding debts in this group.
@@ -606,18 +621,41 @@ export default function GroupDetailScreen() {
                                 </ThemedText>
                               </TouchableOpacity>
                             ) : canPay ? (
-                              <TouchableOpacity
-                                style={styles.settlementPayBtn}
-                                onPress={() => {
-                                  setSelectedSettlement(s);
-                                  setSelectedIntent(null);
-                                }}
-                                activeOpacity={0.8}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Pay ${toName} ${formatINR(s.amount)}`}
-                              >
-                                <ThemedText style={styles.settlementPayBtnText}>Pay</ThemedText>
-                              </TouchableOpacity>
+                              activeIntentsVerified ? (
+                                <TouchableOpacity
+                                  style={styles.settlementPayBtn}
+                                  onPress={() => {
+                                    setSelectedSettlement(s);
+                                    setSelectedIntent(null);
+                                  }}
+                                  activeOpacity={0.8}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Pay ${toName} ${formatINR(s.amount)}`}
+                                >
+                                  <ThemedText style={styles.settlementPayBtnText}>Pay</ThemedText>
+                                </TouchableOpacity>
+                              ) : (
+                                <TouchableOpacity
+                                  style={[styles.settlementPayBtn, styles.settlementUnverifiedBtn]}
+                                  onPress={() => {
+                                    Alert.alert(
+                                      'Active Payment Status Unverified',
+                                      'Could not verify existing payments or pending claims. Please refresh before initiating a payment to prevent duplicate payments.',
+                                      [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        { text: 'Retry', onPress: () => refresh(false) },
+                                      ]
+                                    );
+                                  }}
+                                  activeOpacity={0.8}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Check payment status for ${toName}`}
+                                >
+                                  <ThemedText style={[styles.settlementPayBtnText, styles.settlementUnverifiedBtnText]}>
+                                    Check Status
+                                  </ThemedText>
+                                </TouchableOpacity>
+                              )
                             ) : null}
                           </View>
                         </View>
@@ -1330,5 +1368,26 @@ const styles = StyleSheet.create({
     color: '#92400E',
     fontSize: 13,
     fontWeight: '500',
+  },
+  settlementUnverifiedBtn: {
+    backgroundColor: '#64748B',
+  },
+  settlementUnverifiedBtnText: {
+    color: '#F8FAFC',
+  },
+  unverifiedIntentsCard: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    borderRadius: 8,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    marginBottom: Spacing.two,
+  },
+  unverifiedIntentsText: {
+    color: '#92400E',
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 16,
   },
 });
