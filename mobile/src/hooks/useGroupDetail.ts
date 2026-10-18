@@ -7,6 +7,7 @@ import type {
   CreateExpensePayload,
   DeleteExpenseResponse,
   ExpenseDetailResponse,
+  ExpenseFilters,
   ExpenseItem,
   GroupBalancesResponse,
   GroupDetail,
@@ -40,6 +41,12 @@ export interface UseGroupDetailResult {
   myNetBalance: number;
   isCreator: boolean;
   isActiveMember: boolean;
+  filters: ExpenseFilters;
+  isFilteringExpenses: boolean;
+  filterError: string | null;
+  setFilters: (filters: ExpenseFilters) => void;
+  clearFilters: () => void;
+  retryFilter: () => Promise<void>;
   refresh: (throwOnError?: boolean) => Promise<void>;
   addMember: (email: string) => Promise<AddMemberResponse>;
   renameGroup: (name: string) => Promise<RenameGroupResponse>;
@@ -76,6 +83,9 @@ export function useGroupDetail(
   const [isMutating, setIsMutating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [filters, setFiltersState] = useState<ExpenseFilters>({});
+  const [isFilteringExpenses, setIsFilteringExpenses] = useState<boolean>(false);
+  const [filterError, setFilterError] = useState<string | null>(null);
 
   const prevGroupIdRef = useRef<string | null>(groupId);
   const prevUserIdRef = useRef<string | null>(user?.id ?? null);
@@ -83,6 +93,8 @@ export function useGroupDetail(
   const isMutatingRef = useRef<boolean>(false);
   const hasLoadedRef = useRef<boolean>(false);
   const lastActiveIntentsRef = useRef<PaymentIntentItem[] | null>(null);
+  const filtersRef = useRef<ExpenseFilters>({});
+  const filterSeqRef = useRef<number>(0);
   const onUnauthorizedRef = useRef(options?.onUnauthorized);
   onUnauthorizedRef.current = options?.onUnauthorized;
 
@@ -90,6 +102,11 @@ export function useGroupDetail(
     isMutatingRef.current = false;
     hasLoadedRef.current = false;
     lastActiveIntentsRef.current = null;
+    filterSeqRef.current += 1;
+    filtersRef.current = {};
+    setFiltersState({});
+    setIsFilteringExpenses(false);
+    setFilterError(null);
     setGroup(null);
     setExpenses([]);
     setBalances(null);
@@ -112,6 +129,7 @@ export function useGroupDetail(
     async (isRefresh = false, throwOnError = false) => {
       if (!groupId) return;
       const currentRequestId = ++requestIdRef.current;
+      filterSeqRef.current += 1;
 
       if (isRefresh) {
         setIsRefreshing(true);
@@ -143,9 +161,10 @@ export function useGroupDetail(
             return null;
           });
 
+        const currentFilters = filtersRef.current;
         const [groupRes, expensesRes, balancesRes] = await Promise.all([
           groupsApi.getById(groupId),
-          expensesApi.list(groupId),
+          expensesApi.list(groupId, currentFilters),
           balancesApi.get(groupId),
           activeIntentsPromise,
         ]);
@@ -155,6 +174,7 @@ export function useGroupDetail(
         setGroup(groupRes.group);
         setExpenses(expensesRes.expenses ?? []);
         setBalances(balancesRes);
+        setFilterError(null);
 
         if (activeIntentsFetchSucceeded) {
           lastActiveIntentsRef.current = fetchedActiveIntents;
@@ -210,6 +230,11 @@ export function useGroupDetail(
   useEffect(() => {
     if (!enabled || !user || !groupId) {
       requestIdRef.current += 1;
+      filterSeqRef.current += 1;
+      filtersRef.current = {};
+      setFiltersState({});
+      setIsFilteringExpenses(false);
+      setFilterError(null);
       hasLoadedRef.current = false;
       lastActiveIntentsRef.current = null;
       setGroup(null);
@@ -231,6 +256,11 @@ export function useGroupDetail(
 
     if (prevGroupIdRef.current !== groupId || prevUserIdRef.current !== user.id) {
       requestIdRef.current += 1;
+      filterSeqRef.current += 1;
+      filtersRef.current = {};
+      setFiltersState({});
+      setIsFilteringExpenses(false);
+      setFilterError(null);
       hasLoadedRef.current = false;
       lastActiveIntentsRef.current = null;
       setGroup(null);
@@ -254,6 +284,55 @@ export function useGroupDetail(
     (throwOnError: boolean = false) => load(true, typeof throwOnError === 'boolean' ? throwOnError : false),
     [load]
   );
+
+  const fetchFilteredExpenses = useCallback(
+    async (activeFilters: ExpenseFilters) => {
+      if (!groupId) return;
+      const currentSeq = ++filterSeqRef.current;
+      setIsFilteringExpenses(true);
+      setFilterError(null);
+
+      try {
+        const res = await expensesApi.list(groupId, activeFilters);
+        if (currentSeq !== filterSeqRef.current) return;
+        setExpenses(res.expenses ?? []);
+        setFilterError(null);
+      } catch (err: any) {
+        if (currentSeq !== filterSeqRef.current) return;
+        if (err?.status === 401) {
+          await handleUnauthorized();
+          return;
+        }
+        // Non-blocking: preserve existing loaded expenses on filter failure
+        setFilterError(err?.message || 'Failed to filter expenses');
+      } finally {
+        if (currentSeq === filterSeqRef.current) {
+          setIsFilteringExpenses(false);
+        }
+      }
+    },
+    [groupId, handleUnauthorized]
+  );
+
+  const setFilters = useCallback(
+    (newFilters: ExpenseFilters) => {
+      setFiltersState(newFilters);
+      filtersRef.current = newFilters;
+      fetchFilteredExpenses(newFilters);
+    },
+    [fetchFilteredExpenses]
+  );
+
+  const clearFilters = useCallback(() => {
+    const emptyFilters: ExpenseFilters = {};
+    setFiltersState(emptyFilters);
+    filtersRef.current = emptyFilters;
+    fetchFilteredExpenses(emptyFilters);
+  }, [fetchFilteredExpenses]);
+
+  const retryFilter = useCallback(async () => {
+    return fetchFilteredExpenses(filtersRef.current);
+  }, [fetchFilteredExpenses]);
 
   const addMember = useCallback(
     async (email: string): Promise<AddMemberResponse> => {
@@ -404,6 +483,12 @@ export function useGroupDetail(
     myNetBalance,
     isCreator,
     isActiveMember,
+    filters,
+    isFilteringExpenses,
+    filterError,
+    setFilters,
+    clearFilters,
+    retryFilter,
     refresh,
     addMember,
     renameGroup,

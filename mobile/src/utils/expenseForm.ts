@@ -46,6 +46,27 @@ export const EXPENSE_CATEGORIES = [
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
+export const FILTER_CATEGORIES = ['All', ...EXPENSE_CATEGORIES] as const;
+
+export type FilterCategory = (typeof FILTER_CATEGORIES)[number];
+
+export const CATEGORY_ICONS: Record<string, string> = {
+  Food: '🍔',
+  Transport: '🚗',
+  Utilities: '⚡',
+  Entertainment: '🎬',
+  Shopping: '🛍️',
+  Travel: '✈️',
+  Health: '💊',
+  General: '🏷️',
+  Rent: '🏠',
+};
+
+export function getCategoryIcon(category?: string | null): string {
+  if (!category) return '🏷️';
+  return CATEGORY_ICONS[category] || '🏷️';
+}
+
 export interface ParseAmountResult {
   valid: boolean;
   paise: number;

@@ -1,8 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   Modal,
   RefreshControl,
   ScrollView,
@@ -22,6 +23,7 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '../../../constants/the
 import { useAuth } from '../../../context/AuthContext';
 import { useGroupDetail } from '../../../hooks/useGroupDetail';
 import type { ExpenseItem, PaymentIntentItem, SettlementDebt } from '../../../types/api';
+import { FILTER_CATEGORIES, getCategoryIcon } from '../../../utils/expenseForm';
 import { BALANCE_COLORS, formatINR, getBalanceLabel, getBalanceTone } from '../../../utils/format';
 
 type TabType = 'expenses' | 'balances' | 'members';
@@ -47,6 +49,12 @@ export default function GroupDetailScreen() {
     myNetBalance,
     isCreator,
     isActiveMember,
+    filters,
+    isFilteringExpenses,
+    filterError,
+    setFilters,
+    clearFilters,
+    retryFilter,
     refresh,
     addMember,
     renameGroup,
@@ -58,6 +66,8 @@ export default function GroupDetailScreen() {
   } = useGroupDetail(groupId, !!groupId && !!user);
 
   const [activeTab, setActiveTab] = useState<TabType>('expenses');
+  const [searchInput, setSearchInput] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
@@ -76,6 +86,58 @@ export default function GroupDetailScreen() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [modalError, setModalError] = useState<string | null>(null);
+
+  // Debounce search text input (300ms) and coordinate with category filter
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const trimmed = searchInput.trim();
+      const cat = selectedCategory === 'All' ? undefined : selectedCategory;
+      const currentSearch = filters.search || '';
+      const currentCat = filters.category || undefined;
+
+      if (trimmed !== currentSearch || cat !== currentCat) {
+        setFilters({
+          search: trimmed || undefined,
+          category: cat,
+        });
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, selectedCategory, filters.search, filters.category, setFilters]);
+
+  const handleSelectCategory = (cat: string) => {
+    if (cat === selectedCategory) return;
+    setSelectedCategory(cat);
+    const trimmed = searchInput.trim();
+    const categoryParam = cat === 'All' ? undefined : cat;
+    setFilters({
+      search: trimmed || undefined,
+      category: categoryParam,
+    });
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput('');
+    const categoryParam = selectedCategory === 'All' ? undefined : selectedCategory;
+    setFilters({
+      search: undefined,
+      category: categoryParam,
+    });
+  };
+
+  const handleResetAllFilters = () => {
+    setSearchInput('');
+    setSelectedCategory('All');
+    clearFilters();
+  };
+
+  const isFilterActive = Boolean(
+    (filters.search && filters.search.trim().length > 0) ||
+    (filters.category && filters.category.trim().length > 0) ||
+    searchInput.trim().length > 0 ||
+    selectedCategory !== 'All'
+  );
 
   // User balance hero styling
   const tone = getBalanceTone(myNetBalance);
@@ -270,6 +332,7 @@ export default function GroupDetailScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor="#2563EB" />}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Header Bar */}
           <View style={styles.headerRow}>
@@ -435,22 +498,117 @@ export default function GroupDetailScreen() {
           {/* TAB 1: EXPENSES */}
           {activeTab === 'expenses' ? (
             <View style={styles.tabContent}>
-              {expenses.length === 0 ? (
-                <ThemedView type="backgroundElement" style={styles.emptyCard}>
-                  <ThemedText type="smallBold">No expenses recorded yet</ThemedText>
-                  <ThemedText type="small" style={styles.emptySub}>
-                    Tap + Add Expense above to record the first expense for this group.
-                  </ThemedText>
-                  {isActiveMember ? (
+              {/* Search Bar */}
+              <View style={styles.searchBarContainer}>
+                <View style={styles.searchInputWrapper}>
+                  <ThemedText style={styles.searchIcon}>🔍</ThemedText>
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search expenses..."
+                    placeholderTextColor="#94A3B8"
+                    value={searchInput}
+                    onChangeText={setSearchInput}
+                    returnKeyType="search"
+                    onSubmitEditing={Keyboard.dismiss}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    accessibilityLabel="Search expenses"
+                    accessibilityHint="Filters expenses by description"
+                  />
+                  {isFilteringExpenses ? (
+                    <ActivityIndicator size="small" color="#2563EB" style={styles.searchSpinner} />
+                  ) : searchInput.length > 0 ? (
                     <TouchableOpacity
-                      style={[styles.btn, styles.primaryBtn, { marginTop: Spacing.two }]}
-                      onPress={handleAddExpensePress}
-                      activeOpacity={0.8}
+                      onPress={handleClearSearch}
+                      style={styles.clearSearchBtn}
+                      accessibilityLabel="Clear search input"
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <ThemedText style={styles.primaryBtnText}>+ Add First Expense</ThemedText>
+                      <ThemedText style={styles.clearSearchText}>✕</ThemedText>
                     </TouchableOpacity>
                   ) : null}
-                </ThemedView>
+                </View>
+              </View>
+
+              {/* Horizontal Category Filter Chips */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterChipsScroll}
+                keyboardShouldPersistTaps="handled"
+                style={styles.filterChipsContainer}
+              >
+                {FILTER_CATEGORIES.map((cat) => {
+                  const isSelected = selectedCategory === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[styles.filterChip, isSelected && styles.filterChipActive]}
+                      onPress={() => handleSelectCategory(cat)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Filter by ${cat}`}
+                      accessibilityState={{ selected: isSelected }}
+                    >
+                      <ThemedText
+                        type="small"
+                        style={[styles.filterChipText, isSelected && styles.filterChipTextActive]}
+                      >
+                        {cat !== 'All' ? `${getCategoryIcon(cat)} ` : ''}{cat}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Filter Error Banner */}
+              {filterError ? (
+                <View style={styles.filterErrorBanner}>
+                  <ThemedText style={styles.filterErrorText}>
+                    ⚠️ Could not update search results ({filterError}).
+                  </ThemedText>
+                  <TouchableOpacity onPress={retryFilter} style={styles.filterRetryBtn} activeOpacity={0.7}>
+                    <ThemedText style={styles.filterRetryText}>Retry</ThemedText>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {/* Empty state or list */}
+              {expenses.length === 0 ? (
+                isFilterActive ? (
+                  <ThemedView type="backgroundElement" style={styles.emptyCard}>
+                    <ThemedText style={styles.emptyIcon}>🔍</ThemedText>
+                    <ThemedText type="smallBold">No matching expenses</ThemedText>
+                    <ThemedText type="small" style={styles.emptySub}>
+                      No expenses match your search or filter criteria.
+                    </ThemedText>
+                    <TouchableOpacity
+                      style={[styles.btn, styles.outlineBtn, { marginTop: Spacing.two }]}
+                      onPress={handleResetAllFilters}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear all filters"
+                    >
+                      <ThemedText style={styles.outlineBtnText}>Clear Filters</ThemedText>
+                    </TouchableOpacity>
+                  </ThemedView>
+                ) : (
+                  <ThemedView type="backgroundElement" style={styles.emptyCard}>
+                    <ThemedText type="smallBold">No expenses recorded yet</ThemedText>
+                    <ThemedText type="small" style={styles.emptySub}>
+                      Tap + Add Expense above to record the first expense for this group.
+                    </ThemedText>
+                    {isActiveMember ? (
+                      <TouchableOpacity
+                        style={[styles.btn, styles.primaryBtn, { marginTop: Spacing.two }]}
+                        onPress={handleAddExpensePress}
+                        activeOpacity={0.8}
+                      >
+                        <ThemedText style={styles.primaryBtnText}>+ Add First Expense</ThemedText>
+                      </TouchableOpacity>
+                    ) : null}
+                  </ThemedView>
+                )
               ) : (
                 <View style={styles.expenseList}>
                   {expenses.map((expense) => {
@@ -477,9 +635,16 @@ export default function GroupDetailScreen() {
                               <ThemedText type="smallBold" style={styles.expenseDesc} numberOfLines={1}>
                                 {expense.description}
                               </ThemedText>
-                              <ThemedText type="small" style={styles.expenseSub}>
-                                {payerName} paid · {formattedDate}
-                              </ThemedText>
+                              <View style={styles.expenseMetaRow}>
+                                <View style={styles.categoryBadge}>
+                                  <ThemedText style={styles.categoryBadgeText}>
+                                    {getCategoryIcon(expense.category)} {expense.category || 'General'}
+                                  </ThemedText>
+                                </View>
+                                <ThemedText type="small" style={styles.expenseSub} numberOfLines={1}>
+                                  · {payerName} paid · {formattedDate}
+                                </ThemedText>
+                              </View>
                             </View>
                             <View style={styles.expenseAmountWrap}>
                               <ThemedText type="smallBold" style={styles.expenseAmount}>
@@ -1389,5 +1554,127 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     lineHeight: 16,
+  },
+  searchBarContainer: {
+    marginBottom: Spacing.two,
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F172A40',
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  searchIcon: {
+    fontSize: 14,
+    marginRight: Spacing.one,
+    opacity: 0.7,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#F8FAFC',
+    paddingVertical: 8,
+  },
+  searchSpinner: {
+    marginLeft: Spacing.one,
+  },
+  clearSearchBtn: {
+    padding: 4,
+    marginLeft: Spacing.half,
+  },
+  clearSearchText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: 'bold',
+  },
+  filterChipsContainer: {
+    marginBottom: Spacing.two,
+  },
+  filterChipsScroll: {
+    flexDirection: 'row',
+    gap: Spacing.one,
+    paddingRight: Spacing.two,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#0F172A40',
+    borderWidth: 1,
+    borderColor: '#334155',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterChipActive: {
+    backgroundColor: '#2563EB22',
+    borderColor: '#3B82F6',
+  },
+  filterChipText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  filterChipTextActive: {
+    color: '#3B82F6',
+    fontWeight: '700',
+  },
+  filterErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    marginBottom: Spacing.two,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  filterErrorText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#92400E',
+    marginRight: Spacing.one,
+  },
+  filterRetryBtn: {
+    backgroundColor: '#D97706',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  filterRetryText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  expenseMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  categoryBadge: {
+    backgroundColor: '#2563EB22',
+    borderColor: '#2563EB44',
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 1.5,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  categoryBadgeText: {
+    color: '#60A5FA',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  emptyIcon: {
+    fontSize: 32,
+    marginBottom: Spacing.one,
+    textAlign: 'center',
   },
 });
