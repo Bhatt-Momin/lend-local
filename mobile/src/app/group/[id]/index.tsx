@@ -22,7 +22,9 @@ import { PaymentModal } from '../../../components/PaymentModal';
 import { BottomTabInset, MaxContentWidth, Spacing } from '../../../constants/theme';
 import { useAuth } from '../../../context/AuthContext';
 import { useGroupDetail } from '../../../hooks/useGroupDetail';
+import { paymentApi } from '../../../services/paymentApi';
 import type { ExpenseItem, PaymentIntentItem, SettlementDebt } from '../../../types/api';
+import { MONGO_ID_REGEX } from '../../../utils/deepLink';
 import { FILTER_CATEGORIES, getCategoryIcon } from '../../../utils/expenseForm';
 import { BALANCE_COLORS, formatINR, getBalanceLabel, getBalanceTone } from '../../../utils/format';
 
@@ -30,8 +32,13 @@ type TabType = 'expenses' | 'balances' | 'members';
 
 export default function GroupDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, claimIntentId } = useLocalSearchParams<{ id: string; claimIntentId?: string | string[] }>();
   const groupId = String(id ?? '');
+  const rawClaimIntentId = Array.isArray(claimIntentId) ? claimIntentId[0] : claimIntentId;
+  const targetClaimIntentId =
+    rawClaimIntentId && MONGO_ID_REGEX.test(rawClaimIntentId) ? rawClaimIntentId : undefined;
+  const openedModalIntentIdsRef = React.useRef<Set<string>>(new Set());
+  const alertedIntentIdsRef = React.useRef<Set<string>>(new Set());
 
   const { user } = useAuth();
   const {
@@ -105,6 +112,124 @@ export default function GroupDetailScreen() {
 
     return () => clearTimeout(timer);
   }, [searchInput, selectedCategory, filters.search, filters.category, setFilters]);
+
+  // Deep-link intent resolution and modal launch
+  useEffect(() => {
+    if (!targetClaimIntentId) return;
+
+    // A. Initial load finished with a fatal group-level error
+    if (!isLoading && !group && error) {
+      if (!alertedIntentIdsRef.current.has(targetClaimIntentId)) {
+        alertedIntentIdsRef.current.add(targetClaimIntentId);
+        Alert.alert(
+          'Payment Status Unverified',
+          'Could not load group to verify payment claim. Please check your connection and retry.'
+        );
+      }
+      return;
+    }
+
+    // B. Group is loaded
+    if (!isLoading && group) {
+      // 1. Look for matching active intent
+      const matchedIntent = activeIntents.find((i) => i.intentId === targetClaimIntentId);
+
+      if (matchedIntent) {
+        if (!openedModalIntentIdsRef.current.has(targetClaimIntentId)) {
+          openedModalIntentIdsRef.current.add(targetClaimIntentId);
+
+          const intentFromId = String(
+            typeof matchedIntent.from === 'object' && matchedIntent.from
+              ? (matchedIntent.from as any)._id || (matchedIntent.from as any).id
+              : matchedIntent.from
+          );
+          const intentToId = String(
+            typeof matchedIntent.to === 'object' && matchedIntent.to
+              ? (matchedIntent.to as any)._id || (matchedIntent.to as any).id
+              : matchedIntent.to
+          );
+
+          const existingSettlement = balances?.settlements?.find((s) => {
+            const fromId = String(s.from?.userId ?? s.from?.id ?? '');
+            const toId = String(s.to?.userId ?? s.to?.id ?? '');
+            return fromId === intentFromId && toId === intentToId;
+          });
+
+          const settlementToUse: SettlementDebt = existingSettlement || {
+            from: {
+              id: intentFromId,
+              userId: intentFromId,
+              name: matchedIntent.payerName || 'Payer',
+            },
+            to: {
+              id: intentToId,
+              userId: intentToId,
+              name: matchedIntent.payeeName || 'Recipient',
+            },
+            amount: matchedIntent.amount,
+          };
+
+          setActiveTab('balances');
+          setSelectedSettlement(settlementToUse);
+          setSelectedIntent(matchedIntent);
+        }
+        return;
+      }
+
+      // 2. If intent not found in activeIntents, check verification state
+      if (
+        openedModalIntentIdsRef.current.has(targetClaimIntentId) ||
+        alertedIntentIdsRef.current.has(targetClaimIntentId)
+      ) {
+        return;
+      }
+
+      if (activeIntentsVerified) {
+        alertedIntentIdsRef.current.add(targetClaimIntentId);
+
+        paymentApi
+          .getStatus(targetClaimIntentId)
+          .then((statusRes) => {
+            const statusLabel =
+              statusRes.status === 'recipient_confirmed'
+                ? 'confirmed'
+                : statusRes.status === 'recipient_rejected'
+                ? 'rejected'
+                : statusRes.status === 'cancelled'
+                ? 'cancelled'
+                : statusRes.status;
+            Alert.alert(
+              'Payment Status',
+              `This payment claim is in status "${statusLabel}" and no longer requires confirmation.`
+            );
+          })
+          .catch((err: any) => {
+            let msg = 'Could not verify payment claim status. Please check your connection and pull down to refresh.';
+            if (err?.status === 404) {
+              msg = 'Payment intent not found or does not exist.';
+            } else if (err?.status === 403) {
+              msg = 'You are not authorized to view this payment claim.';
+            }
+            Alert.alert('Payment Notice', msg);
+          });
+      } else {
+        // Active intents failed to verify or load
+        alertedIntentIdsRef.current.add(targetClaimIntentId);
+        Alert.alert(
+          'Payment Status Unverified',
+          'Could not verify active payment claim status. Please check your connection and pull down to refresh.'
+        );
+      }
+    }
+  }, [
+    isLoading,
+    group,
+    error,
+    targetClaimIntentId,
+    activeIntents,
+    activeIntentsVerified,
+    balances,
+  ]);
 
   const handleSelectCategory = (cat: string) => {
     if (cat === selectedCategory) return;

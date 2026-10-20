@@ -105,12 +105,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: Spacing.two,
   },
   balance: {
     fontSize: 14,
+    flexShrink: 1,
   },
   settlements: {
     opacity: 0.6,
+    flexShrink: 1,
   },
 });

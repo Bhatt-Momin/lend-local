@@ -13,7 +13,11 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 import { Spacing } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
-import { getDefaultApiBaseUrl } from '../services/config';
+import {
+  getDefaultApiBaseUrl,
+  HEALTH_CHECK_TIMEOUT_MS,
+  validateApiBaseUrl,
+} from '../services/config';
 
 interface ServerConfigModalProps {
   visible: boolean;
@@ -27,35 +31,53 @@ export function ServerConfigModal({ visible, onClose }: ServerConfigModalProps) 
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleOpen = () => {
-    setInputUrl(serverUrl);
+    setInputUrl(serverUrl || getDefaultApiBaseUrl());
     setTestResult(null);
   };
 
   const handleTestConnection = async () => {
-    const targetUrl = inputUrl.trim().replace(/\/+$/, '');
-    if (!targetUrl) {
-      setTestResult({ success: false, message: 'Please enter a server URL' });
+    const validation = validateApiBaseUrl(inputUrl);
+    if (!validation.valid || !validation.normalizedUrl) {
+      setTestResult({
+        success: false,
+        message: validation.error || 'Please enter a valid server URL',
+      });
       return;
     }
 
+    const targetUrl = validation.normalizedUrl;
+    setInputUrl(targetUrl);
     setIsTesting(true);
     setTestResult(null);
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
 
+    try {
       const healthEndpoint = `${targetUrl}/health`;
       const res = await fetch(healthEndpoint, { signal: controller.signal });
       clearTimeout(timeoutId);
 
       if (res.ok) {
-        setTestResult({ success: true, message: `Connected! Server status: HTTP ${res.status}` });
+        setTestResult({
+          success: true,
+          message: `Connected successfully! (HTTP ${res.status})`,
+        });
       } else {
-        setTestResult({ success: false, message: `Server replied with HTTP ${res.status}` });
+        setTestResult({
+          success: false,
+          message: `Server returned HTTP ${res.status}. Expected /api/health to return 200.`,
+        });
       }
     } catch (err: any) {
-      const msg = err.name === 'AbortError' ? 'Connection timed out (6s)' : (err.message || 'Connection failed');
+      clearTimeout(timeoutId);
+      let msg = 'Connection failed';
+      if (err?.name === 'AbortError') {
+        const seconds = Math.round(HEALTH_CHECK_TIMEOUT_MS / 1000);
+        msg = `Connection timed out (${seconds}s). If the hosted Render service was idle, it may need 30–50s to wake up. Please wait a moment and try again.`;
+      } else if (err?.message) {
+        msg = `${err.message}. Ensure backend is running and reachable.`;
+      }
       setTestResult({ success: false, message: msg });
     } finally {
       setIsTesting(false);
@@ -63,15 +85,18 @@ export function ServerConfigModal({ visible, onClose }: ServerConfigModalProps) 
   };
 
   const handleSave = async () => {
-    const targetUrl = inputUrl.trim().replace(/\/+$/, '');
-    if (!targetUrl) {
-      Alert.alert('Invalid URL', 'Please enter a valid backend API URL');
+    const validation = validateApiBaseUrl(inputUrl);
+    if (!validation.valid || !validation.normalizedUrl) {
+      Alert.alert('Invalid URL', validation.error || 'Please enter a valid backend API URL');
       return;
     }
 
+    const targetUrl = validation.normalizedUrl;
+    setInputUrl(targetUrl);
+
     try {
       await updateServerUrl(targetUrl);
-      Alert.alert('Saved', `API server URL set to:\n${targetUrl}`);
+      Alert.alert('Settings Saved', `API server URL set to:\n${targetUrl}`);
       onClose();
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to save URL');
@@ -83,7 +108,8 @@ export function ServerConfigModal({ visible, onClose }: ServerConfigModalProps) 
       await resetToDefaultServerUrl();
       const defaultUrl = getDefaultApiBaseUrl();
       setInputUrl(defaultUrl);
-      Alert.alert('Reset', `Reset to auto-detected default:\n${defaultUrl}`);
+      setTestResult(null);
+      Alert.alert('Settings Reset', `Reset to auto-detected default:\n${defaultUrl}`);
       onClose();
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to reset URL');
@@ -101,11 +127,11 @@ export function ServerConfigModal({ visible, onClose }: ServerConfigModalProps) 
       <View style={styles.overlay}>
         <ThemedView type="backgroundElement" style={styles.modalContent}>
           <ThemedText type="smallBold" style={styles.title}>
-            Backend Server Connection
+            Connection Settings
           </ThemedText>
 
           <ThemedText type="small" style={styles.description}>
-            Configure the Express backend API address. On a physical Android phone, this must be reachable over your local network.
+            Configure the backend API address. The hosted production service is on Render and may take 30–50 seconds to wake up if idle. For local development, use your computer's local network IP address.
           </ThemedText>
 
           <View style={styles.inputContainer}>
@@ -119,11 +145,12 @@ export function ServerConfigModal({ visible, onClose }: ServerConfigModalProps) 
                 setInputUrl(text);
                 setTestResult(null);
               }}
-              placeholder="e.g. http://192.168.1.100:3000/api"
+              placeholder="e.g. https://lendlocal-58sf.onrender.com/api"
               placeholderTextColor="#888"
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
+              editable={!isTesting}
             />
           </View>
 
@@ -143,7 +170,7 @@ export function ServerConfigModal({ visible, onClose }: ServerConfigModalProps) 
 
           <View style={styles.actionsRow}>
             <TouchableOpacity
-              style={[styles.btn, styles.btnOutline]}
+              style={[styles.btn, styles.btnOutline, isTesting && styles.btnDisabled]}
               onPress={handleTestConnection}
               disabled={isTesting}
             >
@@ -154,19 +181,31 @@ export function ServerConfigModal({ visible, onClose }: ServerConfigModalProps) 
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={handleSave}>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnPrimary, isTesting && styles.btnDisabled]}
+              onPress={handleSave}
+              disabled={isTesting}
+            >
               <ThemedText style={styles.btnPrimaryText}>Save & Apply</ThemedText>
             </TouchableOpacity>
           </View>
 
           <View style={styles.footerRow}>
-            <TouchableOpacity onPress={handleReset} style={styles.resetBtn}>
+            <TouchableOpacity
+              onPress={handleReset}
+              style={styles.resetBtn}
+              disabled={isTesting}
+            >
               <ThemedText type="small" style={styles.resetText}>
                 Reset to Default Auto-Detect
               </ThemedText>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              disabled={isTesting}
+            >
               <ThemedText type="small" style={styles.closeText}>
                 Cancel
               </ThemedText>
@@ -255,6 +294,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 44,
+  },
+  btnDisabled: {
+    opacity: 0.6,
   },
   btnPrimary: {
     backgroundColor: '#2563EB',

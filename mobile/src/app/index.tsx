@@ -1,11 +1,9 @@
-import * as Device from 'expo-device';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -27,7 +25,7 @@ import { formatINR } from '../utils/format';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, isLoading, isRefreshingUser, serverUrl, logout, refreshUser } = useAuth();
+  const { user, isLoading, isRefreshingUser, logout, refreshUser } = useAuth();
   const [showServerModal, setShowServerModal] = useState(false);
   const [showUpiModal, setShowUpiModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -50,15 +48,6 @@ export default function HomeScreen() {
   const handleRefresh = useCallback(async () => {
     await Promise.allSettled([refresh(), refreshUser()]);
   }, [refresh, refreshUser]);
-
-  const platformName = Platform.select({
-    android: 'Android',
-    ios: 'iOS',
-    web: 'Web',
-    default: 'Native',
-  });
-
-  const deviceName = Device.modelName || (Device.isDevice ? 'Physical Device' : 'Simulator / Emulator');
 
   const totals = useMemo(() => {
     let owedToMe = 0;
@@ -342,90 +331,6 @@ export default function HomeScreen() {
               </View>
             </ThemedView>
           )}
-
-          {/* Stage Status Badge */}
-          <View style={styles.statusBadge}>
-            <View style={[styles.statusDot, user ? styles.statusDotAuth : styles.statusDotReady]} />
-            <ThemedText type="smallBold" style={user ? styles.statusTextAuth : styles.statusTextReady}>
-              {user
-                ? 'Stage 3: Groups & Management Active'
-                : 'Stage 2 Ready: Login & Registration Online'}
-            </ThemedText>
-          </View>
-
-          {/* Connected Backend Card */}
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <View style={styles.cardHeaderRow}>
-              <ThemedText type="smallBold" style={styles.cardHeader}>
-                Connected Backend API
-              </ThemedText>
-              <TouchableOpacity onPress={() => setShowServerModal(true)}>
-                <ThemedText type="smallBold" style={styles.editLink}>
-                  Configure
-                </ThemedText>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.infoRow}>
-              <ThemedText type="small" style={styles.infoLabel}>Server URL</ThemedText>
-              <ThemedText type="code" style={styles.infoValue} numberOfLines={1}>
-                {serverUrl || 'Detecting...'}
-              </ThemedText>
-            </View>
-
-            <View style={styles.infoRow}>
-              <ThemedText type="small" style={styles.infoLabel}>Device</ThemedText>
-              <ThemedText type="small" style={styles.infoValue}>{deviceName} ({platformName})</ThemedText>
-            </View>
-          </ThemedView>
-
-          {/* Migration Progress Card */}
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="smallBold" style={styles.cardHeader}>
-              Migration Roadmap
-            </ThemedText>
-            <View style={styles.milestoneRow}>
-              <ThemedText style={styles.milestoneIcon}>✅</ThemedText>
-              <View style={styles.milestoneTextContainer}>
-                <ThemedText type="smallBold">Stage 1: Expo Mobile Foundation</ThemedText>
-                <ThemedText type="small" style={styles.milestoneSub}>
-                  SDK 57, TypeScript, Expo Router initialized
-                </ThemedText>
-              </View>
-            </View>
-
-            <View style={styles.milestoneRow}>
-              <ThemedText style={styles.milestoneIcon}>
-                {user ? '✅' : '⚡'}
-              </ThemedText>
-              <View style={styles.milestoneTextContainer}>
-                <ThemedText type="smallBold">Stage 2: Native Authentication</ThemedText>
-                <ThemedText type="small" style={styles.milestoneSub}>
-                  Login, register, SecureStore JWT, session restoration
-                </ThemedText>
-              </View>
-            </View>
-
-            <View style={styles.milestoneRow}>
-              <ThemedText style={styles.milestoneIcon}>⚡</ThemedText>
-              <View style={styles.milestoneTextContainer}>
-                <ThemedText type="smallBold">Stage 3: Groups, Expenses & Ledger</ThemedText>
-                <ThemedText type="small" style={styles.milestoneSub}>
-                  Dashboard, group details & management live
-                </ThemedText>
-              </View>
-            </View>
-
-            <View style={styles.milestoneRow}>
-              <ThemedText style={styles.milestoneIcon}>⏳</ThemedText>
-              <View style={styles.milestoneTextContainer}>
-                <ThemedText type="smallBold">Stage 4: Direct UPI Payments</ThemedText>
-                <ThemedText type="small" style={styles.milestoneSub}>
-                  Deep link intent launch, custom amounts, FCM
-                </ThemedText>
-              </View>
-            </View>
-          </ThemedView>
         </ScrollView>
 
         <ServerConfigModal
@@ -677,87 +582,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 15,
   },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#10B9811A',
-    borderColor: '#10B9814D',
-    borderWidth: 1,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.three,
-    borderRadius: 999,
-    alignSelf: 'center',
-    gap: Spacing.two,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusDotReady: {
-    backgroundColor: '#3B82F6',
-  },
-  statusDotAuth: {
-    backgroundColor: '#10B981',
-  },
-  statusTextReady: {
-    color: '#3B82F6',
-    fontSize: 13,
-  },
-  statusTextAuth: {
-    color: '#10B981',
-    fontSize: 13,
-  },
-  card: {
-    padding: Spacing.three,
-    borderRadius: Spacing.three,
-    gap: Spacing.two,
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.one,
-  },
-  cardHeader: {
-    fontSize: 15,
-    opacity: 0.9,
-  },
   editLink: {
     color: '#3B82F6',
     fontSize: 13,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: Spacing.half,
-  },
-  infoLabel: {
-    opacity: 0.7,
-  },
-  infoValue: {
-    fontWeight: '600',
-    maxWidth: '60%',
-    textAlign: 'right',
-  },
-  milestoneRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.two,
-    paddingVertical: Spacing.half,
-  },
-  milestoneIcon: {
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  milestoneTextContainer: {
-    flex: 1,
-  },
-  milestoneSub: {
-    fontSize: 12,
-    opacity: 0.65,
-    marginTop: 2,
   },
 });

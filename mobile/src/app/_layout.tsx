@@ -5,6 +5,7 @@ import React from 'react';
 import { useColorScheme } from 'react-native';
 
 import { AuthProvider } from '../context/AuthContext';
+import { DeepLinkHandler } from '../components/DeepLinkHandler';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -14,6 +15,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthProvider>
+        <DeepLinkHandler />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(auth)/login" options={{ animation: 'slide_from_right' }} />
