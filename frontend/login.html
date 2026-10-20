@@ -49,6 +49,33 @@
         </form>
         <p class="auth-switch">New here? <a href="/register.html">Create an account</a></p>
       </div>
+
+      <section class="auth-app-card" aria-label="LendLocal for Android">
+        <div class="auth-app-header">
+          <div class="auth-app-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+              <line x1="12" y1="18" x2="12.01" y2="18"></line>
+            </svg>
+          </div>
+          <div class="auth-app-info">
+            <div class="auth-app-title-wrap">
+              <strong class="auth-app-title">LendLocal for Android</strong>
+              <span class="auth-app-tag">Preview</span>
+            </div>
+            <p class="auth-app-desc">Native app with seamless UPI payments and instant deep-link settlement.</p>
+          </div>
+        </div>
+        <div id="androidDownloadSlot" class="auth-app-action" data-download-url="">
+          <button type="button" class="auth-app-btn" id="androidDownloadBtn" disabled aria-disabled="true">
+            <span class="auth-app-btn-icon" aria-hidden="true">🤖</span>
+            <span>Download Android App</span>
+          </button>
+          <p class="auth-app-note" id="androidDownloadNote" role="status">
+            Official APK release build is in preparation. Download access will activate once the release asset is hosted.
+          </p>
+        </div>
+      </section>
     </section>
   </div>
 
@@ -118,6 +145,47 @@
           submitBtn.dataset.originalText || 'Sign in';
       }
     });
+
+    // Android App Download Integration Point
+    // Set to a verified HTTPS asset URL (e.g. GitHub Releases) when published
+    const APK_DOWNLOAD_URL = '';
+
+    function initAndroidDownload() {
+      const slot = document.getElementById('androidDownloadSlot');
+      if (!slot) return;
+      const targetUrl = (slot.getAttribute('data-download-url') || APK_DOWNLOAD_URL || '').trim();
+      if (targetUrl && (targetUrl.startsWith('https://') || targetUrl.startsWith('/'))) {
+        slot.textContent = '';
+        const link = document.createElement('a');
+        link.href = targetUrl;
+        link.className = 'auth-app-btn';
+        link.id = 'androidDownloadBtn';
+        link.setAttribute('download', 'lendlocal.apk');
+        link.setAttribute('rel', 'noopener noreferrer');
+        link.setAttribute('aria-label', 'Download LendLocal Android App (APK)');
+
+        const icon = document.createElement('span');
+        icon.className = 'auth-app-btn-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = '🤖';
+
+        const label = document.createElement('span');
+        label.textContent = 'Download Android App';
+
+        link.appendChild(icon);
+        link.appendChild(document.createTextNode(' '));
+        link.appendChild(label);
+
+        const note = document.createElement('p');
+        note.className = 'auth-app-note';
+        note.id = 'androidDownloadNote';
+        note.textContent = 'Direct APK download for Android devices.';
+
+        slot.appendChild(link);
+        slot.appendChild(note);
+      }
+    }
+    initAndroidDownload();
   </script>
   <script src="/js/pwa.js"></script>
 </body>
