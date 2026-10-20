@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
-import { MaxContentWidth, Spacing } from '../constants/theme';
+import { Brand, MaxContentWidth, Spacing, Surfaces } from '../constants/theme';
 import type { CreateExpensePayload, ExpenseItem, GroupDetail, UpdateExpensePayload } from '../types/api';
 import {
   EXPENSE_CATEGORIES,
@@ -871,7 +871,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.three,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#334155',
+    borderBottomColor: Surfaces.darkBorder,
   },
   headerTitle: {
     fontSize: 18,
@@ -918,13 +918,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   todayLink: {
-    color: '#3B82F6',
+    color: Brand.primaryLight,
     fontSize: 13,
+    fontWeight: '600',
   },
   textInput: {
-    backgroundColor: '#0F172A40',
+    backgroundColor: Surfaces.darkCardMid,
     color: '#F8FAFC',
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
     borderWidth: 1,
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.three,
@@ -939,7 +940,7 @@ const styles = StyleSheet.create({
   currencyPrefix: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#3B82F6',
+    color: Brand.primary,
     marginRight: Spacing.two,
   },
   amountInput: {
@@ -960,13 +961,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.one + 2,
     borderRadius: 999,
-    backgroundColor: '#1E293B',
-    borderColor: '#334155',
+    backgroundColor: Surfaces.darkCardMid,
+    borderColor: Surfaces.darkBorder,
     borderWidth: 1,
   },
   chipActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#3B82F6',
+    backgroundColor: Brand.primary,
+    borderColor: Brand.primaryLight,
   },
   chipText: {
     color: '#94A3B8',
@@ -980,15 +981,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.one + 4,
     borderRadius: Spacing.two,
-    backgroundColor: '#1E293B',
-    borderColor: '#334155',
+    backgroundColor: Surfaces.darkCardMid,
+    borderColor: Surfaces.darkBorder,
     borderWidth: 1,
     minHeight: 38,
     justifyContent: 'center',
   },
   payerChipActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#3B82F6',
+    backgroundColor: Brand.primary,
+    borderColor: Brand.primaryLight,
   },
   payerChipText: {
     color: '#94A3B8',
@@ -1009,13 +1010,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
     borderRadius: Spacing.two,
-    backgroundColor: '#1E293B66',
+    backgroundColor: Surfaces.darkCardMid,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
   },
   participantRowChecked: {
-    backgroundColor: '#1E293B',
-    borderColor: '#3B82F666',
+    backgroundColor: Surfaces.darkCardMid,
+    borderColor: Brand.primaryGlow,
   },
   participantLeft: {
     flexDirection: 'row',
@@ -1034,8 +1035,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   checkboxChecked: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+    backgroundColor: Brand.primary,
+    borderColor: Brand.primary,
   },
   checkmark: {
     color: '#FFFFFF',
@@ -1051,7 +1052,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   shareBadge: {
-    color: '#3B82F6',
+    color: Brand.primaryLight,
     fontSize: 13,
   },
   previewCard: {
@@ -1059,7 +1060,7 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.two,
     gap: Spacing.one,
     borderWidth: 1,
-    borderColor: '#3B82F644',
+    borderColor: Brand.primaryDim,
   },
   previewHeaderRow: {
     flexDirection: 'row',
@@ -1093,11 +1094,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.three,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#334155',
-    backgroundColor: '#0F172A22',
+    borderTopColor: Surfaces.darkBorder,
+    backgroundColor: Surfaces.darkBg,
   },
   submitBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: Brand.primary,
     borderRadius: Spacing.two,
     paddingVertical: Spacing.two + 4,
     alignItems: 'center',
@@ -1114,11 +1115,11 @@ const styles = StyleSheet.create({
   },
   splitTypeTabs: {
     flexDirection: 'row',
-    backgroundColor: '#0F172A',
+    backgroundColor: Surfaces.darkCard,
     borderRadius: Spacing.two,
     padding: 3,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
   },
   splitTypeTab: {
     flex: 1,
@@ -1128,7 +1129,7 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.two - 2,
   },
   splitTypeTabActive: {
-    backgroundColor: '#2563EB',
+    backgroundColor: Brand.primary,
   },
   splitTypeTabText: {
     color: '#94A3B8',
@@ -1141,8 +1142,8 @@ const styles = StyleSheet.create({
   customShareInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F172A80',
-    borderColor: '#334155',
+    backgroundColor: Surfaces.darkCard,
+    borderColor: Surfaces.darkBorder,
     borderWidth: 1,
     borderRadius: Spacing.one + 2,
     paddingHorizontal: Spacing.two,
@@ -1150,7 +1151,7 @@ const styles = StyleSheet.create({
     height: 38,
   },
   customShareCurrency: {
-    color: '#3B82F6',
+    color: Brand.primary,
     fontSize: 14,
     fontWeight: '700',
     marginRight: 4,
@@ -1168,7 +1169,7 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.two,
     gap: Spacing.two,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
   },
   customSummaryHeaderRow: {
     flexDirection: 'row',
@@ -1182,27 +1183,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two + 2,
     paddingVertical: Spacing.one,
     borderRadius: Spacing.one,
-    backgroundColor: '#1E293B',
-    borderColor: '#3B82F6',
+    backgroundColor: Surfaces.darkCardMid,
+    borderColor: Brand.primaryLight,
     borderWidth: 1,
   },
   quickActionBtnDisabled: {
     opacity: 0.4,
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
   },
   quickActionText: {
-    color: '#3B82F6',
+    color: Brand.primaryLight,
     fontSize: 12,
     fontWeight: '600',
   },
   customSummaryMetrics: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#0F172A40',
+    backgroundColor: Surfaces.darkCardMid,
     borderRadius: Spacing.two,
     padding: Spacing.two,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
   },
   metricColumn: {
     alignItems: 'center',

@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ServerConfigModal } from '../../components/ServerConfigModal';
 import { ThemedText } from '../../components/themed-text';
 import { ThemedView } from '../../components/themed-view';
-import { Spacing } from '../../constants/theme';
+import { Brand, Spacing, Surfaces } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 
 export default function RegisterScreen() {
@@ -308,13 +308,18 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.one,
   },
   backBtn: {
-    paddingVertical: Spacing.one,
-    paddingRight: Spacing.two,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: Surfaces.darkCardMid,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
+    alignSelf: 'flex-start',
   },
   backText: {
-    color: '#3B82F6',
-    fontSize: 15,
-    fontWeight: '600',
+    color: Brand.primaryLight,
+    fontWeight: '700',
+    fontSize: 13,
   },
   headerSection: {
     alignItems: 'center',
@@ -330,8 +335,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     lineHeight: 34,
-    fontWeight: '700',
+    fontWeight: '800',
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   subtitle: {
     opacity: 0.7,
@@ -341,8 +347,8 @@ const styles = StyleSheet.create({
   serverBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B80',
-    borderColor: '#334155',
+    backgroundColor: Surfaces.darkCardMid,
+    borderColor: Surfaces.darkBorder,
     borderWidth: 1,
     borderRadius: Spacing.two,
     paddingVertical: Spacing.one,
@@ -353,7 +359,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#10B981',
+    backgroundColor: Brand.primary,
   },
   serverText: {
     flex: 1,
@@ -361,14 +367,14 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   serverChangeText: {
-    color: '#3B82F6',
-    fontWeight: '600',
+    color: Brand.primaryLight,
+    fontWeight: '700',
     fontSize: 12,
   },
   errorBanner: {
     flexDirection: 'row',
-    backgroundColor: '#EF44441F',
-    borderColor: '#EF444466',
+    backgroundColor: Brand.negativeDim,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
     borderWidth: 1,
     borderRadius: Spacing.two,
     padding: Spacing.two,
@@ -380,7 +386,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    color: '#EF4444',
+    color: Brand.negative,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '500',
@@ -394,11 +400,12 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
+    fontWeight: '600',
     opacity: 0.9,
   },
   input: {
-    backgroundColor: '#1E293B50',
-    borderColor: '#334155',
+    backgroundColor: Surfaces.darkCardMid,
+    borderColor: Surfaces.darkBorder,
     borderWidth: 1,
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.three,
@@ -422,28 +429,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.one,
   },
   eyeText: {
-    color: '#3B82F6',
+    color: Brand.primaryLight,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   submitBtn: {
-    backgroundColor: '#2563EB',
-    borderRadius: Spacing.two,
+    backgroundColor: Brand.primary,
+    borderRadius: 12,
     minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing.one,
-    shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   submitBtnDisabled: {
     opacity: 0.65,
   },
   submitBtnText: {
-    color: '#fff',
+    color: '#030507',
     fontWeight: '700',
     fontSize: 16,
   },
@@ -462,6 +464,7 @@ const styles = StyleSheet.create({
     opacity: 0.75,
   },
   switchLink: {
-    color: '#3B82F6',
+    color: Brand.primaryLight,
+    fontWeight: '700',
   },
 });

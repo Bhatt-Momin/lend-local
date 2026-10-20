@@ -13,30 +13,53 @@ import {
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
-import { Spacing } from '../constants/theme';
+import { Brand, Spacing, Surfaces } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { validateUpiId } from '../utils/paymentForm';
 
 interface UpiConfigModalProps {
   visible: boolean;
   onClose: () => void;
+  initialUpiId?: string | null;
+  onSuccess?: (newUpiId: string | null) => void;
 }
 
-export function UpiConfigModal({ visible, onClose }: UpiConfigModalProps) {
+export function UpiConfigModal({
+  visible,
+  onClose,
+  initialUpiId,
+  onSuccess,
+}: UpiConfigModalProps) {
   const { user, updateUpiId } = useAuth();
   const [upiInput, setUpiInput] = useState<string>('');
+  const [initialSavedUpi, setInitialSavedUpi] = useState<string | null | undefined>(
+    initialUpiId !== undefined ? initialUpiId : (user?.upiId || null)
+  );
   const [isBusy, setIsBusy] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible) {
-      setUpiInput(user?.upiId || '');
+      const startingVal = initialUpiId !== undefined ? initialUpiId : (user?.upiId || '');
+      setInitialSavedUpi(startingVal || null);
+      setUpiInput(startingVal || '');
       setFormError(null);
       setSuccessMsg(null);
       setIsBusy(false);
     }
-  }, [visible, user?.upiId]);
+  }, [visible]); // Only sync when modal opens to prevent background profile syncs from overwriting user typing
+
+  // Stable initial value captured when modal opens; prevents divergence with live user?.upiId during edits
+  const isEditingInProgress = Boolean(
+    initialSavedUpi && upiInput.trim() !== initialSavedUpi
+  );
+
+  const stableStatusDisplay = initialSavedUpi
+    ? initialSavedUpi
+    : initialSavedUpi === null
+    ? 'Not configured'
+    : 'Status unknown';
 
   const handleSave = async () => {
     if (isBusy) return;
@@ -54,9 +77,11 @@ export function UpiConfigModal({ visible, onClose }: UpiConfigModalProps) {
     try {
       const res = await updateUpiId(validation.upiId);
       setSuccessMsg(res.message || 'UPI ID saved successfully');
+      setInitialSavedUpi(validation.upiId);
+      onSuccess?.(validation.upiId);
       setTimeout(() => {
         onClose();
-      }, 1000);
+      }, 900);
     } catch (err: any) {
       setFormError(err?.message || 'Failed to save UPI ID');
     } finally {
@@ -65,7 +90,8 @@ export function UpiConfigModal({ visible, onClose }: UpiConfigModalProps) {
   };
 
   const handleClear = () => {
-    if (isBusy || !user?.upiId) return;
+    const currentActiveUpi = initialSavedUpi !== undefined ? initialSavedUpi : (initialUpiId !== undefined ? initialUpiId : user?.upiId);
+    if (isBusy || !currentActiveUpi) return;
 
     Alert.alert(
       'Remove UPI ID',
@@ -82,10 +108,12 @@ export function UpiConfigModal({ visible, onClose }: UpiConfigModalProps) {
             try {
               const res = await updateUpiId(null);
               setUpiInput('');
+              setInitialSavedUpi(null);
               setSuccessMsg(res.message || 'UPI ID cleared successfully');
+              onSuccess?.(null);
               setTimeout(() => {
                 onClose();
-              }, 1000);
+              }, 900);
             } catch (err: any) {
               setFormError(err?.message || 'Failed to remove UPI ID');
             } finally {
@@ -136,19 +164,21 @@ export function UpiConfigModal({ visible, onClose }: UpiConfigModalProps) {
             </TouchableOpacity>
           </View>
 
-          {/* Current Status Badge */}
-          <View style={styles.statusRow}>
-            <ThemedText type="small" style={styles.statusLabel}>
-              Current VPA:
-            </ThemedText>
-            <ThemedText
-              type="smallBold"
-              style={[styles.statusValue, !user?.upiId && styles.statusNotConfigured]}
-              numberOfLines={1}
-            >
-              {user?.upiId ? user.upiId : user?.upiId === null ? 'Not configured' : 'Status unknown'}
-            </ThemedText>
-          </View>
+          {/* Current Status Badge — Uses stable initial value and is hidden while editing an existing ID */}
+          {!isEditingInProgress ? (
+            <View style={styles.statusRow}>
+              <ThemedText type="small" style={styles.statusLabel}>
+                Current VPA:
+              </ThemedText>
+              <ThemedText
+                type="smallBold"
+                style={[styles.statusValue, !initialSavedUpi && styles.statusNotConfigured]}
+                numberOfLines={1}
+              >
+                {stableStatusDisplay}
+              </ThemedText>
+            </View>
+          ) : null}
 
           {/* Input field */}
           <View style={styles.inputWrap}>
@@ -257,8 +287,8 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.three,
     padding: Spacing.four,
     borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#1E293B',
+    borderColor: Surfaces.darkBorder,
+    backgroundColor: Surfaces.darkCard,
     gap: Spacing.three,
     elevation: 8,
     shadowColor: '#000',
@@ -294,21 +324,22 @@ const styles = StyleSheet.create({
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F172A66',
+    backgroundColor: Surfaces.darkCardMid,
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     gap: Spacing.two,
     borderWidth: 1,
-    borderColor: '#33415566',
+    borderColor: Surfaces.darkBorder,
   },
   statusLabel: {
     color: '#94A3B8',
     fontSize: 12,
   },
   statusValue: {
-    color: '#38BDF8',
+    color: Brand.primaryLight,
     fontSize: 13,
+    fontWeight: '600',
     flex: 1,
   },
   statusNotConfigured: {
@@ -321,10 +352,11 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     color: '#F8FAFC',
+    fontWeight: '600',
   },
   input: {
-    backgroundColor: '#0F172A',
-    borderColor: '#334155',
+    backgroundColor: Surfaces.darkCardMid,
+    borderColor: Surfaces.darkBorder,
     borderWidth: 1,
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.three,
@@ -336,34 +368,34 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   errorBox: {
-    backgroundColor: '#EF44441A',
-    borderColor: '#EF444466',
+    backgroundColor: Brand.negativeDim,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
     borderWidth: 1,
     borderRadius: Spacing.one + 2,
     padding: Spacing.two,
   },
   errorText: {
-    color: '#EF4444',
+    color: Brand.negative,
     fontSize: 12,
   },
   successBox: {
-    backgroundColor: '#10B9811A',
-    borderColor: '#10B9814D',
+    backgroundColor: Brand.positiveDim,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
     borderWidth: 1,
     borderRadius: Spacing.one + 2,
     padding: Spacing.two,
   },
   successText: {
-    color: '#10B981',
+    color: Brand.positive,
     fontSize: 12,
     fontWeight: '600',
   },
   noticeBox: {
-    backgroundColor: '#0F172A40',
+    backgroundColor: Surfaces.darkCardMid,
     borderRadius: Spacing.two,
     padding: Spacing.two + 2,
     borderWidth: 1,
-    borderColor: '#3341554D',
+    borderColor: Surfaces.darkBorder,
   },
   noticeText: {
     color: '#94A3B8',
@@ -377,29 +409,29 @@ const styles = StyleSheet.create({
     marginTop: Spacing.one,
   },
   btn: {
-    borderRadius: Spacing.two,
+    borderRadius: 10,
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three + 2,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 40,
+    minHeight: 42,
   },
   btnDisabled: {
     opacity: 0.5,
   },
   clearBtn: {
-    backgroundColor: '#EF44441A',
-    borderColor: '#EF444466',
+    backgroundColor: Brand.negativeDim,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
     borderWidth: 1,
     marginRight: 'auto',
   },
   clearBtnText: {
-    color: '#EF4444',
+    color: Brand.negative,
     fontSize: 13,
     fontWeight: '600',
   },
   cancelBtn: {
-    backgroundColor: '#334155',
+    backgroundColor: Surfaces.darkCardMid,
   },
   cancelBtnText: {
     color: '#94A3B8',
@@ -407,11 +439,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   saveBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: Brand.primary,
     minWidth: 72,
   },
   saveBtnText: {
-    color: '#FFFFFF',
+    color: '#030507',
     fontSize: 13,
     fontWeight: '700',
   },

@@ -15,7 +15,7 @@ import * as Linking from 'expo-linking';
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
-import { Spacing } from '../constants/theme';
+import { Brand, Spacing, Surfaces } from '../constants/theme';
 import { paymentApi } from '../services/paymentApi';
 import type {
   PaymentIntentItem,
@@ -791,7 +791,7 @@ export function PaymentModal({
                     accessibilityLabel="Refresh status"
                   >
                     {isRefreshingStatus ? (
-                      <ActivityIndicator size="small" color="#38BDF8" />
+                      <ActivityIndicator size="small" color={Brand.primary} />
                     ) : (
                       <ThemedText style={styles.refreshBtnText}>🔄 Refresh</ThemedText>
                     )}
@@ -1127,8 +1127,8 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.three,
     padding: Spacing.four,
     borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#1E293B',
+    borderColor: Surfaces.darkBorder,
+    backgroundColor: Surfaces.darkCard,
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -1164,12 +1164,12 @@ const styles = StyleSheet.create({
     padding: Spacing.one,
   },
   debtSummaryCard: {
-    backgroundColor: '#0F172A66',
+    backgroundColor: Surfaces.darkCardMid,
     borderRadius: Spacing.two,
     padding: Spacing.three,
     gap: Spacing.one,
     borderWidth: 1,
-    borderColor: '#33415566',
+    borderColor: Surfaces.darkBorder,
   },
   debtSummaryRow: {
     flexDirection: 'row',
@@ -1206,11 +1206,12 @@ const styles = StyleSheet.create({
   },
   fullAmountBtnText: {
     fontSize: 12,
-    color: '#3B82F6',
+    color: Brand.primaryLight,
+    fontWeight: '600',
   },
   input: {
-    backgroundColor: '#0F172A',
-    borderColor: '#334155',
+    backgroundColor: Surfaces.darkCardMid,
+    borderColor: Surfaces.darkBorder,
     borderWidth: 1,
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.three,
@@ -1410,16 +1411,16 @@ const styles = StyleSheet.create({
   },
   refreshBtnText: {
     fontSize: 12,
-    color: '#38BDF8',
+    color: Brand.primaryLight,
     fontWeight: '600',
   },
   intentDetailsCard: {
-    backgroundColor: '#0F172A',
+    backgroundColor: Surfaces.darkCardMid,
     borderRadius: Spacing.two,
     padding: Spacing.three,
     gap: Spacing.two,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
   },
   detailRow: {
     flexDirection: 'row',
@@ -1435,7 +1436,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   vpaText: {
-    color: '#38BDF8',
+    color: Brand.primaryLight,
     fontWeight: '700',
   },
   intentActionsWrap: {
@@ -1479,7 +1480,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   primaryBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: Brand.primary,
   },
   primaryBtnText: {
     color: '#FFFFFF',
@@ -1487,7 +1488,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   secondaryBtn: {
-    backgroundColor: '#334155',
+    backgroundColor: Surfaces.darkCardMid,
+    borderColor: Surfaces.darkBorder,
+    borderWidth: 1,
   },
   secondaryBtnText: {
     color: '#F8FAFC',
@@ -1495,8 +1498,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   closeBtn: {
-    backgroundColor: '#1E293B',
-    borderColor: '#334155',
+    backgroundColor: Surfaces.darkCardMid,
+    borderColor: Surfaces.darkBorder,
     borderWidth: 1,
   },
   closeBtnDisplayText: {

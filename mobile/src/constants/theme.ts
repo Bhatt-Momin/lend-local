@@ -9,19 +9,44 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: '#030507',
+    background: '#F8FAFC',
+    backgroundElement: '#FFFFFF',
+    backgroundSelected: '#F1F5F9',
+    textSecondary: '#64748B',
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    text: '#F0F4F8',
+    background: '#030507',
+    backgroundElement: '#0A0E14',
+    backgroundSelected: '#0F1520',
+    textSecondary: '#7A93A6',
   },
+} as const;
+
+export const Brand = {
+  primary: '#10B981',
+  primaryHover: '#059669',
+  primaryLight: '#34D399',
+  primaryDim: 'rgba(16, 185, 129, 0.12)',
+  primaryGlow: 'rgba(16, 185, 129, 0.22)',
+  positive: '#10B981',
+  positiveDim: 'rgba(16, 185, 129, 0.14)',
+  negative: '#EF4444',
+  negativeDim: 'rgba(239, 68, 68, 0.14)',
+  warning: '#F59E0B',
+  warningDim: 'rgba(245, 158, 11, 0.14)',
+  info: '#0284C7',
+  infoDim: 'rgba(2, 132, 199, 0.14)',
+} as const;
+
+export const Surfaces = {
+  darkBg: '#030507',
+  darkCard: '#0A0E14',
+  darkCardMid: '#0F1520',
+  darkCardRaised: 'rgba(255, 255, 255, 0.03)',
+  darkBorder: 'rgba(255, 255, 255, 0.08)',
+  darkBorderBright: 'rgba(255, 255, 255, 0.14)',
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;

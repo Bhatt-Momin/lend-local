@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
-import { MaxContentWidth, Spacing } from '../constants/theme';
+import { Brand, MaxContentWidth, Spacing, Surfaces } from '../constants/theme';
 import type { ExpenseItem, GroupDetail } from '../types/api';
 import { canDeleteExpense, canEditExpense, hasDepartedSplitParticipants } from '../utils/expenseForm';
 import { formatINR } from '../utils/format';
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.three,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#334155',
+    borderBottomColor: Surfaces.darkBorder,
   },
   headerTitle: {
     fontSize: 18,
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
   },
   closeBtnText: {
     fontSize: 16,
-    color: '#38BDF8',
+    color: '#94A3B8',
     fontWeight: '600',
   },
   scrollContent: {
@@ -383,17 +383,18 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
+    backgroundColor: Surfaces.darkCard,
     alignItems: 'center',
     gap: Spacing.two,
   },
   categoryBadge: {
-    backgroundColor: '#0F172A',
+    backgroundColor: Surfaces.darkCardMid,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
   },
   categoryBadgeText: {
     fontSize: 12,
@@ -410,7 +411,7 @@ const styles = StyleSheet.create({
   expenseAmount: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#38BDF8',
+    color: Brand.primaryLight,
   },
   dateRow: {
     marginTop: 2,
@@ -423,7 +424,8 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
+    backgroundColor: Surfaces.darkCard,
     gap: Spacing.three,
   },
   infoRow: {
@@ -449,13 +451,14 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#334155',
+    backgroundColor: Surfaces.darkBorder,
   },
   splitsCard: {
     padding: Spacing.four,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
+    backgroundColor: Surfaces.darkCard,
     gap: Spacing.three,
   },
   splitsHeaderRow: {
@@ -487,7 +490,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: Surfaces.darkBorder,
   },
   splitUserWrap: {
     flex: 1,
@@ -534,7 +537,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editBtn: {
-    backgroundColor: '#0284C7',
+    backgroundColor: Brand.primary,
   },
   editBtnText: {
     color: '#FFFFFF',

@@ -19,7 +19,7 @@ import { ThemedView } from '../../../components/themed-view';
 import { ExpenseModal } from '../../../components/ExpenseModal';
 import { ExpenseDetailModal } from '../../../components/ExpenseDetailModal';
 import { PaymentModal } from '../../../components/PaymentModal';
-import { BottomTabInset, MaxContentWidth, Spacing } from '../../../constants/theme';
+import { BottomTabInset, Brand, MaxContentWidth, Spacing, Surfaces } from '../../../constants/theme';
 import { useAuth } from '../../../context/AuthContext';
 import { useGroupDetail } from '../../../hooks/useGroupDetail';
 import { paymentApi } from '../../../services/paymentApi';
@@ -421,7 +421,7 @@ export default function GroupDetailScreen() {
   if (isLoading) {
     return (
       <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color={Brand.primary} />
         <ThemedText style={styles.loadingText}>Loading group details...</ThemedText>
       </ThemedView>
     );
@@ -450,13 +450,20 @@ export default function GroupDetailScreen() {
     );
   }
 
+  const balanceToneBorder =
+    myNetBalance >= 0.01
+      ? styles.heroCardOwed
+      : myNetBalance <= -0.01
+      ? styles.heroCardOwe
+      : styles.heroCardSettled;
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor="#2563EB" />}
+          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor={Brand.primary} />}
           keyboardShouldPersistTaps="handled"
         >
           {/* Header Bar */}
@@ -513,7 +520,7 @@ export default function GroupDetailScreen() {
           ) : null}
 
           {/* Balance Hero Card */}
-          <ThemedView type="backgroundElement" style={styles.balanceHeroCard}>
+          <ThemedView type="backgroundElement" style={[styles.balanceHeroCard, balanceToneBorder]}>
             <ThemedText type="small" style={styles.balanceHeroLabel}>
               Your Balance
             </ThemedText>
@@ -641,7 +648,7 @@ export default function GroupDetailScreen() {
                     accessibilityHint="Filters expenses by description"
                   />
                   {isFilteringExpenses ? (
-                    <ActivityIndicator size="small" color="#2563EB" style={styles.searchSpinner} />
+                    <ActivityIndicator size="small" color={Brand.primary} style={styles.searchSpinner} />
                   ) : searchInput.length > 0 ? (
                     <TouchableOpacity
                       onPress={handleClearSearch}
@@ -1302,57 +1309,85 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: Spacing.one,
   },
-  backBtn: { paddingVertical: Spacing.one },
-  backText: { color: '#3B82F6', fontSize: 15, fontWeight: '600' },
+  backBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: Surfaces.darkCardMid,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
+  },
+  backText: { color: Brand.primaryLight, fontSize: 13, fontWeight: '700' },
   headerRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
   },
   historyBadge: {
-    backgroundColor: '#F59E0B22',
-    borderColor: '#F59E0B66',
+    backgroundColor: Brand.warningDim,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 2,
   },
-  historyText: { color: '#F59E0B', fontSize: 11, fontWeight: '700' },
+  historyText: { color: Brand.warning, fontSize: 11, fontWeight: '700' },
   menuBtn: {
     paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    backgroundColor: '#1E293B',
-    borderRadius: Spacing.one,
+    paddingVertical: 6,
+    backgroundColor: Surfaces.darkCardMid,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
   },
-  menuBtnText: { color: '#F8FAFC', fontSize: 14, fontWeight: '700' },
+  menuBtnText: { color: '#F0F4F8', fontSize: 14, fontWeight: '700' },
   titleSection: {
     gap: 4,
   },
-  groupName: { fontSize: 24, fontWeight: '700' },
+  groupName: { fontSize: 24, fontWeight: '800', letterSpacing: -0.3 },
   groupDesc: { opacity: 0.75, lineHeight: 18 },
   balanceHeroCard: {
     padding: Spacing.four,
-    borderRadius: Spacing.three,
+    borderRadius: 18,
     gap: Spacing.two,
     borderWidth: 1,
-    borderColor: '#3B82F633',
+    backgroundColor: Surfaces.darkCard,
+    borderColor: Surfaces.darkBorder,
   },
-  balanceHeroLabel: { opacity: 0.7 },
-  balanceHeroAmount: { fontSize: 22, fontWeight: '700' },
+  heroCardOwed: {
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+    borderLeftWidth: 4,
+    borderLeftColor: Brand.primary,
+  },
+  heroCardOwe: {
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    borderLeftWidth: 4,
+    borderLeftColor: Brand.negative,
+  },
+  heroCardSettled: {
+    borderColor: Surfaces.darkBorder,
+    borderLeftWidth: 4,
+    borderLeftColor: Surfaces.darkBorderBright,
+  },
+  balanceHeroLabel: { opacity: 0.7, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+  balanceHeroAmount: { fontSize: 24, fontWeight: '800' },
   statsRow: {
     flexDirection: 'row',
-    backgroundColor: '#0F172A22',
-    borderRadius: Spacing.two,
-    padding: Spacing.two,
+    gap: Spacing.two,
     marginTop: Spacing.one,
   },
   statBox: {
     flex: 1,
     alignItems: 'center',
-    gap: 2,
+    gap: 3,
+    backgroundColor: Surfaces.darkCardMid,
+    borderRadius: 12,
+    paddingVertical: Spacing.two,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
   },
-  statLabel: { opacity: 0.65, fontSize: 11 },
-  statValue: { fontSize: 14 },
+  statLabel: { opacity: 0.65, fontSize: 11, fontWeight: '500' },
+  statValue: { fontSize: 14, fontWeight: '700', color: '#F0F4F8' },
   actionBar: {
     flexDirection: 'row',
     gap: Spacing.two,
@@ -1360,31 +1395,39 @@ const styles = StyleSheet.create({
   btn: {
     flex: 1,
     paddingVertical: Spacing.two,
-    borderRadius: Spacing.two,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 44,
   },
-  primaryBtn: { backgroundColor: '#2563EB' },
-  primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  outlineBtn: { borderWidth: 1, borderColor: '#2563EB' },
-  outlineBtnText: { color: '#3B82F6', fontWeight: '700', fontSize: 14 },
+  primaryBtn: { backgroundColor: Brand.primary },
+  primaryBtnText: { color: '#030507', fontWeight: '700', fontSize: 14 },
+  outlineBtn: {
+    borderWidth: 1,
+    borderColor: Brand.primary,
+    backgroundColor: Brand.primaryDim,
+  },
+  outlineBtnText: { color: Brand.primaryLight, fontWeight: '700', fontSize: 14 },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: '#0F172A1A',
-    borderRadius: Spacing.two,
-    padding: 3,
+    backgroundColor: Surfaces.darkCard,
+    borderRadius: 14,
+    padding: 4,
     marginTop: Spacing.one,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
   },
   tabItem: {
     flex: 1,
     paddingVertical: Spacing.two,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: Spacing.one,
+    borderRadius: 10,
   },
   tabItemActive: {
-    backgroundColor: '#1E293B',
+    backgroundColor: Surfaces.darkCardMid,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorderBright,
   },
   tabItemContent: {
     flexDirection: 'row',
@@ -1393,7 +1436,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   tabBadge: {
-    backgroundColor: '#0284C7',
+    backgroundColor: Brand.info,
     borderRadius: 999,
     paddingHorizontal: 6,
     paddingVertical: 1,
@@ -1413,22 +1456,28 @@ const styles = StyleSheet.create({
   tabTextActive: {
     opacity: 1,
     fontWeight: '700',
-    color: '#3B82F6',
+    color: Brand.primaryLight,
   },
   tabContent: {
     gap: Spacing.two,
   },
   emptyCard: {
     padding: Spacing.four,
-    borderRadius: Spacing.three,
+    borderRadius: 16,
     alignItems: 'center',
     gap: Spacing.one,
+    backgroundColor: Surfaces.darkCard,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
   },
   emptySub: { opacity: 0.7, textAlign: 'center' },
   expenseList: { gap: Spacing.two },
   expenseCard: {
     padding: Spacing.three,
-    borderRadius: Spacing.two,
+    borderRadius: 14,
+    backgroundColor: Surfaces.darkCard,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
   },
   expenseRow: {
     flexDirection: 'row',
@@ -1437,15 +1486,18 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   expenseInfo: { flex: 1 },
-  expenseDesc: { fontSize: 15 },
+  expenseDesc: { fontSize: 15, fontWeight: '600' },
   expenseSub: { opacity: 0.65, fontSize: 12, marginTop: 2 },
   expenseAmountWrap: { alignItems: 'flex-end' },
-  expenseAmount: { fontSize: 15 },
+  expenseAmount: { fontSize: 15, fontWeight: '700' },
   expenseSplitType: { opacity: 0.5, fontSize: 11, marginTop: 2 },
   sectionCard: {
     padding: Spacing.three,
-    borderRadius: Spacing.three,
+    borderRadius: 16,
     gap: Spacing.two,
+    backgroundColor: Surfaces.darkCard,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -1453,39 +1505,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.one,
   },
-  sectionTitle: { fontSize: 15 },
-  linkText: { color: '#3B82F6', fontSize: 13 },
-  settledText: { color: '#10B981', paddingVertical: Spacing.one },
+  sectionTitle: { fontSize: 15, fontWeight: '700' },
+  linkText: { color: Brand.primaryLight, fontSize: 13, fontWeight: '600' },
+  settledText: { color: Brand.positive, paddingVertical: Spacing.one, fontWeight: '600' },
   settlementList: { gap: Spacing.one },
   settlementRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing.one,
+    paddingVertical: Spacing.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#334155',
+    borderBottomColor: Surfaces.darkBorder,
   },
   settlementLabel: { opacity: 0.85, flex: 1 },
   settlementLabelHighlight: { fontWeight: '600', opacity: 1 },
-  settlementAmount: { fontSize: 14 },
-  amountOwe: { color: '#EF4444' },
-  amountOwed: { color: '#10B981' },
+  settlementAmount: { fontSize: 14, fontWeight: '700' },
+  amountOwe: { color: Brand.negative },
+  amountOwed: { color: Brand.positive },
   settlementRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
   },
   settlementPayBtn: {
-    backgroundColor: '#10B981',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: Spacing.one,
-    minHeight: 28,
+    backgroundColor: Brand.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    minHeight: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
   settlementPayBtnText: {
-    color: '#FFFFFF',
+    color: '#030507',
     fontWeight: '700',
     fontSize: 12,
   },
@@ -1494,18 +1546,18 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   settlementStatusChip: {
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 4,
   },
   statusChipPending: {
-    backgroundColor: '#F59E0B22',
-    borderColor: '#F59E0B66',
+    backgroundColor: Brand.warningDim,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
     borderWidth: 1,
   },
   statusChipClaimed: {
-    backgroundColor: '#0284C722',
-    borderColor: '#0284C766',
+    backgroundColor: Brand.infoDim,
+    borderColor: 'rgba(2, 132, 199, 0.4)',
     borderWidth: 1,
   },
   settlementStatusChipText: {
@@ -1515,10 +1567,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   settlementPendingBtn: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: Brand.warning,
   },
   settlementClaimedBtn: {
-    backgroundColor: '#0284C7',
+    backgroundColor: Brand.info,
   },
   memberBalanceList: { gap: Spacing.one },
   memberBalanceRow: {
@@ -1541,23 +1593,25 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#334155',
+    backgroundColor: Surfaces.darkCardMid,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  memberAvatarText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  memberAvatarText: { color: '#F0F4F8', fontSize: 15, fontWeight: '700' },
   memberDetails: { flex: 1 },
   memberNameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
-  memberName: { fontSize: 14 },
+  memberName: { fontSize: 14, fontWeight: '600' },
   creatorBadge: {
-    backgroundColor: '#2563EB22',
-    borderColor: '#2563EB66',
+    backgroundColor: Brand.primaryDim,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
     borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 1.5,
   },
-  creatorBadgeText: { color: '#3B82F6', fontSize: 10, fontWeight: '700' },
+  creatorBadgeText: { color: Brand.primaryLight, fontSize: 10, fontWeight: '700' },
   memberEmail: { opacity: 0.65, fontSize: 12, marginTop: 2 },
   modalOverlay: {
     flex: 1,
@@ -1569,24 +1623,27 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 400,
-    borderRadius: Spacing.three,
+    borderRadius: 18,
     padding: Spacing.four,
     gap: Spacing.two,
+    backgroundColor: Surfaces.darkCard,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
   },
-  modalTitle: { fontSize: 17 },
+  modalTitle: { fontSize: 17, fontWeight: '700' },
   modalDescription: { opacity: 0.75, fontSize: 13, lineHeight: 18 },
   modalErrorCard: {
-    backgroundColor: '#EF44441A',
-    borderColor: '#EF444466',
+    backgroundColor: Brand.negativeDim,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
     borderWidth: 1,
     borderRadius: Spacing.one,
     padding: Spacing.two,
   },
-  modalErrorText: { color: '#EF4444', fontSize: 12 },
+  modalErrorText: { color: Brand.negative, fontSize: 12 },
   modalInput: {
-    backgroundColor: '#0F172A40',
+    backgroundColor: Surfaces.darkCardMid,
     color: '#F8FAFC',
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
     borderWidth: 1,
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.three,
@@ -1603,59 +1660,63 @@ const styles = StyleSheet.create({
   modalBtn: {
     flex: 1,
     paddingVertical: Spacing.two,
-    borderRadius: Spacing.two,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 44,
   },
   modalCancelBtn: {
-    backgroundColor: '#334155',
+    backgroundColor: Surfaces.darkCardMid,
   },
   modalCancelText: { color: '#F8FAFC', fontWeight: '600' },
   modalSubmitBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: Brand.primary,
   },
-  modalSubmitText: { color: '#fff', fontWeight: '700' },
+  modalSubmitText: { color: '#030507', fontWeight: '700' },
   actionsMenuCard: {
     width: '100%',
     maxWidth: 320,
-    borderRadius: Spacing.three,
+    borderRadius: 18,
     padding: Spacing.three,
     gap: Spacing.one,
+    backgroundColor: Surfaces.darkCard,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
   },
   actionsMenuTitle: {
     fontSize: 15,
+    fontWeight: '700',
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#334155',
+    borderBottomColor: Surfaces.darkBorder,
     marginBottom: Spacing.one,
   },
   actionMenuItem: {
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.one,
+    borderRadius: 8,
   },
   actionMenuText: { fontSize: 15, color: '#F8FAFC' },
-  actionMenuTextDestructive: { fontSize: 15, color: '#EF4444', fontWeight: '600' },
+  actionMenuTextDestructive: { fontSize: 15, color: Brand.negative, fontWeight: '600' },
   actionMenuClose: {
     marginTop: Spacing.two,
     paddingVertical: Spacing.two,
     alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#334155',
+    borderTopColor: Surfaces.darkBorder,
   },
   actionMenuCloseText: { color: '#94A3B8', fontSize: 14 },
   staleDataBanner: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: Brand.warningDim,
     borderWidth: 1,
-    borderColor: '#F59E0B',
-    borderRadius: 8,
+    borderColor: Brand.warning,
+    borderRadius: 10,
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
   },
   staleDataText: {
-    color: '#92400E',
+    color: Brand.warning,
     fontSize: 13,
     fontWeight: '500',
   },
@@ -1666,16 +1727,16 @@ const styles = StyleSheet.create({
     color: '#F8FAFC',
   },
   unverifiedIntentsCard: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: Brand.warningDim,
     borderWidth: 1,
-    borderColor: '#F59E0B',
-    borderRadius: 8,
+    borderColor: Brand.warning,
+    borderRadius: 10,
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
     marginBottom: Spacing.two,
   },
   unverifiedIntentsText: {
-    color: '#92400E',
+    color: Brand.warning,
     fontSize: 12,
     fontWeight: '500',
     lineHeight: 16,
@@ -1686,12 +1747,12 @@ const styles = StyleSheet.create({
   searchInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F172A40',
+    backgroundColor: Surfaces.darkCardMid,
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.two,
-    minHeight: 42,
+    minHeight: 44,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
   },
   searchIcon: {
     fontSize: 14,
@@ -1728,15 +1789,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: '#0F172A40',
+    backgroundColor: Surfaces.darkCardMid,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
   filterChipActive: {
-    backgroundColor: '#2563EB22',
-    borderColor: '#3B82F6',
+    backgroundColor: Brand.primaryDim,
+    borderColor: Brand.primary,
   },
   filterChipText: {
     fontSize: 13,
@@ -1744,36 +1805,36 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   filterChipTextActive: {
-    color: '#3B82F6',
+    color: Brand.primaryLight,
     fontWeight: '700',
   },
   filterErrorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: Brand.warningDim,
     borderRadius: 8,
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.two,
     marginBottom: Spacing.two,
     borderWidth: 1,
-    borderColor: '#F59E0B',
+    borderColor: Brand.warning,
   },
   filterErrorText: {
     flex: 1,
     fontSize: 12,
-    color: '#92400E',
+    color: Brand.warning,
     marginRight: Spacing.one,
   },
   filterRetryBtn: {
-    backgroundColor: '#D97706',
+    backgroundColor: Brand.warning,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
   },
   filterRetryText: {
     fontSize: 12,
-    color: '#FFFFFF',
+    color: '#030507',
     fontWeight: 'bold',
   },
   expenseMetaRow: {
@@ -1784,16 +1845,16 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   categoryBadge: {
-    backgroundColor: '#2563EB22',
-    borderColor: '#2563EB44',
+    backgroundColor: Brand.primaryDim,
+    borderColor: 'rgba(16, 185, 129, 0.28)',
     borderWidth: 1,
-    paddingHorizontal: 7,
-    paddingVertical: 1.5,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
     alignSelf: 'flex-start',
   },
   categoryBadgeText: {
-    color: '#60A5FA',
+    color: Brand.primaryLight,
     fontSize: 11,
     fontWeight: '600',
   },

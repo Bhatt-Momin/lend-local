@@ -11,7 +11,7 @@ import {
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
-import { Spacing } from '../constants/theme';
+import { Brand, Spacing, Surfaces } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import {
   getDefaultApiBaseUrl,
@@ -175,7 +175,7 @@ export function ServerConfigModal({ visible, onClose }: ServerConfigModalProps) 
               disabled={isTesting}
             >
               {isTesting ? (
-                <ActivityIndicator size="small" color="#2563EB" />
+                <ActivityIndicator size="small" color={Brand.primary} />
               ) : (
                 <ThemedText style={styles.btnOutlineText}>Test Connection</ThemedText>
               )}
@@ -228,9 +228,12 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '100%',
     maxWidth: 420,
-    borderRadius: Spacing.three,
+    borderRadius: 18,
     padding: Spacing.four,
     gap: Spacing.three,
+    backgroundColor: Surfaces.darkCard,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
@@ -240,26 +243,30 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
   description: {
     opacity: 0.75,
     lineHeight: 19,
+    fontSize: 13,
   },
   inputContainer: {
     gap: Spacing.one,
   },
   inputLabel: {
     fontSize: 13,
+    fontWeight: '600',
   },
   input: {
-    backgroundColor: '#00000022',
+    backgroundColor: Surfaces.darkCardMid,
     color: '#fff',
-    borderColor: '#444',
+    borderColor: Surfaces.darkBorder,
     borderWidth: 1,
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     fontSize: 14,
+    minHeight: 46,
   },
   resultBox: {
     padding: Spacing.two,
@@ -267,20 +274,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   resultSuccess: {
-    backgroundColor: '#10B9811A',
-    borderColor: '#10B9814D',
+    backgroundColor: Brand.positiveDim,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
   },
   resultError: {
-    backgroundColor: '#EF44441A',
-    borderColor: '#EF44444D',
+    backgroundColor: Brand.negativeDim,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
   },
   resultTextSuccess: {
-    color: '#10B981',
+    color: Brand.positive,
     fontSize: 13,
+    fontWeight: '500',
   },
   resultTextError: {
-    color: '#EF4444',
+    color: Brand.negative,
     fontSize: 13,
+    fontWeight: '500',
   },
   actionsRow: {
     flexDirection: 'row',
@@ -290,29 +299,30 @@ const styles = StyleSheet.create({
   btn: {
     flex: 1,
     paddingVertical: Spacing.two,
-    borderRadius: Spacing.two,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 44,
+    minHeight: 46,
   },
   btnDisabled: {
     opacity: 0.6,
   },
   btnPrimary: {
-    backgroundColor: '#2563EB',
+    backgroundColor: Brand.primary,
   },
   btnPrimaryText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: '#030507',
+    fontWeight: '700',
     fontSize: 14,
   },
   btnOutline: {
     borderWidth: 1,
-    borderColor: '#2563EB',
+    borderColor: Brand.primary,
+    backgroundColor: Brand.primaryDim,
   },
   btnOutlineText: {
-    color: '#3B82F6',
-    fontWeight: '600',
+    color: Brand.primaryLight,
+    fontWeight: '700',
     fontSize: 14,
   },
   footerRow: {

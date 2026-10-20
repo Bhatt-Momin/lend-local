@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '../../components/themed-text';
 import { ThemedView } from '../../components/themed-view';
-import { MaxContentWidth, Spacing } from '../../constants/theme';
+import { Brand, MaxContentWidth, Spacing, Surfaces } from '../../constants/theme';
 import { groupsApi } from '../../services/api';
 
 export default function CreateGroupScreen() {
@@ -263,47 +263,60 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
   cancelBtn: {
-    paddingVertical: Spacing.one,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: Surfaces.darkCardMid,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
   },
   cancelText: {
-    color: '#94A3B8',
-    fontSize: 15,
+    color: Brand.primaryLight,
+    fontWeight: '700',
+    fontSize: 13,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: -0.2,
   },
   headerSpacer: {
-    width: 50,
+    width: 60,
   },
   errorCard: {
-    backgroundColor: '#EF44441A',
-    borderColor: '#EF444466',
+    backgroundColor: Brand.negativeDim,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
     borderWidth: 1,
     borderRadius: Spacing.two,
     padding: Spacing.three,
   },
   errorText: {
-    color: '#EF4444',
+    color: Brand.negative,
     fontSize: 13,
+    fontWeight: '500',
   },
   formCard: {
     padding: Spacing.four,
-    borderRadius: Spacing.three,
+    borderRadius: 18,
     gap: Spacing.three,
+    backgroundColor: Surfaces.darkCard,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
   },
   fieldGroup: {
     gap: Spacing.one,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '600',
   },
   required: {
-    color: '#EF4444',
+    color: Brand.negative,
   },
   input: {
-    backgroundColor: '#0F172A40',
+    backgroundColor: Surfaces.darkCardMid,
     color: '#F8FAFC',
-    borderColor: '#334155',
+    borderColor: Surfaces.darkBorder,
     borderWidth: 1,
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.three,
@@ -334,7 +347,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   addEmailBtn: {
-    backgroundColor: '#334155',
+    backgroundColor: Surfaces.darkCardMid,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
     paddingHorizontal: Spacing.three,
     borderRadius: Spacing.two,
     alignItems: 'center',
@@ -342,8 +357,8 @@ const styles = StyleSheet.create({
     minHeight: 46,
   },
   addEmailBtnText: {
-    color: '#F8FAFC',
-    fontWeight: '600',
+    color: Brand.primaryLight,
+    fontWeight: '700',
     fontSize: 14,
   },
   chipContainer: {
@@ -355,8 +370,8 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
-    borderColor: '#3B82F64D',
+    backgroundColor: Brand.primaryDim,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
     borderWidth: 1,
     borderRadius: 999,
     paddingVertical: 4,
@@ -366,7 +381,8 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 12,
-    color: '#93C5FD',
+    color: Brand.primaryLight,
+    fontWeight: '600',
   },
   chipRemove: {
     paddingHorizontal: 2,
@@ -377,8 +393,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   submitBtn: {
-    backgroundColor: '#2563EB',
-    borderRadius: Spacing.two,
+    backgroundColor: Brand.primary,
+    borderRadius: 12,
     paddingVertical: Spacing.three,
     alignItems: 'center',
     justifyContent: 'center',
@@ -389,7 +405,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   submitBtnText: {
-    color: '#fff',
+    color: '#030507',
     fontWeight: '700',
     fontSize: 16,
   },
