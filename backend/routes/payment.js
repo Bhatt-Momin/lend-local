@@ -9,6 +9,7 @@ const { protect } = require("../middleware/auth");
 const razorpay = require("../config/razorpay");
 
 const { getMessaging } = require("firebase-admin/messaging");
+const { createNotification } = require("../services/notificationService");
 const { getGroupLedger, checkParticipation, validatePaymentAmount } = require("../utils/helpers");
 
 const router = express.Router();
@@ -363,72 +364,28 @@ router.post("/verify-payment", protect, async (req, res) => {
     }
 
     // =================================================
-    // SEND PAYMENT NOTIFICATION
+    // SEND PAYMENT NOTIFICATION (IN-APP & PUSH)
     // =================================================
 
     try {
-      const receiver = await User.findById(
-        orderToUserId
-      ).select("name email fcmToken");
+      const payerName = req.user.name || "Someone";
+      const notifTitle = "Payment received 💰";
+      const notifBody = `${payerName} paid you ₹${orderAmountRupees.toFixed(2)}`;
 
-      if (receiver && receiver.fcmToken) {
-        const payerName =
-          req.user.name || "Someone";
-
-        const notifTitle =
-          "Payment received 💰";
-
-        const notifBody =
-          `${payerName} paid you ₹${orderAmountRupees.toFixed(2)}`;
-
-        const fcmMessage = {
-          token: receiver.fcmToken,
-
-          notification: {
-            title: notifTitle,
-            body: notifBody,
-          },
-
-          webpush: {
-            notification: {
-              icon: "/icons/icon-192.png",
-              badge: "/icons/icon-192.png",
-            },
-
-            fcmOptions: {
-              link: "/dashboard.html",
-            },
-          },
-
-          data: {
-            type: "payment",
-            paymentId: payment._id.toString(),
-            groupId: orderGroupId.toString(),
-            fromUserId:
-              orderFromUserId.toString(),
-            toUserId:
-              orderToUserId.toString(),
-            amount:
-              orderAmountRupees.toFixed(2),
-            title: notifTitle,
-            body: notifBody,
-          },
-        };
-
-        const fcmResponse =
-          await getMessaging().send(
-            fcmMessage
-          );
-
-        console.log(
-          "Payment notification sent:",
-          fcmResponse
-        );
-      } else {
-        console.log(
-          "Payment notification skipped: receiver has no FCM token."
-        );
-      }
+      await createNotification({
+        recipient: orderToUserId,
+        sender: req.user._id,
+        type: "payment_received",
+        title: notifTitle,
+        body: notifBody,
+        data: {
+          groupId: orderGroupId.toString(),
+          paymentId: payment._id.toString(),
+          amount: orderAmountRupees,
+        },
+        dedupeKey: `payment_verified:${payment._id.toString()}`,
+        sendPush: true,
+      });
     } catch (notificationError) {
       // IMPORTANT:
       // The payment has already been verified and saved.
@@ -633,31 +590,32 @@ router.post("/intent", protect, async (req, res) => {
 });
 
 // =====================================================
-// HELPER: send FCM notification — non-blocking, never throws
+// HELPER: send in-app and FCM notification — non-blocking, never throws
 // =====================================================
 async function sendFcm(userId, title, bodyStr, data) {
   try {
-    const user = await User.findById(userId).select("fcmToken");
-    if (!user || !user.fcmToken) {
-      console.log(`FCM skipped for user ${userId}: no token.`);
-      return false;
-    }
-    const message = {
-      token: user.fcmToken,
-      notification: { title, body: bodyStr },
-      webpush: {
-        notification: { icon: "/icons/icon-192.png", badge: "/icons/icon-192.png" },
-        fcmOptions: { link: "/dashboard.html" },
+    const dedupeKey = data?.type && data?.paymentId
+      ? `${data.type}:${data.paymentId}`
+      : null;
+
+    const res = await createNotification({
+      recipient: userId,
+      sender: null,
+      type: data?.type || "system",
+      title,
+      body: bodyStr,
+      data: {
+        groupId: data?.groupId ? String(data.groupId) : null,
+        paymentId: data?.paymentId ? String(data.paymentId) : null,
+        intentId: data?.paymentId ? String(data.paymentId) : null,
+        amount: data?.amount ? Number(data.amount) : null,
       },
-      data: Object.fromEntries(
-        Object.entries(data || {}).map(([k, v]) => [k, String(v)])
-      ),
-    };
-    const response = await getMessaging().send(message);
-    console.log(`FCM sent to user ${userId}:`, response);
-    return true;
+      dedupeKey,
+      sendPush: true,
+    });
+    return Boolean(res?.pushSent);
   } catch (err) {
-    console.error(`FCM delivery failed for user ${userId}:`, err.message);
+    console.error("sendFcm error (non-fatal):", err?.message || err);
     return false;
   }
 }

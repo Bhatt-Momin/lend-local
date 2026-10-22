@@ -3,6 +3,7 @@ const Expense = require('../models/Expense');
 const Group = require('../models/Group');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
+const { createMulticastNotifications } = require('../services/notificationService');
 const { getMessaging } = require('firebase-admin/messaging');
 
 const router = express.Router();
@@ -487,137 +488,38 @@ router.post('/', async (req, res) => {
 
 
     // =================================================
-    // SEND PUSH NOTIFICATION
+    // NOTIFICATION (IN-APP INBOX & PUSH)
     // =================================================
 
     try {
+      const otherMemberIds = group.members
+        .map((memberId) => memberId.toString())
+        .filter((memberId) => memberId !== req.user._id.toString());
 
-      const otherMemberIds =
-        group.members
+      if (otherMemberIds.length > 0) {
+        const title = 'New expense added 💸';
+        const body = `${populated.paidBy.name} added ₹${numericAmount.toFixed(2)} for ${populated.description}`;
 
-          .map(
-            (memberId) =>
-              memberId.toString()
-          )
-
-          .filter(
-            (memberId) =>
-              memberId !==
-              req.user._id.toString()
-          );
-
-
-      const members =
-        await User.find({
-
-          _id: {
-            $in:
-              otherMemberIds
-          },
-
-          fcmToken: {
-            $ne: null
-          }
-
-        })
-        .select(
-          'name fcmToken'
-        );
-
-
-      const tokens =
-        members
-
-          .map(
-            (member) =>
-              member.fcmToken
-          )
-
-          .filter(Boolean);
-
-
-      if (tokens.length > 0) {
-
-        const title =
-          'New expense added 💸';
-
-
-        const body =
-          `${populated.paidBy.name} added ₹${numericAmount.toFixed(2)} for ${populated.description}`;
-
-
-        const message = {
-
-          tokens,
-
-          notification: {
-            title,
-            body
-          },
-
-          webpush: {
-
-            notification: {
-
-              icon:
-                '/icons/icon-192.png',
-
-              badge:
-                '/icons/icon-192.png'
-
-            },
-
-            fcmOptions: {
-
-              link:
-                '/group.html'
-
-            }
-
-          },
-
+        await createMulticastNotifications({
+          recipients: otherMemberIds,
+          sender: req.user._id,
+          type: 'expense_added',
+          title,
+          body,
           data: {
-
-            type:
-              'expense',
-
-            expenseId:
-              populated._id.toString(),
-
-            groupId:
-              groupId.toString(),
-
-            title,
-
-            body
-
-          }
-
-        };
-
-
-        const result =
-          await getMessaging()
-            .sendEachForMulticast(
-              message
-            );
-
-
-        console.log(
-          `Expense notification sent: ${result.successCount} successful, ${result.failureCount} failed`
-        );
-
+            groupId: groupId.toString(),
+            expenseId: populated._id.toString(),
+            amount: numericAmount,
+          },
+          dedupePrefix: `expense:${populated._id.toString()}`,
+          sendPush: true,
+        });
       }
-
-    } catch (
-      notificationError
-    ) {
-
+    } catch (notificationError) {
       console.error(
         'Expense notification error:',
         notificationError
       );
-
     }
 
 

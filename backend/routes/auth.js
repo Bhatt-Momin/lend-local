@@ -156,56 +156,145 @@ router.post('/fcm-token', protect, async (req, res) => {
       return res.status(400).json({ message: 'FCM token is required' });
     }
 
+    const trimmedToken = token.trim();
+    if (!trimmedToken) {
+      return res.status(400).json({ message: 'FCM token cannot be empty' });
+    }
+
     if (!req.jwt.sessionId) {
       return res.status(401).json({ message: 'Session expired. Please log in again.' });
     }
 
+    // Platform validation: defaults to 'web' if omitted or empty
+    const platformRaw = req.body.platform;
+    let platform = 'web';
+    if (platformRaw !== undefined && platformRaw !== null) {
+      if (typeof platformRaw !== 'string' || !['web', 'android', 'ios'].includes(platformRaw.toLowerCase().trim())) {
+        return res.status(400).json({ message: 'Invalid platform. Must be web, android, or ios.' });
+      }
+      platform = platformRaw.toLowerCase().trim();
+    }
+
     const fcmClaim = Date.now().toString() + '-' + require('crypto').randomUUID();
 
+    // 1. Maintain legacy scalar fcmToken according to backward compatibility strategy:
+    // Web registrations always update scalar fcmToken. Non-web platforms (e.g. android) update
+    // scalar fcmToken only if no active web token exists on this user.
+    const hasActiveWebToken = Array.isArray(req.user.fcmTokens) &&
+      req.user.fcmTokens.some((t) => t.platform === 'web' && t.token !== trimmedToken);
+
+    const scalarUpdate = {};
+    if (platform === 'web' || !hasActiveWebToken) {
+      scalarUpdate.fcmToken = trimmedToken;
+      scalarUpdate.fcmSessionId = req.jwt.sessionId;
+      scalarUpdate.fcmClaim = fcmClaim;
+    }
+
+    // Check revocation list for this session and update legacy fcmToken atomically
     const result = await User.updateOne(
       {
         _id: req.user._id,
-        revokedTokens: { $not: { $elemMatch: { token: token, sessionId: req.jwt.sessionId } } }
+        revokedTokens: { $not: { $elemMatch: { token: trimmedToken, sessionId: req.jwt.sessionId } } }
       },
-      { $set: { fcmToken: token, fcmSessionId: req.jwt.sessionId, fcmClaim: fcmClaim } }
+      Object.keys(scalarUpdate).length > 0 ? { $set: scalarUpdate } : { $set: { updatedAt: new Date() } }
     );
 
     if (result.matchedCount === 0) {
       return res.status(403).json({ message: "Registration rejected: Token was revoked for this session" });
     }
 
-    // Now safely clear from other users, yielding to stronger claims
-    await User.updateMany(
-      {
-        fcmToken: token,
-        _id: { $ne: req.user._id },
-        $or: [
-          { fcmClaim: { $lt: fcmClaim } },
-          { fcmClaim: null },
-          { fcmClaim: { $exists: false } }
-        ]
-      },
-      { $set: { fcmToken: null, fcmSessionId: null, fcmClaim: null } }
+    // 2. Update multi-device fcmTokens array: remove prior entry for this token string, then push fresh entry
+    await User.updateOne(
+      { _id: req.user._id },
+      { $pull: { fcmTokens: { token: trimmedToken } } }
     );
 
-    // Verify we didn't lose to a stronger claim during our write
+    const tokenEntry = {
+      token: trimmedToken,
+      platform,
+      sessionId: req.jwt.sessionId,
+      claim: fcmClaim,
+      updatedAt: new Date(),
+    };
+
+    await User.updateOne(
+      { _id: req.user._id },
+      {
+        $push: {
+          fcmTokens: {
+            $each: [tokenEntry],
+            $slice: -10, // Maintain maximum 10 active devices per user
+          },
+        },
+      }
+    );
+
+    // 3. Clear this physical token from other users, yielding to stronger claims.
+    // Note on Concurrency / Atomicity:
+    // Standalone MongoDB without replica set multi-document transactions cannot guarantee
+    // cross-document ACID atomicity across separate User documents. To minimize cross-user
+    // races and prevent stale overwrites, we use a monotonic timestamp-claim check and two-way
+    // yielding.
+    await User.updateMany(
+      {
+        _id: { $ne: req.user._id },
+        $and: [
+          {
+            $or: [
+              { fcmToken: trimmedToken },
+              { 'fcmTokens.token': trimmedToken }
+            ]
+          },
+          {
+            $or: [
+              { fcmClaim: { $lt: fcmClaim } },
+              { fcmClaim: null },
+              { fcmClaim: { $exists: false } }
+            ]
+          }
+        ]
+      },
+      {
+        $set: { fcmToken: null, fcmSessionId: null, fcmClaim: null },
+        $pull: { fcmTokens: { token: trimmedToken } }
+      }
+    );
+
+    // 4. Verify we didn't lose to a stronger claim during our write
     const strongerExists = await User.exists({
-      fcmToken: token,
       _id: { $ne: req.user._id },
+      $or: [
+        { fcmToken: trimmedToken },
+        { 'fcmTokens.token': trimmedToken }
+      ],
       fcmClaim: { $gt: fcmClaim }
     });
 
     if (strongerExists) {
       await User.updateOne(
         { _id: req.user._id, fcmClaim: fcmClaim },
-        { $set: { fcmToken: null, fcmSessionId: null, fcmClaim: null } }
+        {
+          $set: { fcmToken: null, fcmSessionId: null, fcmClaim: null },
+          $pull: { fcmTokens: { token: trimmedToken } }
+        }
       );
+      // Promote another remaining device if available
+      const loserUser = await User.findById(req.user._id).select('fcmTokens');
+      if (loserUser?.fcmTokens?.length > 0) {
+        const webTok = loserUser.fcmTokens.find((t) => t.platform === 'web');
+        const fallback = webTok || loserUser.fcmTokens[loserUser.fcmTokens.length - 1];
+        await User.updateOne(
+          { _id: req.user._id, fcmToken: null },
+          { $set: { fcmToken: fallback.token, fcmSessionId: fallback.sessionId, fcmClaim: fallback.claim } }
+        );
+      }
     }
 
-    console.log(`FCM token saved for user: ${req.user.email}`);
+    console.log(`FCM token (${platform}) saved for user: ${req.user.email}`);
 
     res.json({
       message: 'FCM token saved successfully',
+      platform,
     });
 
   } catch (err) {
@@ -237,6 +326,11 @@ router.delete('/fcm-token', protect, async (req, res) => {
       return res.status(400).json({ message: 'FCM token is required' });
     }
 
+    const trimmedToken = token.trim();
+    if (!trimmedToken) {
+      return res.status(400).json({ message: 'FCM token cannot be empty' });
+    }
+
     if (!req.jwt.sessionId) {
       return res.status(401).json({ message: 'Session expired. Please log in again.' });
     }
@@ -244,7 +338,7 @@ router.delete('/fcm-token', protect, async (req, res) => {
     await User.updateOne(
       { _id: req.user._id },
       {
-        $addToSet: { revokedTokens: { token, sessionId: req.jwt.sessionId, exp: req.jwt.exp } }
+        $addToSet: { revokedTokens: { token: trimmedToken, sessionId: req.jwt.sessionId, exp: req.jwt.exp } }
       }
     );
 
@@ -255,11 +349,29 @@ router.delete('/fcm-token', protect, async (req, res) => {
       { $pull: { revokedTokens: { exp: { $lt: now } } } }
     );
 
+    // Pull token from fcmTokens array
+    await User.updateOne(
+      { _id: req.user._id },
+      { $pull: { fcmTokens: { token: trimmedToken } } }
+    );
+
+    // Clear legacy fcmToken atomically if it matches this token and session
     const result = await User.updateOne(
-      { _id: req.user._id, fcmToken: token, fcmSessionId: req.jwt.sessionId },
+      { _id: req.user._id, fcmToken: trimmedToken, fcmSessionId: req.jwt.sessionId },
       { $set: { fcmToken: null, fcmSessionId: null, fcmClaim: null } }
     );
+
     if (result.modifiedCount > 0) {
+      // If fcmToken was cleared, check if user still has remaining tokens in fcmTokens to promote
+      const updatedUser = await User.findById(req.user._id).select('fcmTokens');
+      if (updatedUser?.fcmTokens?.length > 0) {
+        const webToken = updatedUser.fcmTokens.find((t) => t.platform === 'web');
+        const fallback = webToken || updatedUser.fcmTokens[updatedUser.fcmTokens.length - 1];
+        await User.updateOne(
+          { _id: req.user._id, fcmToken: null },
+          { $set: { fcmToken: fallback.token, fcmSessionId: fallback.sessionId, fcmClaim: fallback.claim } }
+        );
+      }
       console.log(`FCM token removed atomically for user: ${req.user.email}`);
     } else {
       console.log(`FCM token removal skipped (mismatch/already removed) for user: ${req.user.email}`);
