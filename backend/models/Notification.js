@@ -18,6 +18,7 @@ const notificationSchema = new mongoose.Schema(
       required: [true, 'Notification type is required'],
       enum: [
         'expense_added',
+        'expense_updated',
         'payment_received',
         'payment_claim',
         'payment_confirmed',

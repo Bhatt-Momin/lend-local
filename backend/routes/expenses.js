@@ -5,6 +5,7 @@ const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 const { createMulticastNotifications } = require('../services/notificationService');
 const { getMessaging } = require('firebase-admin/messaging');
+const crypto = require('crypto');
 
 const router = express.Router();
 
@@ -642,6 +643,59 @@ router.delete('/:id', async (req, res) => {
 });
 
 
+/**
+ * Selects affected group members for an expense edit notification.
+ * Includes previous and new participants (payer and split members) who are active group members,
+ * strictly excluding the user who made the edit.
+ *
+ * @param {Object} expenseBefore - Previous expense state { paidBy, splits }
+ * @param {Object} expenseAfter - Updated populated expense document
+ * @param {Array} groupMembers - Array of group member ObjectIds/objects
+ * @param {string|Object} editorUserId - The user who initiated the edit
+ * @returns {string[]} Array of distinct recipient user ID strings
+ */
+function getAffectedExpenseMemberIds(expenseBefore, expenseAfter, groupMembers, editorUserId) {
+  if (!editorUserId || !Array.isArray(groupMembers) || groupMembers.length === 0) {
+    return [];
+  }
+
+  const editorStr = (editorUserId._id || editorUserId).toString();
+  const groupMemberSet = new Set(
+    groupMembers.map((m) => (m._id || m).toString())
+  );
+  const affectedSet = new Set();
+
+  const maybeAdd = (userRef) => {
+    if (!userRef) return;
+    const idStr = (userRef._id || userRef).toString();
+    if (idStr !== editorStr && groupMemberSet.has(idStr)) {
+      affectedSet.add(idStr);
+    }
+  };
+
+  // 1. Participants prior to edit (payer and split users)
+  if (expenseBefore) {
+    maybeAdd(expenseBefore.paidBy);
+    if (Array.isArray(expenseBefore.splits)) {
+      for (const s of expenseBefore.splits) {
+        maybeAdd(s?.user);
+      }
+    }
+  }
+
+  // 2. Participants after edit (payer and split users)
+  if (expenseAfter) {
+    maybeAdd(expenseAfter.paidBy);
+    if (Array.isArray(expenseAfter.splits)) {
+      for (const s of expenseAfter.splits) {
+        maybeAdd(s?.user);
+      }
+    }
+  }
+
+  return Array.from(affectedSet);
+}
+
 // =====================================================
 // EDIT EXPENSE
 // =====================================================
@@ -683,6 +737,12 @@ router.put('/:id', async (req, res) => {
     if (!authorized) {
       return res.status(403).json({ message: 'Only the expense creator or group creator can edit this expense' });
     }
+
+    // Capture previous participants before modifying expense document
+    const oldPaidBy = expense.paidBy;
+    const oldSplits = Array.isArray(expense.splits)
+      ? expense.splits.map((s) => ({ user: s.user, share: s.share }))
+      : [];
 
     const envMax = Number(process.env.MAX_EXPENSE_AMOUNT);
     const MAX_AMOUNT = (Number.isFinite(envMax) && envMax > 0) ? envMax : 10000000;
@@ -811,6 +871,44 @@ router.put('/:id', async (req, res) => {
     group.updatedAt = new Date();
     await group.save();
 
+    // =================================================
+    // NOTIFICATION (IN-APP INBOX & PUSH)
+    // =================================================
+
+    try {
+      const affectedMemberIds = getAffectedExpenseMemberIds(
+        { paidBy: oldPaidBy, splits: oldSplits },
+        populated,
+        group.members,
+        req.user._id
+      );
+
+      if (affectedMemberIds.length > 0) {
+        const title = 'Expense updated ✏️';
+        const body = `${req.user.name || 'Someone'} updated ₹${numericAmount.toFixed(2)} for ${populated.description}`;
+        const rawIdempotencyKey = req.headers['idempotency-key'] || req.headers['x-idempotency-key'];
+        const idempotencyKey = typeof rawIdempotencyKey === 'string' && rawIdempotencyKey.trim() ? rawIdempotencyKey.trim() : null;
+        const editVersion = idempotencyKey || (typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'));
+
+        await createMulticastNotifications({
+          recipients: affectedMemberIds,
+          sender: req.user._id,
+          type: 'expense_updated',
+          title,
+          body,
+          data: {
+            groupId: group._id.toString(),
+            expenseId: populated._id.toString(),
+            amount: numericAmount,
+          },
+          dedupePrefix: `expense_edit:${populated._id.toString()}:${editVersion}`,
+          sendPush: true,
+        });
+      }
+    } catch (notificationError) {
+      console.error('Expense edit notification error (non-fatal):', notificationError);
+    }
+
     res.json({
       expense: {
         id: populated._id,
@@ -840,3 +938,4 @@ router.put('/:id', async (req, res) => {
 });
 
 module.exports = router;
+router.getAffectedExpenseMemberIds = getAffectedExpenseMemberIds;
