@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GroupCard } from '../components/GroupCard';
+import { NotificationInboxModal } from '../components/NotificationInboxModal';
 import { ServerConfigModal } from '../components/ServerConfigModal';
 import { SettingsModal } from '../components/SettingsModal';
 import { UpiConfigModal } from '../components/UpiConfigModal';
@@ -21,6 +22,7 @@ import { ThemedView } from '../components/themed-view';
 import { BottomTabInset, Brand, MaxContentWidth, Spacing, Surfaces } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { useGroups } from '../hooks/useGroups';
+import { notificationsApi } from '../services/notificationsApi';
 import type { GroupSummary } from '../types/api';
 import { formatINR } from '../utils/format';
 
@@ -30,6 +32,8 @@ export default function HomeScreen() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showServerModal, setShowServerModal] = useState(false);
   const [showUpiModal, setShowUpiModal] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [editingUpiId, setEditingUpiId] = useState<string | null | undefined>(undefined);
   const [returnToSettings, setReturnToSettings] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -39,6 +43,40 @@ export default function HomeScreen() {
   const { groups, isLoading: groupsLoading, isRefreshing, error: groupsError, refresh, refreshOnFocus } =
     useGroups(groupsEnabled, { onUnauthorized: logout });
 
+  const notificationsRequestIdRef = useRef<number>(0);
+  const prevUserIdRef = useRef<string | null>(user?.id ?? null);
+  const userRef = useRef(user);
+  userRef.current = user;
+
+  // Reset notification count immediately on logout or account switch
+  useEffect(() => {
+    const currentUserId = user?.id ?? null;
+    if (prevUserIdRef.current !== currentUserId) {
+      notificationsRequestIdRef.current += 1;
+      setUnreadNotificationsCount(0);
+      prevUserIdRef.current = currentUserId;
+    }
+  }, [user?.id]);
+
+  const fetchUnreadNotifications = useCallback(async () => {
+    const currentUserId = user?.id;
+    if (!currentUserId) return;
+
+    const currentRequestId = ++notificationsRequestIdRef.current;
+    try {
+      const res = await notificationsApi.list({ limit: 1 });
+      // Guard against stale responses across account changes or superseded requests
+      if (
+        currentRequestId === notificationsRequestIdRef.current &&
+        userRef.current?.id === currentUserId
+      ) {
+        setUnreadNotificationsCount(res.unreadCount || 0);
+      }
+    } catch {
+      // Non-blocking background fetch
+    }
+  }, [user?.id]);
+
   useFocusEffect(
     useCallback(() => {
       if (groupsEnabled) {
@@ -46,13 +84,14 @@ export default function HomeScreen() {
         refreshUser().catch((err) => {
           console.warn('Dashboard focus user refresh failed:', err?.message);
         });
+        fetchUnreadNotifications();
       }
-    }, [groupsEnabled, refreshOnFocus, refreshUser])
+    }, [groupsEnabled, refreshOnFocus, refreshUser, fetchUnreadNotifications])
   );
 
   const handleRefresh = useCallback(async () => {
-    await Promise.allSettled([refresh(), refreshUser()]);
-  }, [refresh, refreshUser]);
+    await Promise.allSettled([refresh(), refreshUser(), fetchUnreadNotifications()]);
+  }, [refresh, refreshUser, fetchUnreadNotifications]);
 
   /**
    * Authoritative totals calculation:
@@ -289,18 +328,18 @@ export default function HomeScreen() {
                 </View>
 
                 <View style={styles.headerActions}>
-                  {/* Notification Bell Affordance */}
+                  {/* Notification Bell Affordance — Opens In-App Inbox */}
                   <TouchableOpacity
                     style={styles.headerIconBtn}
-                    onPress={() => setActiveTab(activeTab === 'activity' ? 'overview' : 'activity')}
+                    onPress={() => setShowNotificationsModal(true)}
                     activeOpacity={0.7}
                     accessibilityRole="button"
-                    accessibilityLabel={`Recents and notifications${pendingActions.length ? `, ${pendingActions.length} pending actions` : ''}`}
+                    accessibilityLabel={`Notifications${unreadNotificationsCount ? `, ${unreadNotificationsCount} unread` : ''}`}
                   >
                     <ThemedText style={styles.headerIcon}>🔔</ThemedText>
-                    {pendingActions.length > 0 ? (
+                    {unreadNotificationsCount > 0 ? (
                       <View style={styles.bellBadge}>
-                        <ThemedText style={styles.bellBadgeText}>{pendingActions.length}</ThemedText>
+                        <ThemedText style={styles.bellBadgeText}>{unreadNotificationsCount}</ThemedText>
                       </View>
                     ) : null}
                   </TouchableOpacity>
@@ -694,6 +733,12 @@ export default function HomeScreen() {
           onClose={handleCloseUpiModal}
           initialUpiId={editingUpiId !== undefined ? editingUpiId : user?.upiId}
           onSuccess={handleUpiSuccess}
+        />
+
+        <NotificationInboxModal
+          visible={showNotificationsModal}
+          onClose={() => setShowNotificationsModal(false)}
+          onUnreadCountChange={setUnreadNotificationsCount}
         />
       </SafeAreaView>
     </ThemedView>

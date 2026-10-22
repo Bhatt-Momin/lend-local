@@ -8,11 +8,13 @@ import {
   deleteAuthToken,
   deleteUserData,
   getAuthToken,
+  getRegisteredPushToken,
   getUserData,
   saveAuthToken,
   saveUserData,
   UserProfile,
 } from '../services/secureStore';
+import { resetPushRegistrationState } from '../services/pushNotifications';
 import type { UpdateUpiIdResponse } from '../types/api';
 
 interface AuthContextType {
@@ -40,49 +42,102 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [serverUrl, setServerUrl] = useState<string>('');
 
   const userRef = React.useRef<UserProfile | null>(null);
+  const tokenRef = React.useRef<string | null>(null);
   const refreshingUserPromiseRef = React.useRef<Promise<void> | null>(null);
+  const refreshingUserEpochRef = React.useRef<number>(0);
+  const sessionEpochRef = React.useRef<number>(1);
+  const storageQueueRef = React.useRef<Promise<any>>(Promise.resolve());
 
   useEffect(() => {
     userRef.current = user;
   }, [user]);
 
   useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
+
+  /**
+   * Monotonically advances the session generation.
+   * Authoritatively invalidates previous session operations (refresh, background hydration,
+   * storage writes, and stale 401 callbacks).
+   */
+  const advanceSessionEpoch = React.useCallback((): number => {
+    sessionEpochRef.current += 1;
+    refreshingUserPromiseRef.current = null;
+    setIsRefreshingUser(false);
+    return sessionEpochRef.current;
+  }, []);
+
+  /**
+   * Serializes credential storage mutations (saveAuthToken, saveUserData, clearAllAuth)
+   * to guarantee that destructive deletions or writes from a prior session never interleave
+   * or overwrite credentials from a newer session in SecureStore.
+   */
+  const executeStorageMutation = React.useCallback(
+    <T,>(opEpoch: number, mutation: () => Promise<T>): Promise<T | null> => {
+      if (sessionEpochRef.current !== opEpoch) {
+        return Promise.resolve(null);
+      }
+
+      const nextPromise = storageQueueRef.current
+        .catch(() => {})
+        .then(async () => {
+          if (sessionEpochRef.current !== opEpoch) {
+            return null;
+          }
+          return await mutation();
+        });
+
+      storageQueueRef.current = nextPromise.catch(() => {});
+      return nextPromise;
+    },
+    []
+  );
+
+  useEffect(() => {
     let isMounted = true;
 
     async function initializeAuth() {
+      const initEpoch = sessionEpochRef.current;
       try {
         // 1. Load active server URL
         const activeUrl = await getActiveApiBaseUrl();
-        if (isMounted) setServerUrl(activeUrl);
+        if (!isMounted || sessionEpochRef.current !== initEpoch) return;
+        setServerUrl(activeUrl);
 
         // 2. Check for stored token and cached user
         const storedToken = await getAuthToken();
         const cachedUser = await getUserData();
 
+        if (!isMounted || sessionEpochRef.current !== initEpoch) return;
+
         if (storedToken) {
-          if (isMounted) {
-            setToken(storedToken);
-            if (cachedUser) {
-              setUser(cachedUser);
-              userRef.current = cachedUser;
-            }
+          setToken(storedToken);
+          tokenRef.current = storedToken;
+          if (cachedUser) {
+            setUser(cachedUser);
+            userRef.current = cachedUser;
           }
 
           // 3. Verify token with backend
           try {
             const { user: freshUser } = await authApi.getMe(storedToken);
-            if (isMounted && freshUser) {
+            if (!isMounted || sessionEpochRef.current !== initEpoch) return;
+            if (freshUser) {
               setUser(freshUser);
               userRef.current = freshUser;
-              await saveUserData(freshUser);
+              await executeStorageMutation(initEpoch, () => saveUserData(freshUser));
             }
           } catch (err: any) {
+            if (!isMounted || sessionEpochRef.current !== initEpoch) return;
             if (err?.status === 401) {
-              // Token expired or invalid
+              // Token expired or invalid for this initial session
               console.log('Session expired, clearing credentials');
-              await clearAllAuth();
-              if (isMounted) {
+              const clearEpoch = advanceSessionEpoch();
+              await executeStorageMutation(clearEpoch, () => clearAllAuth());
+              if (isMounted && sessionEpochRef.current === clearEpoch) {
                 setToken(null);
+                tokenRef.current = null;
                 setUser(null);
                 userRef.current = null;
               }
@@ -110,111 +165,182 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [advanceSessionEpoch, executeStorageMutation]);
 
   const login = React.useCallback(async (email: string, password: string): Promise<void> => {
+    const opEpoch = advanceSessionEpoch();
+
     const res = await authApi.login({ email, password });
-    await saveAuthToken(res.token);
+    if (sessionEpochRef.current !== opEpoch) return;
+
+    await executeStorageMutation(opEpoch, () => saveAuthToken(res.token));
+    if (sessionEpochRef.current !== opEpoch) return;
+
     setToken(res.token);
+    tokenRef.current = res.token;
 
     // Hydrate authoritative user profile via GET /api/auth/me
     let profile: UserProfile = res.user;
     try {
       const { user: freshUser } = await authApi.getMe(res.token);
-      if (freshUser) {
+      if (freshUser && sessionEpochRef.current === opEpoch) {
         profile = freshUser;
       }
     } catch (hydrateErr: any) {
       console.warn('Post-login profile hydration from /auth/me failed, using login payload:', hydrateErr?.message);
     }
 
-    await saveUserData(profile);
+    if (sessionEpochRef.current !== opEpoch) return;
+
+    await executeStorageMutation(opEpoch, () => saveUserData(profile));
+    if (sessionEpochRef.current !== opEpoch) return;
+
     setUser(profile);
     userRef.current = profile;
-  }, []);
+  }, [advanceSessionEpoch, executeStorageMutation]);
 
   const register = React.useCallback(async (name: string, email: string, password: string): Promise<void> => {
+    const opEpoch = advanceSessionEpoch();
+
     const res = await authApi.register({ name, email, password });
-    await saveAuthToken(res.token);
+    if (sessionEpochRef.current !== opEpoch) return;
+
+    await executeStorageMutation(opEpoch, () => saveAuthToken(res.token));
+    if (sessionEpochRef.current !== opEpoch) return;
+
     setToken(res.token);
+    tokenRef.current = res.token;
 
     let profile: UserProfile = res.user;
     try {
       const { user: freshUser } = await authApi.getMe(res.token);
-      if (freshUser) {
+      if (freshUser && sessionEpochRef.current === opEpoch) {
         profile = freshUser;
       }
     } catch (hydrateErr: any) {
       console.warn('Post-registration profile hydration from /auth/me failed, using register payload:', hydrateErr?.message);
     }
 
-    await saveUserData(profile);
+    if (sessionEpochRef.current !== opEpoch) return;
+
+    await executeStorageMutation(opEpoch, () => saveUserData(profile));
+    if (sessionEpochRef.current !== opEpoch) return;
+
     setUser(profile);
     userRef.current = profile;
-  }, []);
+  }, [advanceSessionEpoch, executeStorageMutation]);
 
   const logout = React.useCallback(async (): Promise<void> => {
-    await clearAllAuth();
-    setToken(null);
-    setUser(null);
-    userRef.current = null;
-  }, []);
+    const logoutEpoch = advanceSessionEpoch();
+
+    try {
+      const storedPushToken = await getRegisteredPushToken();
+      const currentToken = tokenRef.current || token || (await getAuthToken());
+      if (storedPushToken && currentToken) {
+        try {
+          await authApi.removeFcmToken(storedPushToken, currentToken);
+        } catch (revokeErr) {
+          console.warn('Failed to revoke FCM token on logout (non-fatal):', revokeErr);
+        }
+      }
+    } catch (e) {
+      console.warn('Error retrieving push token for logout (non-fatal):', e);
+    } finally {
+      // Two-stage epoch validation:
+      // 1. Guard storage wipe: ensure a newer session did not start during async FCM revocation.
+      if (sessionEpochRef.current === logoutEpoch) {
+        resetPushRegistrationState();
+        await executeStorageMutation(logoutEpoch, () => clearAllAuth());
+        // 2. Guard state wipe: ensure a newer login did not race during async clearAllAuth().
+        if (sessionEpochRef.current === logoutEpoch) {
+          setToken(null);
+          tokenRef.current = null;
+          setUser(null);
+          userRef.current = null;
+        }
+      }
+    }
+  }, [token, advanceSessionEpoch, executeStorageMutation]);
 
   const refreshUser = React.useCallback((): Promise<void> => {
-    if (refreshingUserPromiseRef.current) {
+    const currentEpoch = sessionEpochRef.current;
+    if (
+      refreshingUserPromiseRef.current &&
+      refreshingUserEpochRef.current === currentEpoch
+    ) {
       return refreshingUserPromiseRef.current;
     }
 
     const promise = (async () => {
+      const callEpoch = sessionEpochRef.current;
       try {
-        const currentToken = await getAuthToken();
-        if (!currentToken) return;
+        const currentToken = tokenRef.current || (await getAuthToken());
+        if (sessionEpochRef.current !== callEpoch || !currentToken) return;
 
         setIsRefreshingUser(true);
         const { user: freshUser } = await authApi.getMe(currentToken);
+
+        if (sessionEpochRef.current !== callEpoch) return;
+
         if (freshUser) {
-          setUser(freshUser);
-          userRef.current = freshUser;
-          await saveUserData(freshUser);
+          if (sessionEpochRef.current === callEpoch) {
+            setUser(freshUser);
+            userRef.current = freshUser;
+            await executeStorageMutation(callEpoch, () => saveUserData(freshUser));
+          }
         }
       } catch (err: any) {
+        if (sessionEpochRef.current !== callEpoch) return;
+
         if (err?.status === 401) {
-          await clearAllAuth();
-          setToken(null);
-          setUser(null);
-          userRef.current = null;
+          const clearEpoch = advanceSessionEpoch();
+          await executeStorageMutation(clearEpoch, () => clearAllAuth());
+          if (sessionEpochRef.current === clearEpoch) {
+            setToken(null);
+            tokenRef.current = null;
+            setUser(null);
+            userRef.current = null;
+          }
         } else {
           console.warn('Failed to refresh user profile:', err?.message);
         }
       } finally {
-        setIsRefreshingUser(false);
-        refreshingUserPromiseRef.current = null;
+        if (sessionEpochRef.current === callEpoch) {
+          setIsRefreshingUser(false);
+          refreshingUserPromiseRef.current = null;
+        }
       }
     })();
 
+    refreshingUserEpochRef.current = currentEpoch;
     refreshingUserPromiseRef.current = promise;
     return promise;
-  }, []);
+  }, [advanceSessionEpoch, executeStorageMutation]);
 
   const updateUpiId = React.useCallback(async (upiId: string | null): Promise<UpdateUpiIdResponse> => {
+    const callEpoch = sessionEpochRef.current;
     try {
       const res = await authApi.updateUpiId({ upiId });
+
+      if (sessionEpochRef.current !== callEpoch) {
+        return res;
+      }
 
       let updatedProfile: UserProfile | null = userRef.current
         ? { ...userRef.current, upiId: res.upiId }
         : null;
 
       setUser((prev) => {
-        if (!prev) return null;
+        if (!prev || sessionEpochRef.current !== callEpoch) return null;
         const next = { ...prev, upiId: res.upiId };
         if (!updatedProfile) updatedProfile = next;
         return next;
       });
 
-      if (updatedProfile) {
+      if (updatedProfile && sessionEpochRef.current === callEpoch) {
         userRef.current = updatedProfile;
         try {
-          await saveUserData(updatedProfile);
+          await executeStorageMutation(callEpoch, () => saveUserData(updatedProfile!));
         } catch (storageErr) {
           console.warn('Failed to persist updated UPI profile to SecureStore:', storageErr);
         }
@@ -222,15 +348,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return res;
     } catch (err: any) {
-      if (err?.status === 401) {
-        await clearAllAuth();
-        setToken(null);
-        setUser(null);
-        userRef.current = null;
+      if (err?.status === 401 && sessionEpochRef.current === callEpoch) {
+        const clearEpoch = advanceSessionEpoch();
+        await executeStorageMutation(clearEpoch, () => clearAllAuth());
+        if (sessionEpochRef.current === clearEpoch) {
+          setToken(null);
+          tokenRef.current = null;
+          setUser(null);
+          userRef.current = null;
+        }
       }
       throw err;
     }
-  }, []);
+  }, [advanceSessionEpoch, executeStorageMutation]);
 
   const updateServerUrl = React.useCallback(async (url: string): Promise<void> => {
     await setCustomApiBaseUrl(url);
