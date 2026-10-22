@@ -4,4 +4,5 @@ node_modules/
 *.log
 npm-debug.log*
 backend/config/firebase-service-account.json
+mobile/google-services.json
 

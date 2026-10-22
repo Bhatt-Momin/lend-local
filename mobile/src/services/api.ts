@@ -40,6 +40,32 @@ export const authApi = {
       body: JSON.stringify(payload),
     });
   },
+
+  saveFcmToken: async (
+    token: string,
+    platform: 'web' | 'android' | 'ios' = 'android',
+    authToken?: string
+  ): Promise<{ message: string; platform?: string }> => {
+    return apiRequest<{ message: string; platform?: string }>(
+      '/auth/fcm-token',
+      {
+        method: 'POST',
+        body: JSON.stringify({ token, platform }),
+      },
+      authToken
+    );
+  },
+
+  removeFcmToken: async (token: string, authToken?: string): Promise<{ message: string }> => {
+    return apiRequest<{ message: string }>(
+      '/auth/fcm-token',
+      {
+        method: 'DELETE',
+        body: JSON.stringify({ token }),
+      },
+      authToken
+    );
+  },
 };
 
 // Re-export domain services and types for convenient centralized access
@@ -47,4 +73,5 @@ export { groupsApi } from './groupsApi';
 export { expensesApi } from './expensesApi';
 export { balancesApi } from './balancesApi';
 export { paymentApi } from './paymentApi';
+export { notificationsApi } from './notificationsApi';
 export * from '../types/api';

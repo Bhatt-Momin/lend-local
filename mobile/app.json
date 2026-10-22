@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "com.lendlocal.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#030507",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -34,7 +35,8 @@
           "imageWidth": 160
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,

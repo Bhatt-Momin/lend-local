@@ -7,6 +7,7 @@ import { useColorScheme } from 'react-native';
 
 import { AuthProvider } from '../context/AuthContext';
 import { DeepLinkHandler } from '../components/DeepLinkHandler';
+import { NotificationPushHandler } from '../components/NotificationPushHandler';
 import { Brand, Surfaces } from '../constants/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -36,6 +37,7 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <AuthProvider>
         <DeepLinkHandler />
+        <NotificationPushHandler />
         <Stack
           screenOptions={{
             headerShown: false,

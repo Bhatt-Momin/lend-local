@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 
 const TOKEN_KEY = 'lendlocal_auth_token';
 const USER_KEY = 'lendlocal_auth_user';
+const PUSH_TOKEN_KEY = 'lendlocal_registered_push_token';
 
 export interface UserProfile {
   id: string;
@@ -58,6 +59,31 @@ export async function deleteUserData(): Promise<void> {
   }
 }
 
+export async function saveRegisteredPushToken(token: string): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(PUSH_TOKEN_KEY, token);
+  } catch (err) {
+    console.warn('Failed to save push token to SecureStore:', err);
+  }
+}
+
+export async function getRegisteredPushToken(): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(PUSH_TOKEN_KEY);
+  } catch (err) {
+    console.warn('Failed to get push token from SecureStore:', err);
+    return null;
+  }
+}
+
+export async function deleteRegisteredPushToken(): Promise<void> {
+  try {
+    await SecureStore.deleteItemAsync(PUSH_TOKEN_KEY);
+  } catch (err) {
+    console.warn('Failed to delete push token from SecureStore:', err);
+  }
+}
+
 export async function clearAllAuth(): Promise<void> {
-  await Promise.all([deleteAuthToken(), deleteUserData()]);
+  await Promise.all([deleteAuthToken(), deleteUserData(), deleteRegisteredPushToken()]);
 }

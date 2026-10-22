@@ -334,3 +334,58 @@ export interface UpdateUpiIdResponse {
   message: string;
   upiId: string | null;
 }
+
+// ============================================================================
+// NOTIFICATIONS DOMAIN CONTRACTS
+// ============================================================================
+
+export type NotificationType =
+  | 'expense_added'
+  | 'expense_updated'
+  | 'payment_received'
+  | 'payment_claim'
+  | 'payment_confirmed'
+  | 'payment_rejected'
+  | 'system';
+
+export interface NotificationItem {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  data?: {
+    groupId?: string | null;
+    expenseId?: string | null;
+    paymentId?: string | null;
+    intentId?: string | null;
+    amount?: number | null;
+  };
+  sender?: {
+    id: string;
+    name: string;
+  } | null;
+  isRead: boolean;
+  readAt?: string | null;
+  createdAt: string;
+}
+
+export interface NotificationsListResponse {
+  notifications: NotificationItem[];
+  unreadCount: number;
+}
+
+export interface MarkNotificationReadResponse {
+  message: string;
+  notification: {
+    id: string;
+    isRead: boolean;
+    readAt: string | null;
+  };
+  unreadCount: number;
+}
+
+export interface MarkAllNotificationsReadResponse {
+  message: string;
+  modifiedCount: number;
+  unreadCount: number;
+}
