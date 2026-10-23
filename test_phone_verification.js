@@ -109,6 +109,7 @@ async function runAllTests() {
 
   assert(schemaPaths.pendingPhoneVerification, 'User schema must define pendingPhoneVerification');
   assert.strictEqual(schemaPaths.pendingPhoneVerification.options.select, false, 'pendingPhoneVerification must be select: false');
+  assert(schemaPaths.pendingPhoneVerification.schema.paths.challengeId, 'pendingPhoneVerification must define challengeId');
 
   // Verify partial unique index definition
   const indexes = User.schema.indexes();
@@ -445,6 +446,10 @@ async function runAllTests() {
       select: async () => userFailTest,
     });
     User.updateOne = async (filter, update) => {
+      assert(
+        filter['pendingPhoneVerification.challengeId'],
+        'Rollback must filter by specific challengeId to prevent clearing newer challenges'
+      );
       if (update.$set && update.$set.pendingPhoneVerification === null) {
         userFailTest.pendingPhoneVerification = null;
       }

@@ -41,6 +41,27 @@ export const authApi = {
     });
   },
 
+  forgotPasswordPhone: async (phoneNumber: string): Promise<{ message: string; cooldownSeconds?: number }> => {
+    return apiRequest<{ message: string; cooldownSeconds?: number }>('/auth/forgot-password-phone', {
+      method: 'POST',
+      body: JSON.stringify({ phoneNumber }),
+    });
+  },
+
+  resetPasswordPhone: async (payload: { phoneNumber: string; otp: string; password: string }): Promise<{ message: string }> => {
+    return apiRequest<{ message: string }>('/auth/reset-password-phone', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  forgotPasswordEmail: async (email: string): Promise<{ message: string }> => {
+    return apiRequest<{ message: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
   saveFcmToken: async (
     token: string,
     platform: 'web' | 'android' | 'ios' = 'android',

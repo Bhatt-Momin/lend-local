@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ServerConfigModal } from '../../components/ServerConfigModal';
+import { PasswordRecoveryModal } from '../../components/PasswordRecoveryModal';
 import { ThemedText } from '../../components/themed-text';
 import { ThemedView } from '../../components/themed-view';
 import { Brand, Spacing, Surfaces } from '../../constants/theme';
@@ -29,6 +30,7 @@ export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showServerModal, setShowServerModal] = useState(false);
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
 
   const handleLogin = async () => {
     setErrorMessage(null);
@@ -148,9 +150,19 @@ export default function LoginScreen() {
               </View>
 
               <View style={styles.fieldGroup}>
-                <ThemedText type="smallBold" style={styles.label}>
-                  Password
-                </ThemedText>
+                <View style={styles.passwordLabelRow}>
+                  <ThemedText type="smallBold" style={styles.label}>
+                    Password
+                  </ThemedText>
+                  <TouchableOpacity
+                    onPress={() => setShowRecoveryModal(true)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <ThemedText style={styles.forgotPasswordText}>
+                      Forgot?
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
                 <View style={styles.passwordContainer}>
                   <TextInput
                     style={[styles.input, styles.passwordInput]}
@@ -215,6 +227,11 @@ export default function LoginScreen() {
         <ServerConfigModal
           visible={showServerModal}
           onClose={() => setShowServerModal(false)}
+        />
+
+        <PasswordRecoveryModal
+          visible={showRecoveryModal}
+          onClose={() => setShowRecoveryModal(false)}
         />
       </SafeAreaView>
     </ThemedView>
@@ -335,6 +352,16 @@ const styles = StyleSheet.create({
   },
   fieldGroup: {
     gap: Spacing.one,
+  },
+  passwordLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  forgotPasswordText: {
+    color: Brand.primary,
+    fontSize: 12,
+    fontWeight: '600',
   },
   label: {
     fontSize: 13,

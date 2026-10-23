@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { signToken } = require('../utils/helpers');
 const { protect } = require('../middleware/auth');
@@ -85,14 +86,21 @@ function checkAndRecordPhoneRateLimit(e164) {
   }
 
   recent.push(now);
-  return { limited: false };
+  return { limited: false, recordedTimestamp: now };
 }
 
-function rollbackPhoneRateLimit(e164) {
+function rollbackPhoneRateLimit(e164, recordedTimestamp) {
   const phoneHash = hashPhoneNumber(e164);
   const timestamps = phoneRateLimitStore.get(phoneHash);
   if (timestamps && timestamps.length > 0) {
-    timestamps.pop();
+    if (recordedTimestamp) {
+      const idx = timestamps.lastIndexOf(recordedTimestamp);
+      if (idx !== -1) {
+        timestamps.splice(idx, 1);
+      }
+    } else {
+      timestamps.pop();
+    }
     if (timestamps.length === 0) {
       phoneRateLimitStore.delete(phoneHash);
     }
@@ -147,6 +155,133 @@ const phonePerNumberLimiter = (req, res, next) => {
     });
   }
 
+  req.rateLimitTimestamp = check.recordedTimestamp;
+  next();
+};
+
+/**
+ * Dedicated In-memory sliding-window store for phone password recovery (Phase 2).
+ * Key: SHA-256 hash of normalized E.164 phone number.
+ * Value: Array of millisecond timestamps within active 1-hour window.
+ *
+ * Limits: 3 requests per phone per hour.
+ *
+ * ARCHITECTURAL NOTE FOR HORIZONTALLY SCALED / MULTI-INSTANCE PRODUCTION:
+ * This in-memory store is appropriate for single-instance deployments, staging, and automated tests.
+ * In a multi-instance production environment (e.g., multiple Render web services, Kubernetes pods,
+ * or cluster mode), process-local memory is not shared across instances.
+ * For horizontally scaled production, this store must be backed by a shared distributed cache
+ * such as Redis (e.g., using `rate-limit-redis`, ioredis sliding-window ZSET, or Redis INCR/EXPIRE primitives)
+ * keyed by `phone-recovery:sha256(e164)`.
+ */
+const phoneRecoveryRateLimitStore = new Map();
+const PHONE_RECOVERY_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const PHONE_RECOVERY_MAX_REQUESTS = 3; // 3 requests per phone per hour
+
+const phoneRecoveryIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: 'Too many recovery attempts, please try again later.'
+  }
+});
+
+function checkAndRecordPhoneRecoveryRateLimit(candidatePhone) {
+  const now = Date.now();
+  const val = validateAndNormalizePhone(candidatePhone);
+  const e164 = val.valid ? val.e164 : candidatePhone;
+  const phoneHash = hashPhoneNumber(e164);
+
+  let timestamps = phoneRecoveryRateLimitStore.get(phoneHash);
+  if (!timestamps) {
+    timestamps = [];
+    phoneRecoveryRateLimitStore.set(phoneHash, timestamps);
+  }
+
+  // Filter out timestamps older than the sliding window
+  const windowStart = now - PHONE_RECOVERY_WINDOW_MS;
+  const recent = timestamps.filter((ts) => ts > windowStart);
+  phoneRecoveryRateLimitStore.set(phoneHash, recent);
+
+  if (recent.length >= PHONE_RECOVERY_MAX_REQUESTS) {
+    const oldest = recent[0];
+    const retryAfterMs = oldest + PHONE_RECOVERY_WINDOW_MS - now;
+    const retryAfterSec = Math.max(1, Math.ceil(retryAfterMs / 1000));
+    return { limited: true, retryAfter: retryAfterSec };
+  }
+
+  recent.push(now);
+  return { limited: false, recordedTimestamp: now };
+}
+
+function rollbackPhoneRecoveryRateLimit(candidatePhone, recordedTimestamp) {
+  const val = validateAndNormalizePhone(candidatePhone);
+  const e164 = val.valid ? val.e164 : candidatePhone;
+  const phoneHash = hashPhoneNumber(e164);
+  const timestamps = phoneRecoveryRateLimitStore.get(phoneHash);
+  if (timestamps && timestamps.length > 0) {
+    if (recordedTimestamp) {
+      const idx = timestamps.lastIndexOf(recordedTimestamp);
+      if (idx !== -1) {
+        timestamps.splice(idx, 1);
+      }
+    } else {
+      timestamps.pop();
+    }
+    if (timestamps.length === 0) {
+      phoneRecoveryRateLimitStore.delete(phoneHash);
+    }
+  }
+}
+
+function __clearPhoneRecoveryRateLimitStore() {
+  phoneRecoveryRateLimitStore.clear();
+}
+
+// Periodic cleanup of stale phone recovery rate limit entries
+const phoneRecoveryRateLimitCleanupTimer = setInterval(() => {
+  const now = Date.now();
+  const windowStart = now - PHONE_RECOVERY_WINDOW_MS;
+  for (const [hash, timestamps] of phoneRecoveryRateLimitStore.entries()) {
+    const active = timestamps.filter((ts) => ts > windowStart);
+    if (active.length === 0) {
+      phoneRecoveryRateLimitStore.delete(hash);
+    } else {
+      phoneRecoveryRateLimitStore.set(hash, active);
+    }
+  }
+}, 10 * 60 * 1000);
+if (phoneRecoveryRateLimitCleanupTimer.unref) {
+  phoneRecoveryRateLimitCleanupTimer.unref();
+}
+
+/**
+ * Middleware: Per-Phone Rate Limiter for Password Recovery (Phase 2)
+ * Limits recovery initiation to 3 requests per phone per hour.
+ */
+const phoneRecoveryPerNumberLimiter = (req, res, next) => {
+  const rawPhone = req.body?.phoneNumber;
+  if (!rawPhone || typeof rawPhone !== 'string') {
+    return next();
+  }
+
+  const validation = validateAndNormalizePhone(rawPhone);
+  if (!validation.valid) {
+    return next();
+  }
+
+  const check = checkAndRecordPhoneRecoveryRateLimit(validation.e164);
+  if (check.limited) {
+    res.setHeader('Retry-After', check.retryAfter);
+    return res.status(429).json({
+      message: `Too many password recovery requests for this phone number. Please try again after ${check.retryAfter} seconds.`,
+      retryAfter: check.retryAfter,
+    });
+  }
+
+  req.rateLimitTimestamp = check.recordedTimestamp;
   next();
 };
 
@@ -374,7 +509,7 @@ router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
 
 
 /* =====================================================
-   RESET PASSWORD
+   RESET PASSWORD (EMAIL)
 ===================================================== */
 router.post('/reset-password', passwordResetLimiter, async (req, res) => {
   try {
@@ -393,25 +528,46 @@ router.post('/reset-password', passwordResetLimiter, async (req, res) => {
     }
 
     const hashedToken = crypto.createHash('sha256').update(token.trim()).digest('hex');
+    const now = new Date();
 
-    const user = await User.findOne({
-      resetPasswordToken: hashedToken,
-      resetPasswordExpires: { $gt: Date.now() },
-    }).select('+resetPasswordToken +resetPasswordExpires +password');
+    // Pre-hash password using the exact same algorithm and cost factor (bcrypt cost 10)
+    // as defined in User.js pre('save') hook.
+    // NOTE: Direct findOneAndUpdate intentionally bypasses Mongoose pre('save') middleware.
+    // Pre-hashing here guarantees that plaintext passwords are never stored and that token
+    // consumption, password update, and session invalidation occur in a single atomic database operation.
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Single-use token consumption and atomic password persistence (Finding 2):
+    // Atomically find, consume the token, set the new password hash, and update passwordChangedAt
+    // in a single operation so concurrent requests cannot both consume the same valid token
+    // or leave the token consumed without updating the password.
+    const user = await User.findOneAndUpdate(
+      {
+        resetPasswordToken: hashedToken,
+        resetPasswordExpires: { $gt: now },
+      },
+      {
+        $set: {
+          password: hashedPassword,
+          passwordChangedAt: now,
+          pendingPhoneRecovery: null,
+        },
+        $unset: {
+          resetPasswordToken: 1,
+          resetPasswordExpires: 1,
+        },
+      },
+      {
+        new: false,
+        select: '+resetPasswordToken +resetPasswordExpires +password',
+      }
+    );
 
     if (!user) {
       return res.status(400).json({
         message: 'Password reset token is invalid or has expired',
       });
     }
-
-    // Update password and clear reset token
-    user.password = password;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
-    // Invalidate existing sessions issued before this timestamp
-    user.passwordChangedAt = new Date();
-    await user.save();
 
     res.status(200).json({
       message: 'Password has been reset successfully. Please sign in with your new password.',
@@ -421,6 +577,245 @@ router.post('/reset-password', passwordResetLimiter, async (req, res) => {
     res.status(500).json({ message: 'Failed to reset password' });
   }
 });
+
+/* =====================================================
+   PHONE OTP PASSWORD RECOVERY (PHASE 2)
+===================================================== */
+
+/**
+ * Initiate Phone Password Recovery
+ * POST /api/auth/forgot-password-phone
+ * Body: { phoneNumber }
+ */
+const handleForgotPasswordPhone = async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+
+    const validation = validateAndNormalizePhone(phoneNumber);
+    if (!validation.valid) {
+      return res.status(400).json({ message: validation.error });
+    }
+
+    const e164 = validation.e164;
+    const genericMessage =
+      'If an account is associated with this verified phone number, a verification code has been sent.';
+
+    // Query strictly for accounts with matching phone number AND phoneVerified === true
+    const user = await User.findOne({
+      phoneNumber: e164,
+      phoneVerified: true,
+    }).select('+pendingPhoneRecovery');
+
+    if (!user) {
+      return res.status(200).json({
+        message: genericMessage,
+        cooldownSeconds: 300,
+      });
+    }
+
+    // Enforce 5-minute resend cooldown
+    if (user.pendingPhoneRecovery?.lastSentAt) {
+      const elapsedMs = Date.now() - new Date(user.pendingPhoneRecovery.lastSentAt).getTime();
+      if (elapsedMs < 5 * 60 * 1000) {
+        const waitSec = Math.ceil((300000 - elapsedMs) / 1000);
+        return res.status(429).json({
+          message: `Please wait ${waitSec} seconds before requesting another recovery code`,
+          retryAfter: waitSec,
+        });
+      }
+    }
+
+    // Generate cryptographically secure six-digit OTP (100000 to 999999)
+    const rawOtp = crypto.randomInt(100000, 1000000).toString();
+    const otpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
+
+    // 10-minute expiry
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    const challengeId = crypto.randomUUID();
+
+    user.pendingPhoneRecovery = {
+      number: e164,
+      otpHash,
+      otpExpires,
+      attempts: 0,
+      lastSentAt: new Date(),
+      challengeId,
+    };
+
+    await user.save({ validateBeforeSave: false });
+
+    try {
+      await smsService.sendVerificationOtp({
+        to: e164,
+        otp: rawOtp,
+        userId: user._id,
+      });
+    } catch (smsErr) {
+      // On SMS failure: invalidate ONLY the challenge created by this request (never overwrite newer concurrent challenges)
+      user.pendingPhoneRecovery = null;
+      try {
+        await User.updateOne(
+          { _id: user._id, 'pendingPhoneRecovery.challengeId': challengeId },
+          { $set: { pendingPhoneRecovery: null } }
+        );
+      } catch (dbErr) {
+        console.error('[Auth] Failed to rollback recovery challenge for', maskPhone(e164));
+      }
+
+      // Roll back rate-limit state safely matching this request's recorded timestamp
+      rollbackPhoneRecoveryRateLimit(e164, req.rateLimitTimestamp);
+
+      const errorCategory = smsErr?.name || 'SmsDeliveryError';
+      console.error(`[Auth] Recovery SMS delivery failed [${errorCategory}] for recipient ${maskPhone(e164)}`);
+
+      // Return generic response without revealing account presence or provider error
+      return res.status(200).json({
+        message: genericMessage,
+        cooldownSeconds: 300,
+      });
+    }
+
+    return res.status(200).json({
+      message: genericMessage,
+      cooldownSeconds: 300,
+    });
+  } catch (err) {
+    console.error('Forgot password phone error:', err);
+    res.status(500).json({ message: 'Failed to process password recovery request' });
+  }
+};
+
+/**
+ * Reset Password with Phone OTP
+ * POST /api/auth/reset-password-phone
+ * Body: { phoneNumber, otp, password }
+ */
+const handleResetPasswordPhone = async (req, res) => {
+  try {
+    const { phoneNumber, otp, password } = req.body;
+
+    const validation = validateAndNormalizePhone(phoneNumber);
+    if (!validation.valid) {
+      return res.status(400).json({ message: validation.error });
+    }
+
+    const e164 = validation.e164;
+
+    if (!otp || typeof otp !== 'string' || !/^\d{6}$/.test(otp.trim())) {
+      return res.status(400).json({ message: 'Verification code must be a 6-digit number' });
+    }
+
+    if (!password || typeof password !== 'string') {
+      return res.status(400).json({ message: 'Password is required' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const candidateHash = crypto.createHash('sha256').update(otp.trim()).digest('hex');
+    const now = new Date();
+
+    // Pre-hash password using the exact same algorithm and cost factor (bcrypt cost 10)
+    // as defined in User.js pre('save') hook.
+    // NOTE: Direct findOneAndUpdate intentionally bypasses Mongoose pre('save') middleware.
+    // Pre-hashing here guarantees that plaintext passwords are never stored and that OTP
+    // consumption, password update, and session invalidation occur in a single atomic database operation.
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Single atomic database operation for OTP consumption and password persistence (Finding 1):
+    // Guarantees that OTP verification, consumption, password update, and session invalidation
+    // occur atomically without intermediate failure states or race conditions.
+    const user = await User.findOneAndUpdate(
+      {
+        phoneNumber: e164,
+        phoneVerified: true,
+        'pendingPhoneRecovery.otpHash': candidateHash,
+        'pendingPhoneRecovery.otpExpires': { $gt: now },
+        'pendingPhoneRecovery.attempts': { $lt: 3 },
+      },
+      {
+        $set: {
+          password: hashedPassword,
+          passwordChangedAt: now,
+          pendingPhoneRecovery: null,
+        },
+        $unset: {
+          resetPasswordToken: 1,
+          resetPasswordExpires: 1,
+        },
+      },
+      {
+        new: false,
+        select: '+password +pendingPhoneRecovery',
+      }
+    );
+
+    if (user) {
+      return res.status(200).json({
+        message: 'Password has been reset successfully. Please sign in with your new password.',
+      });
+    }
+
+    // Atomic failed-attempt incrementation (Finding 3):
+    // Only increment attempts if an active, unexpired, unconsumed challenge exists with attempts < 3.
+    // Consumed, expired, or exhausted challenges will not match and will not increment attempts.
+    const failedAttemptUser = await User.findOneAndUpdate(
+      {
+        phoneNumber: e164,
+        phoneVerified: true,
+        'pendingPhoneRecovery.otpHash': { $ne: null },
+        'pendingPhoneRecovery.otpExpires': { $gt: now },
+        'pendingPhoneRecovery.attempts': { $lt: 3 },
+      },
+      {
+        $inc: { 'pendingPhoneRecovery.attempts': 1 },
+      },
+      {
+        new: true,
+        select: '+pendingPhoneRecovery',
+      }
+    );
+
+    // If this failed attempt reached or exceeded the 3-attempt limit,
+    // atomically clear the OTP hash and expiry for this specific challengeId.
+    if (failedAttemptUser?.pendingPhoneRecovery?.attempts >= 3) {
+      await User.updateOne(
+        {
+          _id: failedAttemptUser._id,
+          'pendingPhoneRecovery.challengeId': failedAttemptUser.pendingPhoneRecovery.challengeId,
+        },
+        {
+          $set: {
+            'pendingPhoneRecovery.otpHash': null,
+            'pendingPhoneRecovery.otpExpires': null,
+          },
+        }
+      );
+    }
+
+    // Generic error message: strictly avoids revealing whether OTP was incorrect, expired, or exhausted
+    return res.status(400).json({
+      message: 'Invalid or expired verification code',
+    });
+  } catch (err) {
+    console.error('Reset password phone error:', err);
+    res.status(500).json({ message: 'Failed to reset password' });
+  }
+};
+
+router.post(
+  '/forgot-password-phone',
+  phoneRecoveryIpLimiter,
+  phoneRecoveryPerNumberLimiter,
+  handleForgotPasswordPhone
+);
+router.post(
+  '/reset-password-phone',
+  phoneRecoveryIpLimiter,
+  phoneRecoveryPerNumberLimiter,
+  handleResetPasswordPhone
+);
 
 
 router.get('/me', protect, async (req, res) => {
@@ -807,6 +1202,7 @@ const handleStartPhoneVerification = async (req, res) => {
 
     // 10-minute expiry
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    const challengeId = crypto.randomUUID();
 
     user.pendingPhoneVerification = {
       number: e164,
@@ -814,6 +1210,7 @@ const handleStartPhoneVerification = async (req, res) => {
       otpExpires,
       attempts: 0,
       lastSentAt: new Date(),
+      challengeId,
     };
 
     await user.save({ validateBeforeSave: false });
@@ -825,11 +1222,11 @@ const handleStartPhoneVerification = async (req, res) => {
         userId: user._id,
       });
     } catch (smsErr) {
-      // Fix 1: State rollback on SMS dispatch failure so user can retry immediately without waiting out cooldown
+      // Fix 1 & 4: State rollback on SMS dispatch failure tied to exact challengeId
       user.pendingPhoneVerification = null;
       try {
         await User.updateOne(
-          { _id: user._id },
+          { _id: user._id, 'pendingPhoneVerification.challengeId': challengeId },
           { $set: { pendingPhoneVerification: null } }
         );
       } catch (rollbackErr) {
@@ -837,7 +1234,7 @@ const handleStartPhoneVerification = async (req, res) => {
       }
 
       // Rollback rate limit attempt so user isn't penalized for provider delivery failure
-      rollbackPhoneRateLimit(e164);
+      rollbackPhoneRateLimit(e164, req.rateLimitTimestamp);
 
       // Safe logging: log ONLY sanitized category and masked phone; NEVER log raw error message or provider tokens
       const errorCategory = (smsErr && smsErr.name) ? smsErr.name : 'SmsDeliveryError';
@@ -913,14 +1310,20 @@ const handleConfirmPhoneVerification = async (req, res) => {
     // Check maximum attempts (3 attempts)
     if (pending.attempts >= 3) {
       user.pendingPhoneVerification = null;
-      await User.updateOne({ _id: user._id }, { $set: { pendingPhoneVerification: null } });
+      await User.updateOne(
+        { _id: user._id, 'pendingPhoneVerification.challengeId': pending.challengeId },
+        { $set: { pendingPhoneVerification: null } }
+      );
       return res.status(400).json({ message: 'Verification attempts exhausted. Please request a new code.' });
     }
 
     // Check expiration (10 minutes) (Fix 2: safe application-level cleanup without deleting user document)
     if (new Date() > new Date(pending.otpExpires)) {
       user.pendingPhoneVerification = null;
-      await User.updateOne({ _id: user._id }, { $set: { pendingPhoneVerification: null } });
+      await User.updateOne(
+        { _id: user._id, 'pendingPhoneVerification.challengeId': pending.challengeId },
+        { $set: { pendingPhoneVerification: null } }
+      );
       return res.status(400).json({ message: 'Verification code has expired. Please request a new code.' });
     }
 
@@ -932,16 +1335,34 @@ const handleConfirmPhoneVerification = async (req, res) => {
     const isMatch = expectedBuf.length === actualBuf.length && crypto.timingSafeEqual(expectedBuf, actualBuf);
 
     if (!isMatch) {
-      pending.attempts += 1;
-      const remainingAttempts = 3 - pending.attempts;
+      // Atomic failed-attempt incrementation conditioned on active challenge and attempts < 3
+      const updatedUser = await User.findOneAndUpdate(
+        {
+          _id: user._id,
+          'pendingPhoneVerification.challengeId': pending.challengeId,
+          'pendingPhoneVerification.attempts': { $lt: 3 },
+        },
+        {
+          $inc: { 'pendingPhoneVerification.attempts': 1 },
+        },
+        {
+          new: true,
+          select: '+pendingPhoneVerification',
+        }
+      );
 
-      if (remainingAttempts <= 0) {
+      const currentAttempts = updatedUser?.pendingPhoneVerification?.attempts ?? 3;
+      const remainingAttempts = Math.max(0, 3 - currentAttempts);
+
+      if (remainingAttempts <= 0 || !updatedUser) {
         user.pendingPhoneVerification = null;
-        await User.updateOne({ _id: user._id }, { $set: { pendingPhoneVerification: null } });
+        await User.updateOne(
+          { _id: user._id, 'pendingPhoneVerification.challengeId': pending.challengeId },
+          { $set: { pendingPhoneVerification: null } }
+        );
         return res.status(400).json({ message: 'Verification attempts exhausted. Please request a new code.' });
       }
 
-      await user.save({ validateBeforeSave: false });
       return res.status(400).json({
         message: `Invalid verification code. ${remainingAttempts} attempt(s) remaining.`,
       });
@@ -959,19 +1380,36 @@ const handleConfirmPhoneVerification = async (req, res) => {
 
     if (conflict) {
       user.pendingPhoneVerification = null;
-      await User.updateOne({ _id: user._id }, { $set: { pendingPhoneVerification: null } });
+      await User.updateOne(
+        { _id: user._id, 'pendingPhoneVerification.challengeId': pending.challengeId },
+        { $set: { pendingPhoneVerification: null } }
+      );
       return res.status(409).json({
         message: 'This phone number was already verified on another account',
       });
     }
 
-    user.phoneNumber = verifiedNumber;
-    user.phoneVerified = true;
-    user.phoneVerifiedAt = new Date();
-    user.pendingPhoneVerification = null;
-
+    // Atomic consumption of verification challenge and setting of verified phone number
+    let updatedUser;
     try {
-      await user.save({ validateBeforeSave: false });
+      updatedUser = await User.findOneAndUpdate(
+        {
+          _id: user._id,
+          'pendingPhoneVerification.challengeId': pending.challengeId,
+          'pendingPhoneVerification.attempts': { $lt: 3 },
+        },
+        {
+          $set: {
+            phoneNumber: verifiedNumber,
+            phoneVerified: true,
+            phoneVerifiedAt: new Date(),
+            pendingPhoneVerification: null,
+          },
+        },
+        {
+          new: true,
+        }
+      );
     } catch (dbErr) {
       if (dbErr.code === 11000) {
         return res.status(409).json({
@@ -981,16 +1419,22 @@ const handleConfirmPhoneVerification = async (req, res) => {
       throw dbErr;
     }
 
+    if (!updatedUser) {
+      return res.status(400).json({
+        message: 'Verification attempts exhausted or challenge expired. Please request a new code.',
+      });
+    }
+
     res.status(200).json({
       message: 'Phone number verified successfully',
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        phoneVerified: user.phoneVerified,
-        phoneVerifiedAt: user.phoneVerifiedAt,
-        upiId: user.upiId || null,
+        id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        phoneNumber: updatedUser.phoneNumber,
+        phoneVerified: updatedUser.phoneVerified,
+        phoneVerifiedAt: updatedUser.phoneVerifiedAt,
+        upiId: updatedUser.upiId || null,
       },
     });
   } catch (err) {
@@ -1044,6 +1488,13 @@ router.getTrustedFrontendBaseUrl = getTrustedFrontendBaseUrl;
 router.__clearPhoneRateLimitStore = __clearPhoneRateLimitStore;
 router.checkAndRecordPhoneRateLimit = checkAndRecordPhoneRateLimit;
 router.phonePerNumberLimiter = phonePerNumberLimiter;
+router.rollbackPhoneRateLimit = rollbackPhoneRateLimit;
 router.handleStartPhoneVerification = handleStartPhoneVerification;
 router.handleConfirmPhoneVerification = handleConfirmPhoneVerification;
+router.handleForgotPasswordPhone = handleForgotPasswordPhone;
+router.handleResetPasswordPhone = handleResetPasswordPhone;
+router.__clearPhoneRecoveryRateLimitStore = __clearPhoneRecoveryRateLimitStore;
+router.checkAndRecordPhoneRecoveryRateLimit = checkAndRecordPhoneRecoveryRateLimit;
+router.rollbackPhoneRecoveryRateLimit = rollbackPhoneRecoveryRateLimit;
+router.phoneRecoveryPerNumberLimiter = phoneRecoveryPerNumberLimiter;
 module.exports = router;

@@ -153,6 +153,31 @@ const userSchema = new mongoose.Schema(
           otpExpires: { type: Date, default: null, select: false },
           attempts: { type: Number, default: 0, select: false },
           lastSentAt: { type: Date, default: null, select: false },
+          challengeId: { type: String, default: null, select: false },
+        },
+        { _id: false }
+      ),
+      default: null,
+      select: false,
+    },
+
+    // Pending phone password recovery state (unselected by default)
+    // CRITICAL ARCHITECTURAL SAFEGUARD (Phase 2):
+    // DO NOT add a MongoDB TTL index on pendingPhoneRecovery.otpExpires or any nested field!
+    // In MongoDB, a TTL index on any field within a document deletes the ENTIRE document
+    // when it expires, which would destroy the user account.
+    // Expired recovery state is safely pruned via application logic in routes/auth.js.
+    pendingPhoneRecovery: {
+      type: new mongoose.Schema(
+        {
+          number: { type: String, default: null, select: false },
+          otpHash: { type: String, default: null, select: false },
+          otpExpires: { type: Date, default: null, select: false },
+          attempts: { type: Number, default: 0, select: false },
+          lastSentAt: { type: Date, default: null, select: false },
+          challengeId: { type: String, default: null, select: false },
+          recoveryTokenHash: { type: String, default: null, select: false },
+          recoveryTokenExpires: { type: Date, default: null, select: false },
         },
         { _id: false }
       ),

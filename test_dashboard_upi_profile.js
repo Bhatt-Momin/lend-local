@@ -76,6 +76,8 @@ async function runDirectBackendRouteTests() {
       name: 'Alice Cooper',
       email: 'alice@example.com',
       upiId: 'alice@okaxis',
+      phoneNumber: null,
+      phoneVerified: false,
     }, 'POST /login MUST include upiId in user object');
 
     // 1b. Test POST /login with user having NULL upiId
@@ -124,6 +126,8 @@ async function runDirectBackendRouteTests() {
       name: 'Charlie',
       email: 'charlie@example.com',
       upiId: null,
+      phoneNumber: null,
+      phoneVerified: false,
     }, 'POST /register MUST include upiId: null in user object');
 
     // 1d. Test GET /me contract parity
@@ -142,6 +146,9 @@ async function runDirectBackendRouteTests() {
       name: 'Alice Cooper',
       email: 'alice@example.com',
       upiId: 'alice@okaxis',
+      phoneNumber: null,
+      phoneVerified: false,
+      phoneVerifiedAt: null,
     }, 'GET /me must match POST /login contract structure');
 
     console.log('✅ Real backend route handlers (register, login, me) contract parity verified.');
