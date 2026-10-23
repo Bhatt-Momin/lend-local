@@ -1,9 +1,13 @@
 function signToken(userId) {
   const jwt = require('jsonwebtoken');
   const crypto = require('crypto');
-  return jwt.sign({ id: userId, sessionId: crypto.randomUUID() }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  });
+  return jwt.sign(
+    { id: userId, sessionId: crypto.randomUUID(), iatMs: Date.now() },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    }
+  );
 }
 
 /**

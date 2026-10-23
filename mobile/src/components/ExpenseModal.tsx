@@ -184,25 +184,8 @@ export function ExpenseModal({
   const handleSwitchToCustom = () => {
     setFormError(null);
     setSplitType('custom');
-
-    // If custom shares are empty and amount is valid, pre-populate with equal split
-    const hasExistingShares = customSplits.some(
-      (s) => selectedParticipants.includes(s.user) && String(s.share).trim() !== ''
-    );
-    if (!hasExistingShares && parsedAmount.valid && parsedAmount.paise > 0 && selectedParticipants.length > 0) {
-      const preview = buildEqualPreview(parsedAmount.paise, selectedParticipants);
-      if (preview.valid) {
-        setCustomSplits((prev) =>
-          members.map((m) => {
-            const match = preview.splits.find((s) => s.user === m.id);
-            return {
-              user: m.id,
-              share: match ? match.share.toFixed(2) : (prev.find((p) => p.user === m.id)?.share ?? ''),
-            };
-          })
-        );
-      }
-    }
+    // When custom split is selected, each amount input starts empty so user does not clear prefilled values
+    setCustomSplits(members.map((m) => ({ user: m.id, share: '' })));
   };
 
   const handleSplitEvenly = () => {
@@ -569,6 +552,8 @@ export function ExpenseModal({
                       if (isBusy || hasDeparted) return;
                       setFormError(null);
                       setSplitType('equal');
+                      // Clear stale custom amounts when switching split modes
+                      setCustomSplits(members.map((m) => ({ user: m.id, share: '' })));
                     }}
                     activeOpacity={0.8}
                     accessibilityRole="button"

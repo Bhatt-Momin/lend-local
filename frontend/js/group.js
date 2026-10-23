@@ -296,7 +296,8 @@ if (!requireAuth()) {
   document
     .getElementById('expSplitType')
     .addEventListener('change', (e) => {
-      renderSplitInputs(e.target.value, true);
+      // When changing split modes, do not preserve stale amounts that could be accidentally submitted
+      renderSplitInputs(e.target.value, false);
     });
 
   document
@@ -488,10 +489,17 @@ if (!requireAuth()) {
     } else {
       // Custom split
       let allocatedPaise = 0;
+      let hasEmptyInput = false;
+
       checkedBoxes.forEach((cb) => {
         const input = document.querySelector(`.split-share[data-user="${cb.dataset.user}"]`);
-        const val = parseFloat(input?.value) || 0;
-        allocatedPaise += Math.round(val * 100);
+        const valStr = input ? input.value.trim() : '';
+        if (valStr === '') {
+          hasEmptyInput = true;
+        } else {
+          const val = parseFloat(valStr) || 0;
+          allocatedPaise += Math.round(val * 100);
+        }
       });
 
       const remainingPaise = totalPaise - allocatedPaise;
@@ -506,6 +514,9 @@ if (!requireAuth()) {
         } else if (totalPaise <= 0) {
           statusEl.className = 'split-status-msg split-status-text warning invalid';
           statusEl.textContent = 'Enter a valid expense amount';
+        } else if (hasEmptyInput) {
+          statusEl.className = 'split-status-msg split-status-text warning invalid';
+          statusEl.textContent = 'Enter an amount for each selected participant';
         } else if (remainingPaise === 0) {
           statusEl.className = 'split-status-msg split-status-text valid';
           statusEl.textContent = '✓ Allocations match total amount exactly';
@@ -560,13 +571,11 @@ if (!requireAuth()) {
         }
 
         if (type === 'custom') {
-          if (!shareValue && shareValue !== '0' && isChecked) {
-            const basePaise = memberCount > 0 ? Math.floor(totalPaise / memberCount) : 0;
-            const remPaise = memberCount > 0 ? totalPaise % memberCount : 0;
-            const userPaise = basePaise + (i < remPaise ? 1 : 0);
-            shareValue = (userPaise / 100).toFixed(2);
-          } else if (!shareValue) {
-            shareValue = '0.00';
+          // If editing an existing expense with initialSplits, shareValue was set from initialSplits.
+          // In create mode or when switching to custom, inputs start empty with placeholder "0.00"
+          // so users do not have to clear a prefilled value manually.
+          if (!initialSplits && !preserveState) {
+            shareValue = '';
           }
 
           return `
@@ -586,6 +595,7 @@ if (!requireAuth()) {
                 data-user="${userId}"
                 min="0"
                 step="0.01"
+                placeholder="0.00"
                 value="${shareValue}"
                 ${isChecked ? '' : 'disabled'}
               />
@@ -620,8 +630,8 @@ if (!requireAuth()) {
           shareInput.disabled = !cb.checked;
           if (!cb.checked) {
             shareInput.dataset.previousValue = shareInput.value;
-            shareInput.value = '0.00';
-          } else if (shareInput.dataset.previousValue) {
+            shareInput.value = '';
+          } else if (shareInput.dataset.previousValue !== undefined) {
             shareInput.value = shareInput.dataset.previousValue;
           }
         }
@@ -1805,7 +1815,13 @@ if (!requireAuth()) {
         splits = [];
         for (const cb of checked) {
           const input = document.querySelector(`.split-share[data-user="${cb.dataset.user}"]`);
-          const shareNum = Number(input?.value);
+          const rawVal = input ? input.value.trim() : '';
+          if (rawVal === '') {
+            showAlert(expenseAlert, 'Please enter an amount for all selected participants');
+            if (window.FX) window.FX.shake(expenseAlert);
+            return;
+          }
+          const shareNum = Number(rawVal);
           if (isNaN(shareNum) || shareNum < 0 || !isFinite(shareNum)) {
             showAlert(expenseAlert, 'Each participant share must be a valid non-negative number');
             if (window.FX) window.FX.shake(expenseAlert);

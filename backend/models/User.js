@@ -103,6 +103,23 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    passwordChangedAt: {
+      type: Date,
+      default: null,
+    },
+
+    resetPasswordToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    resetPasswordExpires: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
   },
 
   { timestamps: true }
@@ -111,6 +128,7 @@ const userSchema = new mongoose.Schema(
 
 // Index on fcmTokens.token for efficient stale-token pruning and cross-user lookups
 userSchema.index({ 'fcmTokens.token': 1 }, { sparse: true });
+userSchema.index({ resetPasswordToken: 1 }, { sparse: true });
 
 
 userSchema.pre('save', async function hashPassword(next) {

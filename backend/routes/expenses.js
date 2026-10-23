@@ -2,6 +2,7 @@ const express = require('express');
 const Expense = require('../models/Expense');
 const Group = require('../models/Group');
 const User = require('../models/User');
+const Payment = require('../models/payment');
 const { protect } = require('../middleware/auth');
 const { createMulticastNotifications } = require('../services/notificationService');
 const { getMessaging } = require('firebase-admin/messaging');
@@ -11,7 +12,7 @@ const router = express.Router();
 
 router.use(protect);
 
-const { checkParticipation } = require('../utils/helpers');
+const { checkParticipation, getGroupLedger } = require('../utils/helpers');
 
 async function assertMember(groupId, userId) {
   const group = await Group.findById(groupId);
@@ -40,6 +41,226 @@ async function assertParticipant(groupId, userId) {
   }
   return { isActiveMember, isHistoricalParticipant };
 }
+
+
+// =====================================================
+// MONTHLY SPENDING ANALYTICS
+// =====================================================
+
+function computeUserSharePaise(expense, userIdStr) {
+  if (!Array.isArray(expense.splits) || expense.splits.length === 0) return 0;
+  const splitItem = expense.splits.find((s) => {
+    const sId = (s.user?._id || s.user?.id || s.user)?.toString();
+    return sId === userIdStr;
+  });
+  if (!splitItem) return 0;
+
+  if (expense.splitType === 'custom') {
+    return Math.round(Number(splitItem.share || 0) * 100);
+  }
+
+  const expensePaise = Math.round(Number(expense.amount || 0) * 100);
+  const count = expense.splits.length;
+  if (count === 0) return 0;
+  const basePaise = Math.floor(expensePaise / count);
+  const remPaise = expensePaise % count;
+  const index = expense.splits.findIndex((s) => {
+    const sId = (s.user?._id || s.user?.id || s.user)?.toString();
+    return sId === userIdStr;
+  });
+  return basePaise + (index < remPaise ? 1 : 0);
+}
+
+router.get('/analytics/monthly', async (req, res) => {
+  try {
+    const now = new Date();
+    const reqYear = parseInt(req.query.year, 10);
+    const reqMonth = parseInt(req.query.month, 10);
+
+    const year = Number.isInteger(reqYear) && reqYear >= 2000 && reqYear <= 2100 ? reqYear : now.getFullYear();
+    const month = Number.isInteger(reqMonth) && reqMonth >= 1 && reqMonth <= 12 ? reqMonth : now.getMonth() + 1;
+
+    // Selected month UTC boundary
+    const startMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const endMonth = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+
+    // Previous month UTC boundary
+    const prevYear = month === 1 ? year - 1 : year;
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const startPrevMonth = new Date(Date.UTC(prevYear, prevMonth - 1, 1, 0, 0, 0, 0));
+    const endPrevMonth = new Date(Date.UTC(prevYear, prevMonth, 1, 0, 0, 0, 0));
+
+    const userIdStr = req.user._id.toString();
+
+    // Find all groups the user participates in
+    const expenseGroupIds = await Expense.distinct('group', {
+      $or: [{ paidBy: req.user._id }, { 'splits.user': req.user._id }]
+    });
+    const paymentGroupIds = await Payment.distinct('group', {
+      $or: [{ from: req.user._id }, { to: req.user._id }]
+    });
+    const userGroups = await Group.find({
+      $or: [
+        { members: req.user._id },
+        { _id: { $in: [...expenseGroupIds, ...paymentGroupIds] } }
+      ]
+    }).select('_id name members');
+
+    const groupIds = userGroups.map((g) => g._id);
+    const groupNameMap = {};
+    userGroups.forEach((g) => {
+      groupNameMap[g._id.toString()] = g.name;
+    });
+
+    // Query expenses for the selected month
+    const expensesThisMonth = await Expense.find({
+      group: { $in: groupIds },
+      date: { $gte: startMonth, $lt: endMonth },
+      $or: [
+        { paidBy: req.user._id },
+        { 'splits.user': req.user._id }
+      ]
+    })
+      .populate('paidBy', 'name email')
+      .sort({ date: -1, createdAt: -1 });
+
+    // Query expenses for previous month comparison
+    const expensesPrevMonth = await Expense.find({
+      group: { $in: groupIds },
+      date: { $gte: startPrevMonth, $lt: endPrevMonth },
+      $or: [
+        { paidBy: req.user._id },
+        { 'splits.user': req.user._id }
+      ]
+    });
+
+    // 1. Primary Metric: User's allocated share of group expenses in selected month
+    let userSharePaise = 0;
+    // 2. Secondary Metric: Total expenses personally paid by the user in selected month
+    let userPaidPaise = 0;
+
+    const categoryMap = {};
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const dailyMap = {};
+    for (let d = 1; d <= daysInMonth; d++) {
+      dailyMap[d] = 0;
+    }
+
+    const recentExpenses = [];
+
+    for (const ex of expensesThisMonth) {
+      const sharePaise = computeUserSharePaise(ex, userIdStr);
+      const isPayer = ex.paidBy && (ex.paidBy._id || ex.paidBy).toString() === userIdStr;
+
+      if (isPayer) {
+        userPaidPaise += Math.round(Number(ex.amount || 0) * 100);
+      }
+
+      if (sharePaise > 0) {
+        userSharePaise += sharePaise;
+
+        const cat = (ex.category || 'General').trim() || 'General';
+        categoryMap[cat] = (categoryMap[cat] || 0) + sharePaise;
+
+        const expDate = new Date(ex.date);
+        const day = expDate.getUTCDate();
+        if (dailyMap[day] !== undefined) {
+          dailyMap[day] += sharePaise;
+        }
+      }
+
+      if (recentExpenses.length < 10) {
+        recentExpenses.push({
+          id: ex._id,
+          description: ex.description,
+          groupName: groupNameMap[ex.group.toString()] || 'Group',
+          category: ex.category || 'General',
+          date: ex.date,
+          totalAmount: ex.amount,
+          userShare: sharePaise / 100,
+          isPayer,
+          paidByName: ex.paidBy?.name || 'Unknown',
+        });
+      }
+    }
+
+    // Previous month total user share
+    let prevMonthSharePaise = 0;
+    for (const ex of expensesPrevMonth) {
+      prevMonthSharePaise += computeUserSharePaise(ex, userIdStr);
+    }
+
+    // Outstanding balances across groups (Metric 3 & Metric 4)
+    let totalOwedToOthersPaise = 0;
+    let totalOwedToUserPaise = 0;
+
+    for (const g of userGroups) {
+      const ledger = await getGroupLedger(g._id);
+      const mine = ledger.balances.find((b) => b.userId === userIdStr);
+      if (mine) {
+        const netPaise = Math.round(mine.net * 100);
+        if (netPaise < 0) {
+          totalOwedToOthersPaise += Math.abs(netPaise);
+        } else if (netPaise > 0) {
+          totalOwedToUserPaise += netPaise;
+        }
+      }
+    }
+
+    // Categories array
+    const categoryBreakdown = Object.entries(categoryMap)
+      .map(([category, paise]) => ({
+        category,
+        amount: paise / 100,
+        percentage: userSharePaise > 0 ? Math.round((paise / userSharePaise) * 100) : 0,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+    // Daily trend array
+    const dailyTrend = Object.entries(dailyMap).map(([day, paise]) => ({
+      day: parseInt(day, 10),
+      amount: paise / 100,
+    }));
+
+    // Comparison calculation
+    const diffPaise = userSharePaise - prevMonthSharePaise;
+    let percentageChange = null;
+    let trend = 'same';
+
+    if (prevMonthSharePaise > 0) {
+      percentageChange = Math.round((diffPaise / prevMonthSharePaise) * 100);
+      if (percentageChange > 0) trend = 'up';
+      else if (percentageChange < 0) trend = 'down';
+    } else if (userSharePaise > 0) {
+      trend = 'up';
+    }
+
+    res.json({
+      year,
+      month,
+      primaryMetric: {
+        label: 'Your Expense Share',
+        amount: userSharePaise / 100,
+        previousMonthAmount: prevMonthSharePaise / 100,
+        difference: diffPaise / 100,
+        percentageChange,
+        trend,
+      },
+      secondaryMetrics: {
+        personallyPaid: userPaidPaise / 100,
+        netOwedToOthers: totalOwedToOthersPaise / 100,
+        netOwedToUser: totalOwedToUserPaise / 100,
+      },
+      categoryBreakdown,
+      dailyTrend,
+      recentExpenses,
+      expenseCount: expensesThisMonth.length,
+    });
+  } catch (err) {
+    console.error('Monthly analytics error:', err);
+    res.status(500).json({ message: err.message || 'Failed to load monthly analytics' });
+  }
+});
 
 
 // =====================================================

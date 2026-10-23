@@ -341,7 +341,16 @@ export function validateCustomSplits(
       share = rawShare;
     } else {
       const trimmed = String(rawShare).trim();
-      if (!trimmed || !/^\d+(\.\d+)?$/.test(trimmed)) {
+      if (!trimmed) {
+        return {
+          valid: false,
+          allocatedPaise,
+          remainingPaise: totalPaise - allocatedPaise,
+          splits: [],
+          error: 'Please enter an amount for each selected participant',
+        };
+      }
+      if (!/^\d+(\.\d+)?$/.test(trimmed)) {
         return {
           valid: false,
           allocatedPaise,

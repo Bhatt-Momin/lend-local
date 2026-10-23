@@ -42,7 +42,10 @@
             <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
           </div>
           <div class="field">
-            <label for="password">Password</label>
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+              <label for="password">Password</label>
+              <a href="/forgot-password.html" class="auth-forgot-link" style="color: var(--ll-brand); font-size: 0.8rem; text-decoration: none; font-weight: 600;">Forgot password?</a>
+            </div>
             <input id="password" name="password" type="password" autocomplete="current-password" required placeholder="••••••••" minlength="6" />
           </div>
           <button class="btn btn-primary btn-block" type="submit">Sign in</button>

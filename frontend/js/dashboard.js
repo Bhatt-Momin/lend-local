@@ -858,6 +858,201 @@ if (!requireAuth()) {
   }
 
   /* =========================================================
+     MONTHLY SPENDING ANALYTICS
+  ========================================================= */
+
+  let analyticsYear = new Date().getFullYear();
+  let analyticsMonth = new Date().getMonth() + 1; // 1-12
+
+  const prevMonthBtn = document.getElementById('prevMonthBtn');
+  const nextMonthBtn = document.getElementById('nextMonthBtn');
+  const currentMonthLabel = document.getElementById('currentMonthLabel');
+  const analyticsLoading = document.getElementById('analyticsLoading');
+  const analyticsError = document.getElementById('analyticsError');
+  const analyticsContent = document.getElementById('analyticsContent');
+  const analyticsPrimaryAmount = document.getElementById('analyticsPrimaryAmount');
+  const analyticsComparisonBadge = document.getElementById('analyticsComparisonBadge');
+  const analyticsPersonallyPaid = document.getElementById('analyticsPersonallyPaid');
+  const analyticsNetOwedToOthers = document.getElementById('analyticsNetOwedToOthers');
+  const analyticsNetOwedToUser = document.getElementById('analyticsNetOwedToUser');
+  const analyticsCategoryList = document.getElementById('analyticsCategoryList');
+  const analyticsDailyTrendChart = document.getElementById('analyticsDailyTrendChart');
+  const trendEndDayLabel = document.getElementById('trendEndDayLabel');
+  const analyticsRecentList = document.getElementById('analyticsRecentList');
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  async function loadMonthlyAnalytics(year, month) {
+    if (!currentMonthLabel) return;
+
+    const now = new Date();
+    const isCurrentOrFuture = year > now.getFullYear() || (year === now.getFullYear() && month >= now.getMonth() + 1);
+
+    currentMonthLabel.textContent = `${monthNames[month - 1].slice(0, 3)} ${year}`;
+    if (nextMonthBtn) {
+      nextMonthBtn.disabled = isCurrentOrFuture;
+      nextMonthBtn.style.opacity = isCurrentOrFuture ? '0.4' : '1';
+      nextMonthBtn.style.cursor = isCurrentOrFuture ? 'not-allowed' : 'pointer';
+    }
+
+    if (analyticsLoading) analyticsLoading.style.display = 'block';
+    if (analyticsError) analyticsError.style.display = 'none';
+    if (analyticsContent) analyticsContent.style.opacity = '0.5';
+
+    try {
+      const data = await api(`/expenses/analytics/monthly?year=${year}&month=${month}`);
+
+      if (analyticsPrimaryAmount) {
+        analyticsPrimaryAmount.textContent = formatMoney(data.primaryMetric?.amount || 0);
+      }
+
+      if (analyticsComparisonBadge) {
+        const pct = data.primaryMetric?.percentageChange;
+        if (pct !== null && pct !== undefined) {
+          const sign = pct > 0 ? '+' : '';
+          const arrow = pct > 0 ? '↑' : pct < 0 ? '↓' : '→';
+          analyticsComparisonBadge.textContent = `${arrow} ${sign}${pct}% vs last month`;
+          analyticsComparisonBadge.style.color = pct > 0 ? 'var(--ll-warning)' : 'var(--ll-positive)';
+          analyticsComparisonBadge.style.background = pct > 0 ? 'rgba(251, 191, 36, 0.1)' : 'rgba(52, 211, 153, 0.1)';
+        } else if (data.primaryMetric?.amount > 0 && (!data.primaryMetric?.previousMonthAmount || data.primaryMetric?.previousMonthAmount === 0)) {
+          analyticsComparisonBadge.textContent = 'First month recorded';
+          analyticsComparisonBadge.style.color = 'var(--ll-brand)';
+          analyticsComparisonBadge.style.background = 'var(--ll-brand-dim)';
+        } else {
+          analyticsComparisonBadge.textContent = 'No prior data';
+          analyticsComparisonBadge.style.color = 'var(--ll-text-muted)';
+          analyticsComparisonBadge.style.background = 'rgba(255,255,255,0.05)';
+        }
+      }
+
+      if (analyticsPersonallyPaid) {
+        analyticsPersonallyPaid.textContent = formatMoney(data.secondaryMetrics?.personallyPaid || 0);
+      }
+      if (analyticsNetOwedToOthers) {
+        analyticsNetOwedToOthers.textContent = formatMoney(data.secondaryMetrics?.netOwedToOthers || 0);
+      }
+      if (analyticsNetOwedToUser) {
+        analyticsNetOwedToUser.textContent = formatMoney(data.secondaryMetrics?.netOwedToUser || 0);
+      }
+
+      // Categories
+      if (analyticsCategoryList) {
+        if (!data.categoryBreakdown || data.categoryBreakdown.length === 0) {
+          analyticsCategoryList.innerHTML = '<p style="color: var(--ll-text-muted); font-size: 0.875rem;">No spending recorded for this month.</p>';
+        } else {
+          analyticsCategoryList.innerHTML = data.categoryBreakdown.map((cat) => `
+            <div class="analytics-cat-row">
+              <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.25rem;">
+                <span style="font-weight: 500; color: var(--ll-text);">${escapeHtml(cat.category)}</span>
+                <span style="font-family: var(--ll-font-mono); font-weight: 600; color: var(--ll-text);">${formatMoney(cat.amount)} <span style="color: var(--ll-text-muted); font-size: 0.75rem;">(${cat.percentage}%)</span></span>
+              </div>
+              <div style="background: rgba(255,255,255,0.07); border-radius: 99px; height: 6px; overflow: hidden;">
+                <div style="background: var(--ll-brand); width: ${Math.max(cat.percentage, 2)}%; height: 100%; border-radius: 99px;"></div>
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+
+      // Daily Trend
+      if (analyticsDailyTrendChart) {
+        const trend = data.dailyTrend || [];
+        const maxVal = trend.reduce((max, d) => Math.max(max, d.amount), 0);
+        if (trendEndDayLabel) {
+          trendEndDayLabel.textContent = `Day ${trend.length}`;
+        }
+
+        if (maxVal === 0) {
+          analyticsDailyTrendChart.innerHTML = '<div style="width: 100%; text-align: center; color: var(--ll-text-muted); font-size: 0.8rem; margin: auto;">No daily activity recorded</div>';
+        } else {
+          analyticsDailyTrendChart.innerHTML = trend.map((d) => {
+            const heightPct = maxVal > 0 ? Math.round((d.amount / maxVal) * 100) : 0;
+            const barHeight = Math.max(heightPct, d.amount > 0 ? 8 : 2);
+            const isZero = d.amount === 0;
+            return `
+              <div
+                title="Day ${d.day}: ${formatMoney(d.amount)}"
+                style="flex: 1; height: ${barHeight}%; background: ${isZero ? 'rgba(255,255,255,0.06)' : 'var(--ll-brand)'}; border-radius: 2px 2px 0 0; transition: height 0.3s ease;"
+              ></div>
+            `;
+          }).join('');
+        }
+      }
+
+      // Recent Expenses
+      if (analyticsRecentList) {
+        if (!data.recentExpenses || data.recentExpenses.length === 0) {
+          analyticsRecentList.innerHTML = '<p style="color: var(--ll-text-muted); font-size: 0.875rem;">No expenses found for this month.</p>';
+        } else {
+          analyticsRecentList.innerHTML = data.recentExpenses.map((ex) => {
+            const dateStr = new Date(ex.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            return `
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.85rem; background: rgba(255,255,255,0.02); border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm); font-size: 0.875rem;">
+                <div>
+                  <div style="font-weight: 600; color: var(--ll-text);">${escapeHtml(ex.description)}</div>
+                  <div style="font-size: 0.75rem; color: var(--ll-text-muted); margin-top: 0.15rem;">
+                    <span>${escapeHtml(ex.groupName)}</span> &bull; <span>${escapeHtml(ex.category)}</span> &bull; <span>${dateStr}</span>
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-family: var(--ll-font-mono); font-weight: 700; color: var(--ll-text);">
+                    ${formatMoney(ex.userShare)}
+                  </div>
+                  <div style="font-size: 0.75rem; color: var(--ll-text-muted);">
+                    ${ex.isPayer ? 'You paid ' + formatMoney(ex.totalAmount) : 'Paid by ' + escapeHtml(ex.paidByName)}
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+
+    } catch (err) {
+      console.error('Failed to load monthly analytics:', err);
+      if (analyticsError) {
+        analyticsError.textContent = 'Failed to load monthly spending analytics. Click to retry.';
+        analyticsError.style.display = 'block';
+        analyticsError.onclick = () => loadMonthlyAnalytics(analyticsYear, analyticsMonth);
+      }
+    } finally {
+      if (analyticsLoading) analyticsLoading.style.display = 'none';
+      if (analyticsContent) analyticsContent.style.opacity = '1';
+    }
+  }
+
+  if (prevMonthBtn) {
+    prevMonthBtn.addEventListener('click', () => {
+      if (analyticsMonth === 1) {
+        analyticsMonth = 12;
+        analyticsYear -= 1;
+      } else {
+        analyticsMonth -= 1;
+      }
+      loadMonthlyAnalytics(analyticsYear, analyticsMonth);
+    });
+  }
+
+  if (nextMonthBtn) {
+    nextMonthBtn.addEventListener('click', () => {
+      const now = new Date();
+      if (analyticsYear > now.getFullYear() || (analyticsYear === now.getFullYear() && analyticsMonth >= now.getMonth() + 1)) {
+        return; // Prevent navigating to future months
+      }
+      if (analyticsMonth === 12) {
+        analyticsMonth = 1;
+        analyticsYear += 1;
+      } else {
+        analyticsMonth += 1;
+      }
+      loadMonthlyAnalytics(analyticsYear, analyticsMonth);
+    });
+  }
+
+  /* =========================================================
      BACKGROUND RESUME
   ========================================================= */
   let lastLoadTime = Date.now();
@@ -884,6 +1079,10 @@ if (!requireAuth()) {
 
   loadGroups(true).catch(err => {
     console.error('Initial load failed:', err);
+  });
+
+  loadMonthlyAnalytics(analyticsYear, analyticsMonth).catch(err => {
+    console.error('Initial analytics load failed:', err);
   });
 
 }

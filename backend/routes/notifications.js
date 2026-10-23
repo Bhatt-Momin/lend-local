@@ -1,5 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const Notification = require('../models/Notification');
 const { protect } = require('../middleware/auth');
 
@@ -139,5 +140,55 @@ router.patch('/read-all', protect, async (req, res) => {
     });
   }
 });
+
+/* =====================================================
+   TRIGGER DEBT REMINDERS (PROTECTED EXTERNAL / CRON RUNNER)
+===================================================== */
+
+/**
+ * Middleware: Verifies the internal scheduler secret header.
+ * - Required header: X-Scheduler-Secret
+ * - Secret env var: INTERNAL_SCHEDULER_SECRET
+ * - Fails closed: Rejects immediately if INTERNAL_SCHEDULER_SECRET is not configured.
+ * - Compares using timing-safe buffer comparison to prevent timing side-channels.
+ * - Never leaks secret value in error messages or logs.
+ */
+function requireSchedulerSecret(req, res, next) {
+  const configuredSecret = (process.env.INTERNAL_SCHEDULER_SECRET || '').trim();
+
+  // Fail closed if the secret is not configured
+  if (!configuredSecret) {
+    console.error('[Scheduler] Trigger attempted but INTERNAL_SCHEDULER_SECRET is not configured on this server');
+    return res.status(503).json({ message: 'Internal scheduler secret is not configured on this server' });
+  }
+
+  const providedSecret = (req.headers['x-scheduler-secret'] || '').toString().trim();
+  if (!providedSecret) {
+    return res.status(401).json({ message: 'Unauthorized: Missing required X-Scheduler-Secret header' });
+  }
+
+  const expectedBuf = Buffer.from(configuredSecret, 'utf8');
+  const providedBuf = Buffer.from(providedSecret, 'utf8');
+
+  if (expectedBuf.length !== providedBuf.length || !crypto.timingSafeEqual(expectedBuf, providedBuf)) {
+    return res.status(401).json({ message: 'Unauthorized: Invalid scheduler secret' });
+  }
+
+  next();
+}
+
+router.post('/reminders/run', requireSchedulerSecret, async (req, res) => {
+  try {
+    const debtReminderService = require('../services/debtReminderService');
+    const thresholdDays = parseInt(req.body.thresholdDays, 10) || 30;
+    const result = await debtReminderService.sendDebtReminders({ thresholdDays });
+    res.json(result);
+  } catch (err) {
+    console.error('Trigger debt reminders error:', err.message);
+    res.status(500).json({ message: err.message || 'Failed to run debt reminders' });
+  }
+});
+
+router.requireSchedulerSecret = requireSchedulerSecret;
 
 module.exports = router;

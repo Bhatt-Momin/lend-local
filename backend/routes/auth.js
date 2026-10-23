@@ -1,8 +1,9 @@
 const express = require('express');
+const crypto = require('crypto');
 const User = require('../models/User');
 const { signToken } = require('../utils/helpers');
 const { protect } = require('../middleware/auth');
-
+const emailService = require('../services/emailService');
 
 const rateLimit = require('express-rate-limit');
 
@@ -13,6 +14,16 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     message: 'Too many authentication attempts, please try again later.'
+  }
+});
+
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: 'Too many password recovery attempts, please try again later.'
   }
 });
 
@@ -127,6 +138,160 @@ router.post('/login', authLimiter, async (req, res) => {
     res.status(500).json({
       message: err.message || 'Login failed'
     });
+  }
+});
+
+
+/* =====================================================
+   FORGOT PASSWORD
+===================================================== */
+
+/**
+ * Resolves the trusted frontend base URL for password recovery.
+ * Security Invariants:
+ * - Strictly ignores request-controlled headers (Origin, Host, Referer) to prevent Host/Origin poisoning.
+ * - Reads validated FRONTEND_URL environment variable.
+ * - In production (NODE_ENV === 'production'), FRONTEND_URL is mandatory and MUST use https://.
+ * - In development / test, defaults to http://localhost:3000 if not specified.
+ */
+function getTrustedFrontendBaseUrl() {
+  const isProd = process.env.NODE_ENV === 'production';
+  const configured = (process.env.FRONTEND_URL || '').trim();
+
+  if (!configured) {
+    if (isProd) {
+      throw new Error('FRONTEND_URL environment variable must be configured in production');
+    }
+    return 'http://localhost:3000';
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(configured);
+  } catch {
+    throw new Error('FRONTEND_URL is not a valid URL');
+  }
+
+  if (isProd && parsed.protocol !== 'https:') {
+    throw new Error('FRONTEND_URL must use https:// in production');
+  }
+
+  if (!isProd && parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('FRONTEND_URL must use http:// or https://');
+  }
+
+  return parsed.origin;
+}
+
+router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ message: 'Valid email is required' });
+    }
+
+    const trimmedEmail = email.toLowerCase().trim();
+    const emailRegex = /^\S+@\S+\.\S+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      return res.status(400).json({ message: 'Valid email is required' });
+    }
+
+    // Generic response message to prevent email enumeration
+    const genericMessage =
+      'If an account with that email exists, password reset instructions have been sent.';
+
+    let trustedOrigin;
+    try {
+      trustedOrigin = getTrustedFrontendBaseUrl();
+    } catch (configErr) {
+      console.error('[Auth] Password reset misconfiguration:', configErr.message);
+      // Fail safely: Never reveal configuration failure or email existence to client
+      return res.status(200).json({ message: genericMessage });
+    }
+
+    const user = await User.findOne({ email: trimmedEmail });
+    if (!user) {
+      return res.status(200).json({ message: genericMessage });
+    }
+
+    // Generate cryptographically secure single-use token
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    // 1 hour expiry
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000);
+    await user.save({ validateBeforeSave: false });
+
+    const resetUrl = `${trustedOrigin}/forgot-password.html?token=${rawToken}`;
+
+    try {
+      await emailService.sendPasswordResetEmail({
+        to: user.email,
+        userName: user.name,
+        resetUrl,
+        token: rawToken,
+      });
+    } catch (emailErr) {
+      console.error('[Auth] Password reset email delivery error:', emailErr.message);
+      // Maintain generic response to avoid account enumeration
+    }
+
+    return res.status(200).json({ message: genericMessage });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({ message: 'Failed to process password recovery request' });
+  }
+});
+
+
+/* =====================================================
+   RESET PASSWORD
+===================================================== */
+router.post('/reset-password', passwordResetLimiter, async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || typeof token !== 'string' || !token.trim()) {
+      return res.status(400).json({ message: 'Password reset token is required' });
+    }
+
+    if (!password || typeof password !== 'string') {
+      return res.status(400).json({ message: 'Password is required' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const hashedToken = crypto.createHash('sha256').update(token.trim()).digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    }).select('+resetPasswordToken +resetPasswordExpires +password');
+
+    if (!user) {
+      return res.status(400).json({
+        message: 'Password reset token is invalid or has expired',
+      });
+    }
+
+    // Update password and clear reset token
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    // Invalidate existing sessions issued before this timestamp
+    user.passwordChangedAt = new Date();
+    await user.save();
+
+    res.status(200).json({
+      message: 'Password has been reset successfully. Please sign in with your new password.',
+    });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ message: 'Failed to reset password' });
   }
 });
 
@@ -431,4 +596,5 @@ router.post('/upi-id', protect, async (req, res) => {
     res.status(500).json({ message: err.message || 'Failed to save UPI ID' });
   }
 });
+router.getTrustedFrontendBaseUrl = getTrustedFrontendBaseUrl;
 module.exports = router;

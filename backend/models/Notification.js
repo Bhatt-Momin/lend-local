@@ -24,6 +24,7 @@ const notificationSchema = new mongoose.Schema(
         'payment_confirmed',
         'payment_rejected',
         'system',
+        'debt_reminder',
       ],
       index: true,
     },

@@ -95,6 +95,17 @@ app.use(
 
 app.get("/api/health", (req, res) => res.status(200).json({ status: "ok" }));
 app.get("/api/config", (req, res) => res.status(200).json({ razorpayEnabled: process.env.RAZORPAY_ENABLED === 'true' }));
+app.get("/api/app-version", (req, res) => {
+  res.status(200).json({
+    latestVersion: "1.0.0",
+    versionCode: 1,
+    releaseNotes: "Initial release of LendLocal for Android featuring native UPI payments, deep-link settlement, and in-app notification inbox.",
+    apkUrl: "https://github.com/Bhatt-Momin/lend-local/releases/download/v1.0.0/lendlocal.apk",
+    releasesPageUrl: "https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.0.0",
+    minSupportedVersion: "1.0.0",
+    publishedAt: "2026-10-23T15:00:00Z",
+  });
+});
 app.use("/api/auth", authRoutes);
 
 app.use("/api/groups", groupRoutes);
@@ -135,9 +146,23 @@ app.use((err, req, res, next) => {
 
 if (require.main === module) {
   app.listen(PORT, () => {
-  console.log(
-    `LendLocal running at http://localhost:${PORT}`
-  );
-});
+    console.log(
+      `LendLocal running at http://localhost:${PORT}`
+    );
+
+    // Optional in-process scheduler strictly enabled when ENABLE_IN_PROCESS_SCHEDULER === 'true' (e.g. for local dev/testing)
+    if (process.env.ENABLE_IN_PROCESS_SCHEDULER === 'true') {
+      console.log('[Scheduler] In-process scheduler enabled via ENABLE_IN_PROCESS_SCHEDULER');
+      const debtReminderService = require('./services/debtReminderService');
+      const intervalMs = parseInt(process.env.SCHEDULER_INTERVAL_MS, 10) || 24 * 60 * 60 * 1000;
+      setInterval(() => {
+        debtReminderService.sendDebtReminders().catch((err) => {
+          console.error('[DebtReminderService] In-process run error:', err?.message || err);
+        });
+      }, intervalMs);
+    } else {
+      console.log('[Scheduler] In-process timer disabled. Scheduled debt reminders are managed via external cron invoking POST /api/notifications/reminders/run');
+    }
+  });
 }
 module.exports = app;
