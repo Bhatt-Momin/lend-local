@@ -148,7 +148,8 @@
 
     // Android App Download Integration Point
     // Set to a verified HTTPS asset URL (e.g. GitHub Releases) when published
-    const APK_DOWNLOAD_URL = '';
+    const APK_DOWNLOAD_URL = 'https://github.com/Bhatt-Momin/lend-local/releases/download/v1.0.0/lendlocal.apk';
+    const GITHUB_RELEASES_URL = 'https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.0.0';
 
     function initAndroidDownload() {
       const slot = document.getElementById('androidDownloadSlot');
@@ -179,7 +180,19 @@
         const note = document.createElement('p');
         note.className = 'auth-app-note';
         note.id = 'androidDownloadNote';
-        note.textContent = 'Direct APK download for Android devices.';
+        note.textContent = 'Direct APK download for Android devices. ';
+
+        const fallbackLink = document.createElement('a');
+        fallbackLink.href = GITHUB_RELEASES_URL;
+        fallbackLink.target = '_blank';
+        fallbackLink.rel = 'noopener noreferrer';
+        fallbackLink.className = 'auth-app-fallback-link';
+        fallbackLink.style.color = 'var(--ll-brand)';
+        fallbackLink.style.textDecoration = 'underline';
+        fallbackLink.textContent = 'View on GitHub Releases';
+        fallbackLink.setAttribute('aria-label', 'View LendLocal v1.0.0 release notes on GitHub (opens in a new tab)');
+
+        note.appendChild(fallbackLink);
 
         slot.appendChild(link);
         slot.appendChild(note);
