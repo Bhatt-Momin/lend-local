@@ -120,6 +120,46 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
+    // Verified international phone number (E.164)
+    phoneNumber: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    phoneVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    phoneVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+
+    // Pending in-app phone verification state (unselected by default)
+    // CRITICAL ARCHITECTURAL SAFEGUARD (Fix 2):
+    // DO NOT add a MongoDB TTL index on pendingPhoneVerification.otpExpires!
+    // In MongoDB, a TTL index on any field within a document deletes the ENTIRE document
+    // when it expires, which would destroy the user account.
+    // Expired verification state is safely pruned via application logic in routes/auth.js.
+    // If automated background database-level cleanup is desired in the future,
+    // a separate collection (e.g. PhoneVerificationRequests) with document-level TTL must be used.
+    pendingPhoneVerification: {
+      type: new mongoose.Schema(
+        {
+          number: { type: String, default: null, select: false },
+          otpHash: { type: String, default: null, select: false },
+          otpExpires: { type: Date, default: null, select: false },
+          attempts: { type: Number, default: 0, select: false },
+          lastSentAt: { type: Date, default: null, select: false },
+        },
+        { _id: false }
+      ),
+      default: null,
+      select: false,
+    },
+
   },
 
   { timestamps: true }
@@ -129,6 +169,17 @@ const userSchema = new mongoose.Schema(
 // Index on fcmTokens.token for efficient stale-token pruning and cross-user lookups
 userSchema.index({ 'fcmTokens.token': 1 }, { sparse: true });
 userSchema.index({ resetPasswordToken: 1 }, { sparse: true });
+
+// Partial unique index: enforces uniqueness on verified/assigned phone numbers ONLY when phoneNumber is a string.
+// Completely safe for existing/legacy accounts with null or undefined phone numbers.
+userSchema.index(
+  { phoneNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { phoneNumber: { $type: 'string' } },
+    name: 'unique_user_phone_number',
+  }
+);
 
 
 userSchema.pre('save', async function hashPassword(next) {

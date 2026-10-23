@@ -4,6 +4,8 @@ const User = require('../models/User');
 const { signToken } = require('../utils/helpers');
 const { protect } = require('../middleware/auth');
 const emailService = require('../services/emailService');
+const { validateAndNormalizePhone, maskPhone } = require('../utils/phone');
+const smsService = require('../services/smsService');
 
 const rateLimit = require('express-rate-limit');
 
@@ -26,6 +28,127 @@ const passwordResetLimiter = rateLimit({
     message: 'Too many password recovery attempts, please try again later.'
   }
 });
+
+const phoneVerificationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: 'Too many phone verification requests, please try again later.'
+  }
+});
+
+/**
+ * In-memory sliding-window store for per-phone verification rate limiting (Fix 3).
+ * Key: SHA-256 hash of normalized E.164 phone number (never stores raw phone numbers in memory).
+ * Value: Array of millisecond timestamps of attempts within active window.
+ *
+ * Limits: 5 requests per 15 minutes per normalized phone number.
+ *
+ * ARCHITECTURAL NOTE FOR HORIZONTALLY SCALED / MULTI-INSTANCE PRODUCTION:
+ * This in-memory store is appropriate for single-instance deployments, staging, and automated tests.
+ * In a multi-instance production environment (e.g., multiple Render web services, Kubernetes pods,
+ * or cluster mode), process-local memory is not shared across instances.
+ * For horizontally scaled production, this store must be backed by a shared distributed cache
+ * such as Redis (e.g., using `rate-limit-redis`, ioredis sliding-window ZSET, or Redis INCR/EXPIRE primitives)
+ * keyed by `phone:sha256(e164)`.
+ */
+const phoneRateLimitStore = new Map();
+const PHONE_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const PHONE_MAX_REQUESTS = 5; // 5 requests per 15 minutes per phone number
+
+function hashPhoneNumber(e164) {
+  return crypto.createHash('sha256').update(e164).digest('hex');
+}
+
+function checkAndRecordPhoneRateLimit(e164) {
+  const now = Date.now();
+  const phoneHash = hashPhoneNumber(e164);
+
+  let timestamps = phoneRateLimitStore.get(phoneHash);
+  if (!timestamps) {
+    timestamps = [];
+    phoneRateLimitStore.set(phoneHash, timestamps);
+  }
+
+  // Filter out timestamps older than the sliding window
+  const windowStart = now - PHONE_WINDOW_MS;
+  const recent = timestamps.filter((ts) => ts > windowStart);
+  phoneRateLimitStore.set(phoneHash, recent);
+
+  if (recent.length >= PHONE_MAX_REQUESTS) {
+    const oldest = recent[0];
+    const retryAfterMs = oldest + PHONE_WINDOW_MS - now;
+    const retryAfterSec = Math.max(1, Math.ceil(retryAfterMs / 1000));
+    return { limited: true, retryAfter: retryAfterSec };
+  }
+
+  recent.push(now);
+  return { limited: false };
+}
+
+function rollbackPhoneRateLimit(e164) {
+  const phoneHash = hashPhoneNumber(e164);
+  const timestamps = phoneRateLimitStore.get(phoneHash);
+  if (timestamps && timestamps.length > 0) {
+    timestamps.pop();
+    if (timestamps.length === 0) {
+      phoneRateLimitStore.delete(phoneHash);
+    }
+  }
+}
+
+function __clearPhoneRateLimitStore() {
+  phoneRateLimitStore.clear();
+}
+
+// Periodic cleanup of stale phone rate limit entries (unref'd to prevent keeping event loop open)
+const phoneRateLimitCleanupTimer = setInterval(() => {
+  const now = Date.now();
+  const windowStart = now - PHONE_WINDOW_MS;
+  for (const [hash, timestamps] of phoneRateLimitStore.entries()) {
+    const active = timestamps.filter((ts) => ts > windowStart);
+    if (active.length === 0) {
+      phoneRateLimitStore.delete(hash);
+    } else {
+      phoneRateLimitStore.set(hash, active);
+    }
+  }
+}, 5 * 60 * 1000);
+if (phoneRateLimitCleanupTimer.unref) {
+  phoneRateLimitCleanupTimer.unref();
+}
+
+/**
+ * Middleware: Per-Phone Rate Limiter (Fix 3)
+ * Normalizes phone number to E.164, hashes it with SHA-256, and checks 5-req/15-min limit.
+ * Formatting variations (spaces, dashes, parens) resolve to the same E.164 hash.
+ */
+const phonePerNumberLimiter = (req, res, next) => {
+  const rawPhone = req.body?.phoneNumber;
+  if (!rawPhone || typeof rawPhone !== 'string') {
+    // Missing or non-string input: let route handler provide appropriate 400 validation error
+    return next();
+  }
+
+  const validation = validateAndNormalizePhone(rawPhone);
+  if (!validation.valid) {
+    // Invalid phone number: let route handler provide precise 400 validation error
+    return next();
+  }
+
+  const check = checkAndRecordPhoneRateLimit(validation.e164);
+  if (check.limited) {
+    res.setHeader('Retry-After', check.retryAfter);
+    return res.status(429).json({
+      message: `Too many verification requests for this phone number. Please try again after ${check.retryAfter} seconds.`,
+      retryAfter: check.retryAfter,
+    });
+  }
+
+  next();
+};
 
 const router = express.Router();
 
@@ -78,7 +201,9 @@ router.post('/register', authLimiter, async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        upiId: user.upiId || null
+        upiId: user.upiId || null,
+        phoneNumber: user.phoneNumber || null,
+        phoneVerified: Boolean(user.phoneVerified),
       },
     });
 
@@ -129,7 +254,9 @@ router.post('/login', authLimiter, async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        upiId: user.upiId || null
+        upiId: user.upiId || null,
+        phoneNumber: user.phoneNumber || null,
+        phoneVerified: Boolean(user.phoneVerified),
       },
     });
 
@@ -303,7 +430,10 @@ router.get('/me', protect, async (req, res) => {
       id: req.user._id,
       name: req.user.name,
       email: req.user.email,
-      upiId: req.user.upiId
+      upiId: req.user.upiId,
+      phoneNumber: req.user.phoneNumber || null,
+      phoneVerified: Boolean(req.user.phoneVerified),
+      phoneVerifiedAt: req.user.phoneVerifiedAt || null,
     },
   });
 
@@ -596,5 +726,324 @@ router.post('/upi-id', protect, async (req, res) => {
     res.status(500).json({ message: err.message || 'Failed to save UPI ID' });
   }
 });
+
+/* =====================================================
+   PHONE VERIFICATION (AUTHENTICATED)
+===================================================== */
+
+/**
+ * Start Phone Verification
+ * POST /api/auth/phone/start-verification (and alias /phone/send-code)
+ * Body: { phoneNumber }
+ */
+const handleStartPhoneVerification = async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+
+    const validation = validateAndNormalizePhone(phoneNumber);
+    if (!validation.valid) {
+      return res.status(400).json({ message: validation.error });
+    }
+
+    const e164 = validation.e164;
+
+    // Check if phone number is already verified on another account
+    const existingOther = await User.findOne({
+      phoneNumber: e164,
+      phoneVerified: true,
+      _id: { $ne: req.user._id },
+    });
+
+    if (existingOther) {
+      return res.status(409).json({
+        message: 'This phone number is already registered and verified on another account',
+      });
+    }
+
+    // Check if already verified on current account
+    if (req.user.phoneNumber === e164 && req.user.phoneVerified) {
+      return res.status(400).json({
+        message: 'This phone number is already verified on your account',
+      });
+    }
+
+    const user = await User.findById(req.user._id).select('+pendingPhoneVerification');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Safe pending state cleanup (Fix 2):
+    // If pending verification exists and is expired, prune it explicitly before checking cooldown.
+    // NOTE: In MongoDB, a TTL index on a nested field like pendingPhoneVerification.otpExpires
+    // deletes the entire User document! Therefore, expired pending state is strictly managed
+    // in application logic. If automated background cleanup without application intervention
+    // is desired in the future, a dedicated collection (e.g. PhoneVerificationRequests) with
+    // document-level TTL should be used.
+    if (user.pendingPhoneVerification) {
+      const isExpired =
+        user.pendingPhoneVerification.otpExpires &&
+        Date.now() > new Date(user.pendingPhoneVerification.otpExpires).getTime();
+      if (isExpired) {
+        user.pendingPhoneVerification = null;
+        await User.updateOne({ _id: user._id }, { $set: { pendingPhoneVerification: null } });
+      }
+    }
+
+    // Enforce 60-second resend cooldown (only active if pending state exists and lastSentAt is recent)
+    if (user.pendingPhoneVerification?.lastSentAt) {
+      const elapsedMs = Date.now() - new Date(user.pendingPhoneVerification.lastSentAt).getTime();
+      if (elapsedMs < 60 * 1000) {
+        const waitSec = Math.ceil((60000 - elapsedMs) / 1000);
+        return res.status(429).json({
+          message: `Please wait ${waitSec} seconds before requesting another verification code`,
+          retryAfter: waitSec,
+        });
+      }
+    }
+
+    // Generate cryptographically secure six-digit OTP (100000 to 999999)
+    const rawOtp = crypto.randomInt(100000, 1000000).toString();
+    const otpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
+
+    // 10-minute expiry
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+    user.pendingPhoneVerification = {
+      number: e164,
+      otpHash,
+      otpExpires,
+      attempts: 0,
+      lastSentAt: new Date(),
+    };
+
+    await user.save({ validateBeforeSave: false });
+
+    try {
+      await smsService.sendVerificationOtp({
+        to: e164,
+        otp: rawOtp,
+        userId: user._id,
+      });
+    } catch (smsErr) {
+      // Fix 1: State rollback on SMS dispatch failure so user can retry immediately without waiting out cooldown
+      user.pendingPhoneVerification = null;
+      try {
+        await User.updateOne(
+          { _id: user._id },
+          { $set: { pendingPhoneVerification: null } }
+        );
+      } catch (rollbackErr) {
+        console.error(`[Auth] Failed to rollback pending phone verification for ${maskPhone(e164)}`);
+      }
+
+      // Rollback rate limit attempt so user isn't penalized for provider delivery failure
+      rollbackPhoneRateLimit(e164);
+
+      // Safe logging: log ONLY sanitized category and masked phone; NEVER log raw error message or provider tokens
+      const errorCategory = (smsErr && smsErr.name) ? smsErr.name : 'SmsDeliveryError';
+      console.error(`[Auth] SMS delivery failed [${errorCategory}] for recipient ${maskPhone(e164)}`);
+
+      return res.status(503).json({
+        message: 'Failed to deliver SMS verification code. Please try again.',
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Verification code sent successfully',
+      phoneMasked: maskPhone(e164),
+      cooldownSeconds: 60,
+    });
+  } catch (err) {
+    console.error('Start phone verification error:', err);
+    res.status(500).json({ message: 'Failed to initiate phone verification' });
+  }
+};
+
+router.post(
+  '/phone/start-verification',
+  protect,
+  phoneVerificationLimiter,
+  phonePerNumberLimiter,
+  handleStartPhoneVerification
+);
+router.post(
+  '/phone/send-code',
+  protect,
+  phoneVerificationLimiter,
+  phonePerNumberLimiter,
+  handleStartPhoneVerification
+);
+
+/**
+ * Confirm Phone Verification
+ * POST /api/auth/phone/confirm-verification (and alias /phone/verify-code)
+ * Body: { otp, phoneNumber? }
+ */
+const handleConfirmPhoneVerification = async (req, res) => {
+  try {
+    const { otp, phoneNumber } = req.body;
+
+    if (!otp || typeof otp !== 'string' || !otp.trim()) {
+      return res.status(400).json({ message: 'Verification code is required' });
+    }
+
+    const trimmedOtp = otp.trim();
+    if (trimmedOtp.length !== 6 || !/^\d{6}$/.test(trimmedOtp)) {
+      return res.status(400).json({ message: 'Verification code must be a 6-digit number' });
+    }
+
+    const user = await User.findById(req.user._id).select('+pendingPhoneVerification');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const pending = user.pendingPhoneVerification;
+    if (!pending || !pending.otpHash || !pending.number) {
+      return res.status(400).json({ message: 'No pending phone verification found. Please request a new code.' });
+    }
+
+    // Optional phoneNumber validation to ensure client context matches
+    if (phoneNumber && typeof phoneNumber === 'string') {
+      const normalizedReq = validateAndNormalizePhone(phoneNumber);
+      if (normalizedReq.valid && normalizedReq.e164 !== pending.number) {
+        return res.status(400).json({ message: 'Submitted phone number does not match pending verification' });
+      }
+    }
+
+    // Check maximum attempts (3 attempts)
+    if (pending.attempts >= 3) {
+      user.pendingPhoneVerification = null;
+      await User.updateOne({ _id: user._id }, { $set: { pendingPhoneVerification: null } });
+      return res.status(400).json({ message: 'Verification attempts exhausted. Please request a new code.' });
+    }
+
+    // Check expiration (10 minutes) (Fix 2: safe application-level cleanup without deleting user document)
+    if (new Date() > new Date(pending.otpExpires)) {
+      user.pendingPhoneVerification = null;
+      await User.updateOne({ _id: user._id }, { $set: { pendingPhoneVerification: null } });
+      return res.status(400).json({ message: 'Verification code has expired. Please request a new code.' });
+    }
+
+    // Timing-safe constant-time hash comparison
+    const candidateHash = crypto.createHash('sha256').update(trimmedOtp).digest('hex');
+    const expectedBuf = Buffer.from(pending.otpHash, 'hex');
+    const actualBuf = Buffer.from(candidateHash, 'hex');
+
+    const isMatch = expectedBuf.length === actualBuf.length && crypto.timingSafeEqual(expectedBuf, actualBuf);
+
+    if (!isMatch) {
+      pending.attempts += 1;
+      const remainingAttempts = 3 - pending.attempts;
+
+      if (remainingAttempts <= 0) {
+        user.pendingPhoneVerification = null;
+        await User.updateOne({ _id: user._id }, { $set: { pendingPhoneVerification: null } });
+        return res.status(400).json({ message: 'Verification attempts exhausted. Please request a new code.' });
+      }
+
+      await user.save({ validateBeforeSave: false });
+      return res.status(400).json({
+        message: `Invalid verification code. ${remainingAttempts} attempt(s) remaining.`,
+      });
+    }
+
+    // Verified!
+    const verifiedNumber = pending.number;
+
+    // Check concurrent verification collision
+    const conflict = await User.findOne({
+      phoneNumber: verifiedNumber,
+      phoneVerified: true,
+      _id: { $ne: user._id },
+    });
+
+    if (conflict) {
+      user.pendingPhoneVerification = null;
+      await User.updateOne({ _id: user._id }, { $set: { pendingPhoneVerification: null } });
+      return res.status(409).json({
+        message: 'This phone number was already verified on another account',
+      });
+    }
+
+    user.phoneNumber = verifiedNumber;
+    user.phoneVerified = true;
+    user.phoneVerifiedAt = new Date();
+    user.pendingPhoneVerification = null;
+
+    try {
+      await user.save({ validateBeforeSave: false });
+    } catch (dbErr) {
+      if (dbErr.code === 11000) {
+        return res.status(409).json({
+          message: 'This phone number was already verified on another account',
+        });
+      }
+      throw dbErr;
+    }
+
+    res.status(200).json({
+      message: 'Phone number verified successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        phoneVerified: user.phoneVerified,
+        phoneVerifiedAt: user.phoneVerifiedAt,
+        upiId: user.upiId || null,
+      },
+    });
+  } catch (err) {
+    console.error('Confirm phone verification error:', err);
+    res.status(500).json({ message: 'Failed to verify phone number' });
+  }
+};
+
+router.post('/phone/confirm-verification', protect, phoneVerificationLimiter, handleConfirmPhoneVerification);
+router.post('/phone/verify-code', protect, phoneVerificationLimiter, handleConfirmPhoneVerification);
+
+/**
+ * Remove Verified Phone
+ * DELETE /api/auth/phone
+ */
+router.delete('/phone', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('+pendingPhoneVerification');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (!user.phoneNumber && !user.phoneVerified && !user.pendingPhoneVerification) {
+      return res.status(400).json({ message: 'No phone number associated with this account' });
+    }
+
+    user.phoneNumber = null;
+    user.phoneVerified = false;
+    user.phoneVerifiedAt = null;
+    user.pendingPhoneVerification = null;
+    await user.save({ validateBeforeSave: false });
+
+    res.status(200).json({
+      message: 'Phone number removed successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phoneNumber: null,
+        phoneVerified: false,
+        phoneVerifiedAt: null,
+        upiId: user.upiId || null,
+      },
+    });
+  } catch (err) {
+    console.error('Remove phone error:', err);
+    res.status(500).json({ message: 'Failed to remove phone number' });
+  }
+});
 router.getTrustedFrontendBaseUrl = getTrustedFrontendBaseUrl;
+router.__clearPhoneRateLimitStore = __clearPhoneRateLimitStore;
+router.checkAndRecordPhoneRateLimit = checkAndRecordPhoneRateLimit;
+router.phonePerNumberLimiter = phonePerNumberLimiter;
+router.handleStartPhoneVerification = handleStartPhoneVerification;
+router.handleConfirmPhoneVerification = handleConfirmPhoneVerification;
 module.exports = router;
