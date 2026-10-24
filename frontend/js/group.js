@@ -54,7 +54,7 @@ if (!requireAuth()) {
 
   if (userAvatar && me) {
     const name =
-      me.name || 'U';
+      me.name || me.email || 'U';
 
     userAvatar.textContent =
       name

@@ -41,9 +41,9 @@ function updateInstallButton() {
   } else {
     installAppBtn.style.display = 'inline-flex';
     if (deferredPrompt) {
-      installAppBtn.innerHTML = '⬇️ Download app';
+      installAppBtn.innerHTML = '<span class="nav-icon" aria-hidden="true">📲</span><span class="nav-label">Install app</span>';
     } else {
-      installAppBtn.innerHTML = 'ℹ️ Download app';
+      installAppBtn.innerHTML = '<span class="nav-icon" aria-hidden="true">📲</span><span class="nav-label">Install app</span>';
     }
   }
 }

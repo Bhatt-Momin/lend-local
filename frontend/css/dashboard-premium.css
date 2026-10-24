@@ -216,20 +216,6 @@ body.ll-dashboard-page .modern-empty h3 {
   color: var(--ll-text) !important;
 }
 
-@media (max-width: 768px) {
-  body.ll-dashboard-page .balance-card {
-    padding: 2rem 1.5rem !important;
-  }
-  body.ll-dashboard-page .net-balance {
-    font-size: clamp(2.5rem, 10vw, 3.5rem) !important;
-  }
-  body.ll-dashboard-page .modern-stat {
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 0.75rem !important;
-  }
-}
-
 /* Polish group-card balance section */
 body.ll-dashboard-page .modern-group-card .group-balance {
   padding-left: 1.25rem !important;
