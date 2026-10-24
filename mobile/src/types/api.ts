@@ -389,3 +389,51 @@ export interface MarkAllNotificationsReadResponse {
   modifiedCount: number;
   unreadCount: number;
 }
+
+export interface MonthlyAnalyticsCategoryItem {
+  category: string;
+  amount: number;
+  percentage: number;
+}
+
+export interface MonthlyAnalyticsDailyTrendItem {
+  day: number;
+  amount: number;
+}
+
+export interface MonthlyAnalyticsRecentExpenseItem {
+  id: string;
+  description: string;
+  groupName: string;
+  category: string;
+  date: string;
+  totalAmount: number;
+  userShare: number;
+  isPayer: boolean;
+  paidByName: string;
+}
+
+export interface MonthlyAnalyticsResponse {
+  year: number;
+  month: number;
+  primaryMetric: {
+    label?: string;
+    amount: number;
+    previousMonthAmount: number;
+    difference?: number;
+    percentageChange: number | null;
+    trend?: 'up' | 'down' | 'same' | string;
+    comparisonDirection?: 'increase' | 'decrease' | 'neutral';
+    isCurrentMonth?: boolean;
+  };
+  secondaryMetrics: {
+    personallyPaid: number;
+    netOwedToOthers: number;
+    netOwedToUser: number;
+    activeGroupsCount?: number;
+  };
+  categoryBreakdown: MonthlyAnalyticsCategoryItem[];
+  dailyTrend: MonthlyAnalyticsDailyTrendItem[];
+  recentExpenses: MonthlyAnalyticsRecentExpenseItem[];
+  expenseCount: number;
+}

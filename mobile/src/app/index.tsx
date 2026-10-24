@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GroupCard } from '../components/GroupCard';
+import { MonthlyExpenditureModal } from '../components/MonthlyExpenditureModal';
 import { NotificationInboxModal } from '../components/NotificationInboxModal';
 import { ServerConfigModal } from '../components/ServerConfigModal';
 import { SettingsModal } from '../components/SettingsModal';
@@ -33,6 +34,7 @@ export default function HomeScreen() {
   const [showServerModal, setShowServerModal] = useState(false);
   const [showUpiModal, setShowUpiModal] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showMonthlyModal, setShowMonthlyModal] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [editingUpiId, setEditingUpiId] = useState<string | null | undefined>(undefined);
   const [returnToSettings, setReturnToSettings] = useState(false);
@@ -463,6 +465,30 @@ export default function HomeScreen() {
                 </ThemedView>
               ) : null}
 
+              {/* Monthly Expenditure Quick-Access Entry */}
+              {activeTab === 'overview' ? (
+                <TouchableOpacity
+                  style={styles.monthlyExpenditureCard}
+                  onPress={() => setShowMonthlyModal(true)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="View monthly expenditure and spending trends"
+                >
+                  <View style={styles.monthlyCardLeft}>
+                    <View style={styles.monthlyCardIconWrap}>
+                      <ThemedText style={styles.monthlyCardIcon}>💳</ThemedText>
+                    </View>
+                    <View style={styles.monthlyCardTextWrap}>
+                      <ThemedText style={styles.monthlyCardTitle}>Monthly expenditure</ThemedText>
+                      <ThemedText style={styles.monthlyCardSub}>
+                        Track personal spending trends & category share
+                      </ThemedText>
+                    </View>
+                  </View>
+                  <ThemedText style={styles.monthlyCardChevron}>›</ThemedText>
+                </TouchableOpacity>
+              ) : null}
+
               {/* Needs Your Attention Section — Displayed ONLY when real pending actions exist */}
               {pendingActions.length > 0 && (activeTab === 'overview' || activeTab === 'activity') ? (
                 <View style={styles.attentionSection}>
@@ -739,6 +765,11 @@ export default function HomeScreen() {
           visible={showNotificationsModal}
           onClose={() => setShowNotificationsModal(false)}
           onUnreadCountChange={setUnreadNotificationsCount}
+        />
+
+        <MonthlyExpenditureModal
+          visible={showMonthlyModal}
+          onClose={() => setShowMonthlyModal(false)}
         />
       </SafeAreaView>
     </ThemedView>
@@ -1019,6 +1050,52 @@ const styles = StyleSheet.create({
     height: 32,
     backgroundColor: Surfaces.darkBorder,
     marginHorizontal: Spacing.three,
+  },
+  monthlyExpenditureCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: Surfaces.darkCard,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  monthlyCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  monthlyCardIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthlyCardIcon: {
+    fontSize: 18,
+  },
+  monthlyCardTextWrap: {
+    flex: 1,
+  },
+  monthlyCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  monthlyCardSub: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  monthlyCardChevron: {
+    fontSize: 20,
+    color: '#64748B',
+    fontWeight: '600',
+    marginLeft: 8,
   },
   attentionSection: {
     gap: Spacing.two,

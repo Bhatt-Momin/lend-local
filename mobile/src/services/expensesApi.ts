@@ -6,6 +6,7 @@ import {
   UpdateExpensePayload,
   DeleteExpenseResponse,
   ExpenseFilters,
+  MonthlyAnalyticsResponse,
 } from '../types/api';
 
 /**
@@ -88,5 +89,13 @@ export const expensesApi = {
     return apiRequest<DeleteExpenseResponse>(`/expenses/${id}`, {
       method: 'DELETE',
     });
+  },
+
+  /**
+   * Fetches monthly spending analytics for the authenticated user across all groups.
+   * Route: GET /api/expenses/analytics/monthly?year=YYYY&month=MM
+   */
+  getMonthlyAnalytics: async (year: number, month: number): Promise<MonthlyAnalyticsResponse> => {
+    return apiRequest<MonthlyAnalyticsResponse>(`/expenses/analytics/monthly?year=${year}&month=${month}`);
   },
 };
