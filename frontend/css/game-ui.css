@@ -756,8 +756,8 @@
       gap: 1.25rem;
     }
     .modern-logo {
-      width: 100%;
-      justify-content: center;
+      width: auto;
+      justify-content: flex-start;
     }
     .modern-actions {
       width: 100%;

@@ -40,25 +40,19 @@ if (!requireAuth()) {
   ========================================================= */
 
   function updateUserAvatar() {
-    if (!userAvatar) return;
-
     const user = getUser();
+    const displayName = (user && (user.name || user.email))
+      ? (user.name || user.email).trim()
+      : 'User';
 
-    if (!user) {
-      userAvatar.textContent = 'U';
-      return;
+    if (userAvatar) {
+      userAvatar.textContent =
+        displayName
+          ? displayName.charAt(0).toUpperCase()
+          : 'U';
     }
 
-    const name =
-      user.name ||
-      user.email ||
-      'U';
-
-    userAvatar.textContent =
-      name
-        .trim()
-        .charAt(0)
-        .toUpperCase();
+    fillUserChip();
   }
 
   updateUserAvatar();
@@ -221,6 +215,8 @@ if (!requireAuth()) {
     const net =
       owed - owe;
 
+    netBalance.classList.remove('positive', 'negative');
+    balanceStatus.classList.remove('positive', 'negative');
 
     if (Math.abs(net) < 0.01) {
 
@@ -239,9 +235,11 @@ if (!requireAuth()) {
 
       netBalance.textContent =
         `+${formatMoney(net)}`;
+      netBalance.classList.add('positive');
 
       balanceStatus.textContent =
         'You are owed overall';
+      balanceStatus.classList.add('positive');
 
       return;
 
@@ -252,9 +250,11 @@ if (!requireAuth()) {
       `−${formatMoney(
         Math.abs(net)
       )}`;
+    netBalance.classList.add('negative');
 
     balanceStatus.textContent =
       'You owe overall';
+    balanceStatus.classList.add('negative');
 
   }
 
@@ -766,6 +766,208 @@ if (!requireAuth()) {
 
 
   /* =========================================================
+     VIEW SWITCHING & SIDEBAR NAVIGATION CONTROLLER
+  ========================================================= */
+  const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+  const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+  const dashboardSidebar = document.getElementById('dashboardSidebar');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+
+  const navDashboard = document.getElementById('navDashboard');
+  const navGroups = document.getElementById('navGroups');
+  const navMonthlySpending = document.getElementById('navMonthlySpending');
+  const navAnalytics = document.getElementById('navAnalytics');
+
+  const viewDashboard = document.getElementById('viewDashboard');
+  const viewMonthlySpending = document.getElementById('viewMonthlySpending');
+  const viewAnalytics = document.getElementById('viewAnalytics');
+
+  const backFromMonthlyBtn = document.getElementById('backFromMonthlyBtn');
+  const backFromAnalyticsBtn = document.getElementById('backFromAnalyticsBtn');
+  const viewMonthlyFromActivityBtn = document.getElementById('viewMonthlyFromActivityBtn');
+  const goToAnalyticsFromMonthlyBtn = document.getElementById('goToAnalyticsFromMonthlyBtn');
+
+  let sidebarLastFocus = null;
+
+  function openSidebar() {
+    if (!dashboardSidebar) return;
+    sidebarLastFocus = document.activeElement;
+    dashboardSidebar.classList.add('open');
+    if (sidebarBackdrop) sidebarBackdrop.classList.add('open');
+    document.body.classList.add('sidebar-open');
+    dashboardSidebar.setAttribute('aria-hidden', 'false');
+    if (sidebarToggleBtn) sidebarToggleBtn.setAttribute('aria-expanded', 'true');
+    setTimeout(() => {
+      if (sidebarCloseBtn) sidebarCloseBtn.focus();
+    }, 50);
+  }
+
+  function closeSidebar() {
+    if (!dashboardSidebar) return;
+    dashboardSidebar.classList.remove('open');
+    if (sidebarBackdrop) sidebarBackdrop.classList.remove('open');
+    document.body.classList.remove('sidebar-open');
+    dashboardSidebar.setAttribute('aria-hidden', 'true');
+    if (sidebarToggleBtn) sidebarToggleBtn.setAttribute('aria-expanded', 'false');
+    restoreFocusSafe(sidebarLastFocus);
+  }
+
+  function syncSidebarMode() {
+    if (!dashboardSidebar) return;
+    dashboardSidebar.setAttribute('role', 'dialog');
+    dashboardSidebar.setAttribute('aria-modal', 'true');
+    const isOpen = dashboardSidebar.classList.contains('open');
+    dashboardSidebar.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+    if (sidebarToggleBtn) {
+      sidebarToggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
+  }
+
+  window.addEventListener('resize', syncSidebarMode);
+  syncSidebarMode();
+
+  if (sidebarToggleBtn) sidebarToggleBtn.addEventListener('click', openSidebar);
+  if (sidebarCloseBtn) sidebarCloseBtn.addEventListener('click', closeSidebar);
+  if (sidebarBackdrop) sidebarBackdrop.addEventListener('click', closeSidebar);
+
+  function updateSidebarActive(activeNavId) {
+    [navDashboard, navGroups, navMonthlySpending, navAnalytics].forEach(btn => {
+      if (btn) btn.classList.remove('active');
+    });
+    const target = document.getElementById(activeNavId);
+    if (target) target.classList.add('active');
+  }
+
+  function switchView(viewName, scrollTarget = null) {
+    if (!viewDashboard || !viewMonthlySpending || !viewAnalytics) return;
+
+    viewDashboard.style.display = 'none';
+    viewDashboard.classList.remove('active');
+    viewMonthlySpending.style.display = 'none';
+    viewMonthlySpending.classList.remove('active');
+    viewAnalytics.style.display = 'none';
+    viewAnalytics.classList.remove('active');
+
+    if (viewName === 'monthly-spending') {
+      viewMonthlySpending.style.display = 'block';
+      viewMonthlySpending.classList.add('active');
+      updateSidebarActive('navMonthlySpending');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (viewName === 'analytics') {
+      viewAnalytics.style.display = 'block';
+      viewAnalytics.classList.add('active');
+      updateSidebarActive('navAnalytics');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      // Default: 'dashboard' or 'groups'
+      viewDashboard.style.display = 'block';
+      viewDashboard.classList.add('active');
+      updateSidebarActive(viewName === 'groups' ? 'navGroups' : 'navDashboard');
+
+      if (scrollTarget) {
+        setTimeout(() => {
+          scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  }
+
+  // Sidebar item navigation click handlers
+  if (navDashboard) {
+    navDashboard.addEventListener('click', () => {
+      closeSidebar();
+      if (window.location.hash !== '#dashboard') {
+        history.pushState(null, '', '#dashboard');
+      }
+      switchView('dashboard');
+    });
+  }
+
+  if (navGroups) {
+    navGroups.addEventListener('click', () => {
+      closeSidebar();
+      if (window.location.hash !== '#groups') {
+        history.pushState(null, '', '#groups');
+      }
+      const groupsSec = document.getElementById('groupsSection') || document.querySelector('.groups-section');
+      switchView('groups', groupsSec);
+    });
+  }
+
+  if (navMonthlySpending) {
+    navMonthlySpending.addEventListener('click', () => {
+      closeSidebar();
+      if (window.location.hash !== '#monthly-spending') {
+        history.pushState(null, '', '#monthly-spending');
+      }
+      switchView('monthly-spending');
+    });
+  }
+
+  if (navAnalytics) {
+    navAnalytics.addEventListener('click', () => {
+      closeSidebar();
+      if (window.location.hash !== '#analytics') {
+        history.pushState(null, '', '#analytics');
+      }
+      switchView('analytics');
+    });
+  }
+
+  // Back navigation buttons
+  if (backFromMonthlyBtn) {
+    backFromMonthlyBtn.addEventListener('click', () => {
+      history.pushState(null, '', '#dashboard');
+      switchView('dashboard');
+    });
+  }
+
+  if (backFromAnalyticsBtn) {
+    backFromAnalyticsBtn.addEventListener('click', () => {
+      history.pushState(null, '', '#dashboard');
+      switchView('dashboard');
+    });
+  }
+
+  if (viewMonthlyFromActivityBtn) {
+    viewMonthlyFromActivityBtn.addEventListener('click', () => {
+      history.pushState(null, '', '#monthly-spending');
+      switchView('monthly-spending');
+    });
+  }
+
+  if (goToAnalyticsFromMonthlyBtn) {
+    goToAnalyticsFromMonthlyBtn.addEventListener('click', () => {
+      history.pushState(null, '', '#analytics');
+      switchView('analytics');
+    });
+  }
+
+  window.addEventListener('hashchange', () => {
+    const hash = (window.location.hash || '').replace('#', '');
+    if (hash === 'monthly-spending') {
+      switchView('monthly-spending');
+    } else if (hash === 'analytics') {
+      switchView('analytics');
+    } else if (hash === 'groups') {
+      const groupsSec = document.getElementById('groupsSection') || document.querySelector('.groups-section');
+      switchView('groups', groupsSec);
+    } else {
+      switchView('dashboard');
+    }
+  });
+
+  const initialHash = (window.location.hash || '').replace('#', '');
+  if (initialHash === 'monthly-spending' || initialHash === 'analytics' || initialHash === 'groups') {
+    const groupsSec = initialHash === 'groups' ? (document.getElementById('groupsSection') || document.querySelector('.groups-section')) : null;
+    switchView(initialHash, groupsSec);
+  } else {
+    switchView('dashboard');
+  }
+
+  /* =========================================================
      SETTINGS
   ========================================================= */
   const settingsModal = document.getElementById('settingsModal');
@@ -776,29 +978,435 @@ if (!requireAuth()) {
   const upiIdInput = document.getElementById('upiIdInput');
   const settingsAlert = document.getElementById('settingsAlert');
 
+  /* Phone verification elements in Settings */
+  const settingsPhoneStatusPill = document.getElementById('settingsPhoneStatusPill');
+  const settingsPhoneAlert = document.getElementById('settingsPhoneAlert');
+  const settingsPhoneVerifiedView = document.getElementById('settingsPhoneVerifiedView');
+  const settingsPhoneVerifiedDisplay = document.getElementById('settingsPhoneVerifiedDisplay');
+  const settingsPhoneVerifiedAt = document.getElementById('settingsPhoneVerifiedAt');
+  const changePhoneBtn = document.getElementById('changePhoneBtn');
+  const removePhoneBtn = document.getElementById('removePhoneBtn');
+
+  const settingsPhoneRequestView = document.getElementById('settingsPhoneRequestView');
+  const settingsPhoneInput = document.getElementById('settingsPhoneInput');
+  const sendPhoneCodeBtn = document.getElementById('sendPhoneCodeBtn');
+  const settingsCancelChangeRow = document.getElementById('settingsCancelChangeRow');
+  const cancelChangePhoneBtn = document.getElementById('cancelChangePhoneBtn');
+
+  const settingsPhoneVerifyView = document.getElementById('settingsPhoneVerifyView');
+  const settingsPhoneMasked = document.getElementById('settingsPhoneMasked');
+  const settingsPhoneOtpInput = document.getElementById('settingsPhoneOtpInput');
+  const verifyPhoneCodeBtn = document.getElementById('verifyPhoneCodeBtn');
+  const editPhoneInputBtn = document.getElementById('editPhoneInputBtn');
+  const resendPhoneCodeBtn = document.getElementById('resendPhoneCodeBtn');
+
+  let currentPhoneData = {
+    phoneNumber: null,
+    phoneVerified: false,
+    phoneVerifiedAt: null
+  };
+  let pendingVerificationPhone = '';
+  let phoneCooldownTimer = null;
+  let phoneCooldownSeconds = 0;
+
+  function stopPhoneCooldown() {
+    if (phoneCooldownTimer) {
+      clearInterval(phoneCooldownTimer);
+      phoneCooldownTimer = null;
+    }
+    if (resendPhoneCodeBtn) {
+      resendPhoneCodeBtn.disabled = false;
+      resendPhoneCodeBtn.textContent = 'Resend code';
+    }
+  }
+
+  function startPhoneCooldown(seconds = 60) {
+    if (!resendPhoneCodeBtn) return;
+    if (phoneCooldownTimer) clearInterval(phoneCooldownTimer);
+
+    phoneCooldownSeconds = seconds;
+    resendPhoneCodeBtn.disabled = true;
+    resendPhoneCodeBtn.innerHTML = `Resend code (<span id="settingsPhoneCooldown">${phoneCooldownSeconds}</span>s)`;
+
+    phoneCooldownTimer = setInterval(() => {
+      phoneCooldownSeconds -= 1;
+      const cooldownEl = document.getElementById('settingsPhoneCooldown');
+      if (cooldownEl) {
+        cooldownEl.textContent = phoneCooldownSeconds;
+      }
+      if (phoneCooldownSeconds <= 0) {
+        clearInterval(phoneCooldownTimer);
+        phoneCooldownTimer = null;
+        resendPhoneCodeBtn.disabled = false;
+        resendPhoneCodeBtn.textContent = 'Resend code';
+      }
+    }, 1000);
+  }
+
+  function renderPhoneSectionUi(data) {
+    if (settingsPhoneAlert) hideAlert(settingsPhoneAlert);
+
+    const isVerified = Boolean(data && data.phoneVerified && data.phoneNumber);
+    const hasUnverifiedPhone = Boolean(data && data.phoneNumber && !data.phoneVerified);
+
+    if (isVerified) {
+      if (settingsPhoneStatusPill) {
+        settingsPhoneStatusPill.className = 'notif-pill notif-pill-active';
+        settingsPhoneStatusPill.textContent = 'Verified';
+      }
+      if (settingsPhoneVerifiedDisplay) {
+        settingsPhoneVerifiedDisplay.textContent = data.phoneNumber;
+      }
+      if (settingsPhoneVerifiedAt) {
+        if (data.phoneVerifiedAt) {
+          try {
+            const dateStr = new Date(data.phoneVerifiedAt).toLocaleDateString(undefined, {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric'
+            });
+            settingsPhoneVerifiedAt.textContent = `Verified on: ${dateStr}`;
+          } catch {
+            settingsPhoneVerifiedAt.textContent = 'Verified';
+          }
+        } else {
+          settingsPhoneVerifiedAt.textContent = 'Verified';
+        }
+      }
+
+      if (settingsPhoneVerifiedView) settingsPhoneVerifiedView.style.display = 'block';
+      if (settingsPhoneRequestView) settingsPhoneRequestView.style.display = 'none';
+      if (settingsPhoneVerifyView) settingsPhoneVerifyView.style.display = 'none';
+      if (settingsCancelChangeRow) settingsCancelChangeRow.style.display = 'none';
+    } else if (hasUnverifiedPhone) {
+      if (settingsPhoneStatusPill) {
+        settingsPhoneStatusPill.className = 'notif-pill notif-pill-warning';
+        settingsPhoneStatusPill.textContent = 'Unverified';
+      }
+      if (settingsPhoneInput && !pendingVerificationPhone) {
+        settingsPhoneInput.value = data.phoneNumber;
+      }
+      if (pendingVerificationPhone && settingsPhoneVerifyView && settingsPhoneVerifyView.style.display === 'block') {
+        if (settingsPhoneVerifiedView) settingsPhoneVerifiedView.style.display = 'none';
+        if (settingsPhoneRequestView) settingsPhoneRequestView.style.display = 'none';
+      } else {
+        if (settingsPhoneVerifiedView) settingsPhoneVerifiedView.style.display = 'none';
+        if (settingsPhoneRequestView) settingsPhoneRequestView.style.display = 'block';
+        if (settingsPhoneVerifyView) settingsPhoneVerifyView.style.display = 'none';
+      }
+      if (settingsCancelChangeRow) settingsCancelChangeRow.style.display = 'none';
+    } else {
+      if (settingsPhoneStatusPill) {
+        settingsPhoneStatusPill.className = 'notif-pill notif-pill-disabled';
+        settingsPhoneStatusPill.textContent = 'Not configured';
+      }
+      if (pendingVerificationPhone && settingsPhoneVerifyView && settingsPhoneVerifyView.style.display === 'block') {
+        if (settingsPhoneVerifiedView) settingsPhoneVerifiedView.style.display = 'none';
+        if (settingsPhoneRequestView) settingsPhoneRequestView.style.display = 'none';
+      } else {
+        if (settingsPhoneVerifiedView) settingsPhoneVerifiedView.style.display = 'none';
+        if (settingsPhoneRequestView) settingsPhoneRequestView.style.display = 'block';
+        if (settingsPhoneVerifyView) settingsPhoneVerifyView.style.display = 'none';
+      }
+      if (settingsCancelChangeRow) settingsCancelChangeRow.style.display = 'none';
+    }
+  }
+
+  function validateE164Format(raw) {
+    if (!raw || typeof raw !== 'string') return false;
+    const clean = raw.trim();
+    if (!clean.startsWith('+')) return false;
+    if (/[a-zA-Z]/.test(clean)) return false;
+    const digitsOnly = clean.replace(/\D/g, '');
+    return digitsOnly.length >= 7 && digitsOnly.length <= 15;
+  }
+
+  // Change Phone Button
+  if (changePhoneBtn) {
+    changePhoneBtn.addEventListener('click', () => {
+      if (settingsPhoneAlert) hideAlert(settingsPhoneAlert);
+      if (settingsPhoneVerifiedView) settingsPhoneVerifiedView.style.display = 'none';
+      if (settingsPhoneVerifyView) settingsPhoneVerifyView.style.display = 'none';
+      if (settingsPhoneRequestView) settingsPhoneRequestView.style.display = 'block';
+      if (settingsCancelChangeRow) settingsCancelChangeRow.style.display = 'block';
+      if (settingsPhoneInput) {
+        settingsPhoneInput.value = '';
+        settingsPhoneInput.focus();
+      }
+    });
+  }
+
+  // Cancel Change Button
+  if (cancelChangePhoneBtn) {
+    cancelChangePhoneBtn.addEventListener('click', () => {
+      if (settingsPhoneAlert) hideAlert(settingsPhoneAlert);
+      renderPhoneSectionUi(currentPhoneData);
+    });
+  }
+
+  // Edit Phone from OTP Screen Button
+  if (editPhoneInputBtn) {
+    editPhoneInputBtn.addEventListener('click', () => {
+      if (settingsPhoneAlert) hideAlert(settingsPhoneAlert);
+      if (settingsPhoneVerifyView) settingsPhoneVerifyView.style.display = 'none';
+      if (settingsPhoneRequestView) settingsPhoneRequestView.style.display = 'block';
+      if (currentPhoneData.phoneVerified && settingsCancelChangeRow) {
+        settingsCancelChangeRow.style.display = 'block';
+      }
+      if (settingsPhoneInput) {
+        if (pendingVerificationPhone) settingsPhoneInput.value = pendingVerificationPhone;
+        settingsPhoneInput.focus();
+      }
+    });
+  }
+
+  // Send Code Handler
+  async function handleSendPhoneCode() {
+    if (!settingsPhoneInput) return;
+    const rawNumber = settingsPhoneInput.value.trim();
+
+    if (!validateE164Format(rawNumber)) {
+      showAlert(
+        settingsPhoneAlert,
+        'Phone number must include an international country code starting with "+" (e.g. +919876543210 or +14155552671)',
+        'error'
+      );
+      settingsPhoneInput.focus();
+      return;
+    }
+
+    try {
+      hideAlert(settingsPhoneAlert);
+      sendPhoneCodeBtn.disabled = true;
+      sendPhoneCodeBtn.dataset.origText = sendPhoneCodeBtn.textContent;
+      sendPhoneCodeBtn.textContent = 'Sending...';
+
+      const res = await api('/auth/phone/start-verification', {
+        method: 'POST',
+        body: JSON.stringify({ phoneNumber: rawNumber })
+      });
+
+      pendingVerificationPhone = rawNumber;
+      if (settingsPhoneMasked) {
+        settingsPhoneMasked.textContent = res.phoneMasked || rawNumber;
+      }
+
+      if (settingsPhoneRequestView) settingsPhoneRequestView.style.display = 'none';
+      if (settingsPhoneVerifyView) settingsPhoneVerifyView.style.display = 'block';
+      if (settingsPhoneOtpInput) {
+        settingsPhoneOtpInput.value = '';
+        settingsPhoneOtpInput.focus();
+      }
+
+      startPhoneCooldown(res.cooldownSeconds || 60);
+      showAlert(settingsPhoneAlert, res.message || 'Verification code sent', 'success');
+    } catch (err) {
+      showAlert(settingsPhoneAlert, err.message || 'Failed to send verification code', 'error');
+    } finally {
+      if (sendPhoneCodeBtn) {
+        sendPhoneCodeBtn.disabled = false;
+        sendPhoneCodeBtn.textContent = sendPhoneCodeBtn.dataset.origText || 'Send Code';
+      }
+    }
+  }
+
+  if (sendPhoneCodeBtn) {
+    sendPhoneCodeBtn.addEventListener('click', handleSendPhoneCode);
+  }
+
+  // Resend Code Handler
+  if (resendPhoneCodeBtn) {
+    resendPhoneCodeBtn.addEventListener('click', async () => {
+      if (!pendingVerificationPhone) return;
+      try {
+        hideAlert(settingsPhoneAlert);
+        resendPhoneCodeBtn.disabled = true;
+        resendPhoneCodeBtn.textContent = 'Sending...';
+
+        const res = await api('/auth/phone/start-verification', {
+          method: 'POST',
+          body: JSON.stringify({ phoneNumber: pendingVerificationPhone })
+        });
+
+        startPhoneCooldown(res.cooldownSeconds || 60);
+        showAlert(settingsPhoneAlert, res.message || 'A new verification code has been sent', 'success');
+      } catch (err) {
+        showAlert(settingsPhoneAlert, err.message || 'Failed to resend code', 'error');
+        resendPhoneCodeBtn.disabled = false;
+        resendPhoneCodeBtn.textContent = 'Resend code';
+      }
+    });
+  }
+
+  // Verify Code Handler
+  async function handleVerifyPhoneCode() {
+    if (!settingsPhoneOtpInput) return;
+    const otp = settingsPhoneOtpInput.value.trim();
+
+    if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
+      showAlert(settingsPhoneAlert, 'Verification code must be a 6-digit number', 'error');
+      settingsPhoneOtpInput.focus();
+      return;
+    }
+
+    try {
+      hideAlert(settingsPhoneAlert);
+      verifyPhoneCodeBtn.disabled = true;
+      verifyPhoneCodeBtn.dataset.origText = verifyPhoneCodeBtn.textContent;
+      verifyPhoneCodeBtn.textContent = 'Verifying...';
+
+      const res = await api('/auth/phone/confirm-verification', {
+        method: 'POST',
+        body: JSON.stringify({
+          otp,
+          phoneNumber: pendingVerificationPhone || undefined
+        })
+      });
+
+      stopPhoneCooldown();
+      pendingVerificationPhone = '';
+
+      if (res && res.user) {
+        currentPhoneData = {
+          phoneNumber: res.user.phoneNumber,
+          phoneVerified: Boolean(res.user.phoneVerified),
+          phoneVerifiedAt: res.user.phoneVerifiedAt || new Date().toISOString()
+        };
+
+        const localUser = getUser();
+        if (localUser) {
+          localUser.phoneNumber = currentPhoneData.phoneNumber;
+          localUser.phoneVerified = currentPhoneData.phoneVerified;
+          localUser.phoneVerifiedAt = currentPhoneData.phoneVerifiedAt;
+          localStorage.setItem('lendlocal_user', JSON.stringify(localUser));
+        }
+      }
+
+      renderPhoneSectionUi(currentPhoneData);
+      showAlert(settingsPhoneAlert, res.message || 'Phone number verified successfully', 'success');
+      if (window.FX) {
+        window.FX.confetti();
+      }
+    } catch (err) {
+      showAlert(settingsPhoneAlert, err.message || 'Invalid verification code', 'error');
+      if (err.message && (err.message.includes('exhausted') || err.message.includes('expired'))) {
+        stopPhoneCooldown();
+        if (settingsPhoneVerifyView) settingsPhoneVerifyView.style.display = 'none';
+        if (settingsPhoneRequestView) settingsPhoneRequestView.style.display = 'block';
+      }
+    } finally {
+      if (verifyPhoneCodeBtn) {
+        verifyPhoneCodeBtn.disabled = false;
+        verifyPhoneCodeBtn.textContent = verifyPhoneCodeBtn.dataset.origText || 'Verify Code';
+      }
+    }
+  }
+
+  if (verifyPhoneCodeBtn) {
+    verifyPhoneCodeBtn.addEventListener('click', handleVerifyPhoneCode);
+  }
+
+  if (settingsPhoneOtpInput) {
+    settingsPhoneOtpInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleVerifyPhoneCode();
+      }
+    });
+  }
+
+  // Remove Phone Handler
+  if (removePhoneBtn) {
+    removePhoneBtn.addEventListener('click', async () => {
+      const confirmed = window.confirm(
+        'Are you sure you want to remove your verified phone number? You will no longer be able to recover your account via SMS.'
+      );
+      if (!confirmed) return;
+
+      try {
+        hideAlert(settingsPhoneAlert);
+        removePhoneBtn.disabled = true;
+        removePhoneBtn.textContent = 'Removing...';
+
+        const res = await api('/auth/phone', { method: 'DELETE' });
+
+        stopPhoneCooldown();
+        pendingVerificationPhone = '';
+        currentPhoneData = {
+          phoneNumber: null,
+          phoneVerified: false,
+          phoneVerifiedAt: null
+        };
+
+        const localUser = getUser();
+        if (localUser) {
+          localUser.phoneNumber = null;
+          localUser.phoneVerified = false;
+          localUser.phoneVerifiedAt = null;
+          localStorage.setItem('lendlocal_user', JSON.stringify(localUser));
+        }
+
+        if (settingsPhoneInput) settingsPhoneInput.value = '';
+        renderPhoneSectionUi(currentPhoneData);
+        showAlert(settingsPhoneAlert, res.message || 'Phone number removed successfully', 'success');
+      } catch (err) {
+        showAlert(settingsPhoneAlert, err.message || 'Failed to remove phone number', 'error');
+      } finally {
+        if (removePhoneBtn) {
+          removePhoneBtn.disabled = false;
+          removePhoneBtn.textContent = 'Remove';
+        }
+      }
+    });
+  }
+
   let settingsModalLastFocus = null;
   let settingsFocusTimeout;
 
   function openSettingsModal() {
+    closeSidebar();
     settingsModalLastFocus = document.activeElement;
     hideAlert(settingsAlert);
+    if (settingsPhoneAlert) hideAlert(settingsPhoneAlert);
     upiIdInput.value = '';
     settingsModal.classList.add('open');
     document.body.classList.add('modal-open');
+
+    // Ensure settings modal always starts at top of scrollable content
+    const modalBody = settingsModal.querySelector('.modal-body-scroll');
+    if (modalBody) {
+      modalBody.scrollTop = 0;
+    }
+
     if (window.syncNotificationSettingsUi) {
       window.syncNotificationSettingsUi();
     }
+
     clearTimeout(settingsFocusTimeout);
     settingsFocusTimeout = setTimeout(() => {
-      if (settingsModal.classList.contains('open')) upiIdInput.focus();
+      if (settingsModal.classList.contains('open')) {
+        // Place initial focus on close button without auto-scrolling to UPI section
+        if (closeSettingsBtn) {
+          closeSettingsBtn.focus({ preventScroll: true });
+        }
+      }
     }, 50);
+
     upiIdInput.placeholder = 'Loading...';
 
     api('/auth/me', { method: 'GET' })
       .then(data => {
         upiIdInput.placeholder = 'username@bank';
-        if (data && data.user && data.user.upiId) {
-          upiIdInput.value = data.user.upiId;
+        if (data && data.user) {
+          if (data.user.upiId) {
+            upiIdInput.value = data.user.upiId;
+          }
+          currentPhoneData = {
+            phoneNumber: data.user.phoneNumber || null,
+            phoneVerified: Boolean(data.user.phoneVerified),
+            phoneVerifiedAt: data.user.phoneVerifiedAt || null
+          };
+          renderPhoneSectionUi(currentPhoneData);
         }
       })
       .catch(err => {
@@ -813,6 +1421,8 @@ if (!requireAuth()) {
       document.body.classList.remove('modal-open');
     }
     clearTimeout(settingsFocusTimeout);
+    hideAlert(settingsAlert);
+    if (settingsPhoneAlert) hideAlert(settingsPhoneAlert);
     restoreFocusSafe(settingsModalLastFocus);
   }
 
@@ -827,13 +1437,29 @@ if (!requireAuth()) {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (settingsModal?.classList.contains('open')) {
+      if (dashboardSidebar?.classList.contains('open')) {
+        closeSidebar();
+      } else if (settingsModal?.classList.contains('open')) {
         closeSettings();
       } else if (createModal?.classList.contains('open')) {
         closeCreateModal();
       }
     }
   });
+
+  const installAppBtn = document.getElementById('installAppBtn');
+  if (installAppBtn) {
+    installAppBtn.addEventListener('click', () => {
+      closeSidebar();
+    });
+  }
+
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      closeSidebar();
+    });
+  }
 
   if (saveSettingsBtn) {
     saveSettingsBtn.addEventListener('click', async () => {
@@ -858,7 +1484,7 @@ if (!requireAuth()) {
   }
 
   /* =========================================================
-     MONTHLY SPENDING ANALYTICS
+     MONTHLY SPENDING ANALYTICS & RECENT ACTIVITY
   ========================================================= */
 
   let analyticsYear = new Date().getFullYear();
@@ -867,6 +1493,11 @@ if (!requireAuth()) {
   const prevMonthBtn = document.getElementById('prevMonthBtn');
   const nextMonthBtn = document.getElementById('nextMonthBtn');
   const currentMonthLabel = document.getElementById('currentMonthLabel');
+
+  const analyticsPrevMonthBtn = document.getElementById('analyticsPrevMonthBtn');
+  const analyticsNextMonthBtn = document.getElementById('analyticsNextMonthBtn');
+  const analyticsMonthLabel = document.getElementById('analyticsMonthLabel');
+
   const analyticsLoading = document.getElementById('analyticsLoading');
   const analyticsError = document.getElementById('analyticsError');
   const analyticsContent = document.getElementById('analyticsContent');
@@ -879,24 +1510,39 @@ if (!requireAuth()) {
   const analyticsDailyTrendChart = document.getElementById('analyticsDailyTrendChart');
   const trendEndDayLabel = document.getElementById('trendEndDayLabel');
   const analyticsRecentList = document.getElementById('analyticsRecentList');
+  const dashboardRecentActivityList = document.getElementById('dashboardRecentActivityList');
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
-  async function loadMonthlyAnalytics(year, month) {
-    if (!currentMonthLabel) return;
+  function getCategoryEmoji(cat) {
+    const c = String(cat || '').toLowerCase();
+    if (c.includes('food') || c.includes('dinner') || c.includes('lunch') || c.includes('cafe')) return '🍔';
+    if (c.includes('transport') || c.includes('travel') || c.includes('cab') || c.includes('fuel')) return '🚗';
+    if (c.includes('grocer') || c.includes('supermarket')) return '🛒';
+    if (c.includes('rent') || c.includes('house') || c.includes('home')) return '🏠';
+    if (c.includes('util') || c.includes('bill') || c.includes('wifi') || c.includes('electricity')) return '💡';
+    if (c.includes('movie') || c.includes('event') || c.includes('fun') || c.includes('game')) return '🎬';
+    return '📦';
+  }
 
+  async function loadMonthlyAnalytics(year, month) {
     const now = new Date();
     const isCurrentOrFuture = year > now.getFullYear() || (year === now.getFullYear() && month >= now.getMonth() + 1);
 
-    currentMonthLabel.textContent = `${monthNames[month - 1].slice(0, 3)} ${year}`;
-    if (nextMonthBtn) {
-      nextMonthBtn.disabled = isCurrentOrFuture;
-      nextMonthBtn.style.opacity = isCurrentOrFuture ? '0.4' : '1';
-      nextMonthBtn.style.cursor = isCurrentOrFuture ? 'not-allowed' : 'pointer';
-    }
+    const monthText = `${monthNames[month - 1].slice(0, 3)} ${year}`;
+    if (currentMonthLabel) currentMonthLabel.textContent = monthText;
+    if (analyticsMonthLabel) analyticsMonthLabel.textContent = monthText;
+
+    [nextMonthBtn, analyticsNextMonthBtn].forEach(btn => {
+      if (btn) {
+        btn.disabled = isCurrentOrFuture;
+        btn.style.opacity = isCurrentOrFuture ? '0.4' : '1';
+        btn.style.cursor = isCurrentOrFuture ? 'not-allowed' : 'pointer';
+      }
+    });
 
     if (analyticsLoading) analyticsLoading.style.display = 'block';
     if (analyticsError) analyticsError.style.display = 'none';
@@ -982,7 +1628,7 @@ if (!requireAuth()) {
         }
       }
 
-      // Recent Expenses
+      // Detailed Monthly Expenses List (in Analytics View)
       if (analyticsRecentList) {
         if (!data.recentExpenses || data.recentExpenses.length === 0) {
           analyticsRecentList.innerHTML = '<p style="color: var(--ll-text-muted); font-size: 0.875rem;">No expenses found for this month.</p>';
@@ -1011,6 +1657,52 @@ if (!requireAuth()) {
         }
       }
 
+      // Homepage Recent Activity Feed
+      if (dashboardRecentActivityList) {
+        if (!data.recentExpenses || data.recentExpenses.length === 0) {
+          dashboardRecentActivityList.innerHTML = `
+            <div class="empty-activity-card">
+              <span class="empty-activity-icon" aria-hidden="true">🧾</span>
+              <div>
+                <strong style="display: block; color: var(--ll-text); font-size: 0.9rem;">No recent expenses recorded</strong>
+                <p style="margin-top: 0.2rem; font-size: 0.8rem; color: var(--ll-text-muted);">Shared expenses you add or participate in will appear here.</p>
+              </div>
+            </div>
+          `;
+        } else {
+          const recentItems = data.recentExpenses.slice(0, 6);
+          dashboardRecentActivityList.innerHTML = recentItems.map((ex) => {
+            const dateStr = new Date(ex.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const catEmoji = getCategoryEmoji(ex.category);
+            return `
+              <div class="recent-expense-card">
+                <div class="recent-expense-left">
+                  <span class="category-icon-pill" aria-hidden="true">${catEmoji}</span>
+                  <div style="min-width: 0;">
+                    <div class="recent-expense-title">${escapeHtml(ex.description)}</div>
+                    <div class="recent-expense-meta">
+                      <span class="group-tag">${escapeHtml(ex.groupName)}</span>
+                      <span>&bull;</span>
+                      <span>${escapeHtml(ex.category)}</span>
+                      <span>&bull;</span>
+                      <span>${dateStr}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="recent-expense-right">
+                  <div class="recent-expense-amount">
+                    ${formatMoney(ex.userShare > 0 ? ex.userShare : ex.totalAmount)}
+                  </div>
+                  <div class="recent-expense-status ${ex.isPayer ? 'paid-by-you' : 'share-label'}">
+                    ${ex.isPayer ? 'You paid ' + formatMoney(ex.totalAmount) : 'Your share: ' + formatMoney(ex.userShare)}
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+
     } catch (err) {
       console.error('Failed to load monthly analytics:', err);
       if (analyticsError) {
@@ -1024,33 +1716,34 @@ if (!requireAuth()) {
     }
   }
 
-  if (prevMonthBtn) {
-    prevMonthBtn.addEventListener('click', () => {
-      if (analyticsMonth === 1) {
-        analyticsMonth = 12;
-        analyticsYear -= 1;
-      } else {
-        analyticsMonth -= 1;
-      }
-      loadMonthlyAnalytics(analyticsYear, analyticsMonth);
-    });
+  function handlePrevMonth() {
+    if (analyticsMonth === 1) {
+      analyticsMonth = 12;
+      analyticsYear -= 1;
+    } else {
+      analyticsMonth -= 1;
+    }
+    loadMonthlyAnalytics(analyticsYear, analyticsMonth);
   }
 
-  if (nextMonthBtn) {
-    nextMonthBtn.addEventListener('click', () => {
-      const now = new Date();
-      if (analyticsYear > now.getFullYear() || (analyticsYear === now.getFullYear() && analyticsMonth >= now.getMonth() + 1)) {
-        return; // Prevent navigating to future months
-      }
-      if (analyticsMonth === 12) {
-        analyticsMonth = 1;
-        analyticsYear += 1;
-      } else {
-        analyticsMonth += 1;
-      }
-      loadMonthlyAnalytics(analyticsYear, analyticsMonth);
-    });
+  function handleNextMonth() {
+    const now = new Date();
+    if (analyticsYear > now.getFullYear() || (analyticsYear === now.getFullYear() && analyticsMonth >= now.getMonth() + 1)) {
+      return;
+    }
+    if (analyticsMonth === 12) {
+      analyticsMonth = 1;
+      analyticsYear += 1;
+    } else {
+      analyticsMonth += 1;
+    }
+    loadMonthlyAnalytics(analyticsYear, analyticsMonth);
   }
+
+  if (prevMonthBtn) prevMonthBtn.addEventListener('click', handlePrevMonth);
+  if (analyticsPrevMonthBtn) analyticsPrevMonthBtn.addEventListener('click', handlePrevMonth);
+  if (nextMonthBtn) nextMonthBtn.addEventListener('click', handleNextMonth);
+  if (analyticsNextMonthBtn) analyticsNextMonthBtn.addEventListener('click', handleNextMonth);
 
   /* =========================================================
      BACKGROUND RESUME

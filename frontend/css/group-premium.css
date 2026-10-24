@@ -160,17 +160,51 @@ body.ll-group-page .logo-icon {
   color: #000 !important;
 }
 
+/* User area pill */
+body.ll-group-page .user-area {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.55rem !important;
+  padding: 0.28rem 0.65rem 0.28rem 0.35rem !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 999px !important;
+  max-width: 220px !important;
+  min-width: 0 !important;
+  transition: all 0.2s var(--ll-ease) !important;
+  cursor: default !important;
+}
+
 /* User avatar */
 body.ll-group-page .user-avatar {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  min-height: 30px !important;
+  border-radius: 50% !important;
+  display: grid !important;
+  place-items: center !important;
+  font-size: 0.82rem !important;
+  font-weight: 700 !important;
   background: var(--ll-brand-dim) !important;
   color: var(--ll-brand) !important;
-  border: 1px solid rgba(16, 185, 129, 0.25) !important;
-  font-family: var(--ll-font-display) !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  flex-shrink: 0 !important;
+  text-transform: uppercase !important;
 }
 
 /* User chip text */
 body.ll-group-page .user-chip {
-  color: var(--ll-text-muted) !important;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  color: var(--ll-text) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 140px !important;
+  line-height: 1.2 !important;
+  display: inline-block !important;
+  min-width: 0 !important;
 }
 
 /* Logout button */
@@ -1379,21 +1413,22 @@ body.modal-open {
     font-size: 0.8rem !important;
   }
   body.ll-group-page .user-area {
-    width: auto !important;
-    margin-bottom: 0 !important;
+    padding: 0.2rem 0.5rem 0.2rem 0.25rem !important;
+    max-width: 145px !important;
     gap: 0.35rem !important;
+    margin-bottom: 0 !important;
   }
   body.ll-group-page .user-avatar {
-    width: 32px !important;
-    height: 32px !important;
-    font-size: 0.85rem !important;
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    min-height: 26px !important;
+    font-size: 0.75rem !important;
   }
   body.ll-group-page .user-chip {
-    max-width: 80px !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
     font-size: 0.78rem !important;
+    max-width: 90px !important;
+    display: inline-block !important;
   }
 
   /* COMPACT SUMMARY CARDS GRID WITH ACCESSIBLE REFLOW */
@@ -1480,7 +1515,7 @@ body.modal-open {
 
 @media (max-width: 380px) {
   body.ll-group-page .user-chip {
-    display: none !important;
+    max-width: 60px !important;
   }
   body.ll-group-page .modern-stat {
     padding: 0.6rem 0.45rem !important;

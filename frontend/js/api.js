@@ -266,7 +266,14 @@ function wireLogout() {
 function fillUserChip() {
   const chip = document.getElementById('userChip');
   const user = getUser();
-  if (chip && user) chip.textContent = user.name;
+  if (chip && user) {
+    const displayName = (user.name || user.email || 'User').trim();
+    chip.textContent = displayName;
+    chip.title = displayName;
+    if (chip.parentElement) {
+      chip.parentElement.title = `Signed in as ${displayName}`;
+    }
+  }
 }
 
 function restoreFocusSafe(el) {

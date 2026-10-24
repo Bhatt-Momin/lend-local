@@ -6,14 +6,20 @@
 body.ll-dashboard-page .balance-card {
   background: var(--ll-surface) !important;
   border: 1px solid var(--ll-border) !important;
-  border-radius: 24px !important;
-  padding: 3rem !important;
+  border-radius: 20px !important;
+  padding: 1.75rem 1.5rem !important;
   text-align: center !important;
   position: relative !important;
   overflow: hidden !important;
-  margin-bottom: 3rem !important;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.4) !important;
-  display: block !important;
+  margin-bottom: 1.25rem !important;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: auto !important;
+  min-height: auto !important;
+  box-sizing: border-box !important;
 }
 
 body.ll-dashboard-page .balance-card::before {
@@ -23,26 +29,41 @@ body.ll-dashboard-page .balance-card::before {
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent) !important;
 }
 
+body.ll-dashboard-page .balance-info {
+  position: relative !important;
+  z-index: 2 !important;
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
 body.ll-dashboard-page .balance-label {
   font-size: 0.75rem !important;
   text-transform: uppercase !important;
-  letter-spacing: 2px !important;
+  letter-spacing: 1.5px !important;
   color: var(--ll-text-muted) !important;
-  margin-bottom: 1rem !important;
+  margin-bottom: 0.4rem !important;
   font-weight: 600 !important;
   display: block !important;
+  line-height: 1.2 !important;
 }
 
 body.ll-dashboard-page .net-balance {
   font-family: var(--ll-font-mono) !important;
-  font-size: clamp(3rem, 8vw, 4.5rem) !important;
-  font-weight: 300 !important;
-  color: var(--ll-text) !important; /* Not always positive, it should inherit its own color based on class in JS, wait, JS sets color? Let's check JS */
-  letter-spacing: -0.05em !important;
-  line-height: 1 !important;
-  margin-bottom: 0.5rem !important;
+  font-size: clamp(2rem, 7vw, 3.5rem) !important;
+  font-weight: 700 !important;
+  color: var(--ll-text) !important;
+  letter-spacing: -0.03em !important;
+  line-height: 1.15 !important;
+  margin: 0 0 0.5rem 0 !important;
+  word-break: break-word !important;
+  max-width: 100% !important;
+  text-align: center !important;
 }
-/* If the JS doesn't add positive/negative classes to #netBalance, we'll just keep it text color or positive based on JS class. Let's provide classes just in case */
+
 body.ll-dashboard-page .net-balance.positive {
   color: var(--ll-positive) !important;
   text-shadow: 0 0 30px rgba(52, 211, 153, 0.2) !important;
@@ -53,19 +74,50 @@ body.ll-dashboard-page .net-balance.negative {
 }
 
 body.ll-dashboard-page .balance-status {
-  color: var(--ll-text-muted) !important;
-  font-size: 0.875rem !important;
-  font-weight: 500 !important;
-  margin-bottom: 0 !important;
-  letter-spacing: 1px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0.35rem 0.85rem !important;
+  border-radius: 99px !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.5px !important;
   text-transform: uppercase !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--ll-text-muted) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  line-height: 1 !important;
+  margin: 0 auto !important;
+  text-align: center !important;
 }
-body.ll-dashboard-page .balance-status.positive { color: var(--ll-positive) !important; }
-body.ll-dashboard-page .balance-status.negative { color: var(--ll-negative) !important; }
+body.ll-dashboard-page .balance-status.positive {
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: var(--ll-positive) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+body.ll-dashboard-page .balance-status.negative {
+  background: rgba(251, 113, 133, 0.12) !important;
+  color: var(--ll-negative) !important;
+  border-color: rgba(251, 113, 133, 0.3) !important;
+}
 
-/* Redecorate the circles in balance card to look like subtle glows */
+/* Decorative circles in balance card: subtle, non-interactive, strictly layered behind content */
+body.ll-dashboard-page .balance-decoration {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  z-index: 1 !important;
+  overflow: hidden !important;
+  opacity: 0.25 !important;
+}
+
 body.ll-dashboard-page .balance-decoration .circle {
   border-color: rgba(255, 255, 255, 0.05) !important;
+  pointer-events: none !important;
 }
 
 /* Groups Section Header */
@@ -252,22 +304,113 @@ body.ll-dashboard-page .modern-group-card .balance-pill.settled {
   justify-content: center !important;
 }
 
-/* Mobile arrangement */
-@media (max-width: 760px) {
-  body.ll-dashboard-page .modern-group-card .group-balance {
-    padding-left: 0 !important;
-    padding-top: 1rem !important;
-    border-left: none !important;
-    border-top: 1px solid var(--ll-border) !important;
-    align-items: flex-start !important;
-    flex-direction: column !important;
-    width: 100% !important;
-    margin-top: 0.5rem !important;
+/* Mobile arrangement for group cards */
+@media (max-width: 768px) {
+  body.ll-dashboard-page .modern-group-card {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 0.75rem 0.85rem !important;
+    margin-bottom: 0.5rem !important;
+    border-radius: 14px !important;
+    background: var(--ll-surface) !important;
+    border: 1px solid var(--ll-border) !important;
+    gap: 0.75rem !important;
+    text-decoration: none !important;
+    transform: none !important;
+    min-height: auto !important;
   }
+
+  body.ll-dashboard-page .modern-group-card .group-icon {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    border-radius: 10px !important;
+    font-size: 1.05rem !important;
+    font-weight: 700 !important;
+    flex-shrink: 0 !important;
+    display: grid !important;
+    place-items: center !important;
+  }
+
+  body.ll-dashboard-page .modern-group-card .group-main {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+  }
+
+  body.ll-dashboard-page .modern-group-card .group-main h3 {
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    color: #fff !important;
+    margin: 0 0 0.15rem 0 !important;
+    line-height: 1.3 !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  body.ll-dashboard-page .modern-group-card .group-main .meta {
+    font-size: 0.75rem !important;
+    color: var(--ll-text-muted) !important;
+    line-height: 1.25 !important;
+    margin-top: 0 !important;
+    word-break: break-word !important;
+  }
+
+  body.ll-dashboard-page .modern-group-card .group-balance {
+    flex-shrink: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    min-width: 0 !important;
+  }
+
+  body.ll-dashboard-page .modern-group-card .group-balance-label {
+    display: none !important;
+  }
+
   body.ll-dashboard-page .modern-group-card .balance-pill {
-    align-items: flex-start !important;
-    text-align: left !important;
-    padding: 0.75rem 0 !important;
+    display: inline-flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    padding: 0.35rem 0.6rem !important;
+    border-radius: 8px !important;
+    gap: 0.1rem !important;
+    max-width: 120px !important;
+    text-align: right !important;
+    white-space: nowrap !important;
+  }
+
+  body.ll-dashboard-page .modern-group-card .balance-pill.settled {
+    padding: 0.35rem 0.65rem !important;
+    align-items: center !important;
+    text-align: center !important;
+  }
+
+  body.ll-dashboard-page .modern-group-card .balance-pill .bal-status {
+    font-size: 0.68rem !important;
+    line-height: 1 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    opacity: 0.9 !important;
+    white-space: nowrap !important;
+  }
+
+  body.ll-dashboard-page .modern-group-card .balance-pill .bal-amount {
+    font-size: 0.95rem !important;
+    font-family: var(--ll-font-mono) !important;
+    font-weight: 700 !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
   }
 }
 
@@ -597,6 +740,1096 @@ body.ll-dashboard-page .settings-modal-card .btn-ghost {
     gap: 0.5rem !important;
   }
   body.ll-dashboard-page .modern-modal-actions .btn {
+    width: 100% !important;
+  }
+}
+
+/* ============================================================
+   MOBILE-FIRST DASHBOARD REDESIGN & SIDEBAR NAVIGATION
+   ============================================================ */
+
+body.ll-dashboard-page {
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+
+body.ll-dashboard-page * {
+  box-sizing: border-box !important;
+}
+
+body.ll-dashboard-page .app-header-inner {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0.75rem 1.25rem !important;
+  max-width: 1200px !important;
+  margin: 0 auto !important;
+  gap: 1rem !important;
+  box-sizing: border-box !important;
+}
+
+body.ll-dashboard-page .header-left {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0.75rem !important;
+  min-width: 0 !important;
+  flex: 0 1 auto !important;
+}
+
+body.ll-dashboard-page .modern-logo {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: auto !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  gap: 0.65rem !important;
+  min-width: 0 !important;
+  flex: 0 1 auto !important;
+  text-decoration: none !important;
+  color: var(--ll-text) !important;
+}
+
+body.ll-dashboard-page .header-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  flex-shrink: 0 !important;
+}
+
+body.ll-dashboard-page .user-area {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.55rem !important;
+  padding: 0.28rem 0.65rem 0.28rem 0.35rem !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 999px !important;
+  max-width: 220px !important;
+  min-width: 0 !important;
+  transition: all 0.2s var(--ll-ease) !important;
+  cursor: default !important;
+}
+
+body.ll-dashboard-page .user-avatar {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  min-height: 30px !important;
+  border-radius: 50% !important;
+  display: grid !important;
+  place-items: center !important;
+  font-size: 0.82rem !important;
+  font-weight: 700 !important;
+  background: var(--ll-brand-dim) !important;
+  color: var(--ll-brand) !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  flex-shrink: 0 !important;
+  text-transform: uppercase !important;
+}
+
+body.ll-dashboard-page .user-chip {
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  color: var(--ll-text) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 140px !important;
+  line-height: 1.2 !important;
+  display: inline-block !important;
+  min-width: 0 !important;
+}
+
+/* Hamburger button */
+body.ll-dashboard-page .btn-hamburger {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--ll-border) !important;
+  color: var(--ll-text) !important;
+  font-size: 1.35rem !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  transition: all 0.2s var(--ll-ease) !important;
+  padding: 0 !important;
+  outline: none !important;
+}
+
+body.ll-dashboard-page .btn-hamburger:hover {
+  background: var(--ll-surface-raised) !important;
+  border-color: var(--ll-border-bright) !important;
+  color: #fff !important;
+  transform: translateY(-1px) !important;
+}
+
+body.ll-dashboard-page .btn-hamburger:active {
+  transform: translateY(0) !important;
+}
+
+body.ll-dashboard-page .btn-hamburger:focus-visible {
+  border-color: var(--ll-brand) !important;
+  box-shadow: 0 0 0 3px var(--ll-brand-glow) !important;
+}
+
+/* Sidebar Backdrop */
+body.ll-dashboard-page .sidebar-backdrop {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.65) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+  z-index: 1050 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+body.ll-dashboard-page .sidebar-backdrop.open {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* Sidebar Drawer */
+body.ll-dashboard-page .dashboard-sidebar {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  width: min(310px, 86vw) !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  background: #0f172a !important;
+  background: linear-gradient(180deg, #111827 0%, #0b0f17 100%) !important;
+  border-right: 1px solid var(--ll-border) !important;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.8) !important;
+  z-index: 1060 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  transform: translateX(-100%) !important;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  padding-top: env(safe-area-inset-top, 0px) !important;
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+}
+
+body.ll-dashboard-page .dashboard-sidebar.open {
+  transform: translateX(0) !important;
+}
+
+/* Sidebar Header */
+body.ll-dashboard-page .sidebar-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 1.25rem 1.25rem 1rem !important;
+  border-bottom: 1px solid var(--ll-border) !important;
+  flex-shrink: 0 !important;
+}
+
+body.ll-dashboard-page .sidebar-brand {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.65rem !important;
+}
+
+body.ll-dashboard-page .sidebar-logo-icon {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 7px !important;
+}
+
+body.ll-dashboard-page .sidebar-brand-name {
+  font-size: 1.15rem !important;
+  font-weight: 700 !important;
+  color: #fff !important;
+  letter-spacing: -0.02em !important;
+}
+
+body.ll-dashboard-page .sidebar-close-btn {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--ll-border) !important;
+  color: var(--ll-text-muted) !important;
+  font-size: 1rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s var(--ll-ease) !important;
+  padding: 0 !important;
+}
+
+body.ll-dashboard-page .sidebar-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
+  border-color: var(--ll-border-bright) !important;
+}
+
+body.ll-dashboard-page .sidebar-close-btn:focus-visible {
+  border-color: var(--ll-brand) !important;
+  outline: none !important;
+}
+
+/* Sidebar Body (Flex Column layout so nav takes available space, logout stays at bottom) */
+body.ll-dashboard-page .sidebar-body {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 1rem 0.85rem !important;
+  box-sizing: border-box !important;
+  justify-content: space-between !important;
+}
+
+body.ll-dashboard-page .sidebar-nav {
+  flex: 1 1 auto !important;
+}
+
+body.ll-dashboard-page .sidebar-menu {
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.35rem !important;
+}
+
+body.ll-dashboard-page .sidebar-item {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.85rem !important;
+  padding: 0.75rem 1rem !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: var(--ll-text) !important;
+  font-size: 0.925rem !important;
+  font-weight: 500 !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  transition: all 0.18s var(--ll-ease) !important;
+  box-sizing: border-box !important;
+  min-height: 44px !important;
+  text-decoration: none !important;
+}
+
+body.ll-dashboard-page .sidebar-item:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: var(--ll-border) !important;
+  color: #fff !important;
+  transform: translateX(2px) !important;
+}
+
+body.ll-dashboard-page .sidebar-item:active {
+  transform: translateX(0) !important;
+}
+
+body.ll-dashboard-page .sidebar-item:focus-visible {
+  border-color: var(--ll-brand) !important;
+  box-shadow: 0 0 0 2px var(--ll-brand-glow) !important;
+  outline: none !important;
+}
+
+body.ll-dashboard-page .sidebar-item .sidebar-icon,
+body.ll-dashboard-page .sidebar-item .nav-icon {
+  font-size: 1.15rem !important;
+  line-height: 1 !important;
+  width: 22px !important;
+  text-align: center !important;
+  display: inline-block !important;
+  flex-shrink: 0 !important;
+}
+
+body.ll-dashboard-page .sidebar-item .sidebar-label,
+body.ll-dashboard-page .sidebar-item .nav-label {
+  font-size: 0.925rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.1px !important;
+}
+
+/* Install App item in sidebar */
+body.ll-dashboard-page .sidebar-item#installAppBtn {
+  color: var(--ll-brand) !important;
+  background: rgba(16, 185, 129, 0.06) !important;
+  border: 1px solid rgba(16, 185, 129, 0.2) !important;
+}
+
+body.ll-dashboard-page .sidebar-item#installAppBtn:hover {
+  background: rgba(16, 185, 129, 0.14) !important;
+  border-color: var(--ll-brand) !important;
+  color: #fff !important;
+}
+
+/* Sidebar Footer (Isolated Logout Button at Bottom) */
+body.ll-dashboard-page .sidebar-footer {
+  margin-top: 1.25rem !important;
+  padding-top: 1rem !important;
+  border-top: 1px solid var(--ll-border) !important;
+  flex-shrink: 0 !important;
+}
+
+body.ll-dashboard-page .sidebar-item-logout {
+  color: var(--ll-negative) !important;
+  background: rgba(251, 113, 133, 0.05) !important;
+  border: 1px solid rgba(251, 113, 133, 0.18) !important;
+}
+
+body.ll-dashboard-page .sidebar-item-logout:hover {
+  background: rgba(251, 113, 133, 0.15) !important;
+  border-color: var(--ll-negative) !important;
+  color: #fff !important;
+}
+
+/* Prevent body scrolling while sidebar is open */
+body.ll-dashboard-page.sidebar-open {
+  overflow: hidden !important;
+}
+
+
+/* Compact Layout & Reduced Spacing for Mobile First */
+body.ll-dashboard-page .dashboard-stats {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 0.75rem !important;
+  margin-bottom: 1.75rem !important;
+}
+
+body.ll-dashboard-page .modern-stat {
+  padding: 0.85rem 0.75rem !important;
+  border-radius: 14px !important;
+  background: var(--ll-surface) !important;
+  border: 1px solid var(--ll-border) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.65rem !important;
+  min-width: 0 !important;
+}
+
+body.ll-dashboard-page .modern-stat .stat-icon {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 0.95rem !important;
+}
+
+body.ll-dashboard-page .modern-stat .label {
+  font-size: 0.7rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  color: var(--ll-text-muted) !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+body.ll-dashboard-page .modern-stat .value {
+  font-family: var(--ll-font-mono) !important;
+  font-size: 1.05rem !important;
+  font-weight: 700 !important;
+  margin-top: 0.15rem !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* ============================================================
+   MOBILE POLISH (<= 768px): COMPACT SINGLE-ROW HEADER & VERTICAL RHYTHM
+   ============================================================ */
+
+@media (max-width: 768px) {
+  /* Container vertical padding reduction */
+  body.ll-dashboard-page main.modern-container {
+    padding-top: 0.75rem !important;
+    padding-bottom: 2.5rem !important;
+    padding-left: 0.85rem !important;
+    padding-right: 0.85rem !important;
+  }
+
+  /* Single-row header */
+  body.ll-dashboard-page .modern-header {
+    padding: 0 !important;
+  }
+
+  body.ll-dashboard-page .app-header-inner {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 0.45rem 0.85rem !important;
+    min-height: 50px !important;
+    height: auto !important;
+    gap: 0.45rem !important;
+    box-sizing: border-box !important;
+  }
+
+  body.ll-dashboard-page .header-left {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 0.5rem !important;
+    min-width: 0 !important;
+    flex: 0 1 auto !important;
+    overflow: hidden !important;
+  }
+
+  body.ll-dashboard-page .btn-hamburger {
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    font-size: 1.15rem !important;
+    flex-shrink: 0 !important;
+    border-radius: 8px !important;
+    margin: 0 !important;
+  }
+
+  body.ll-dashboard-page .modern-logo {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    width: auto !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    gap: 0.45rem !important;
+    min-width: 0 !important;
+    flex: 0 1 auto !important;
+    text-decoration: none !important;
+    overflow: hidden !important;
+  }
+
+  body.ll-dashboard-page .modern-logo .brand-icon {
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    flex-shrink: 0 !important;
+    border-radius: 6px !important;
+  }
+
+  body.ll-dashboard-page .modern-logo .logo-text-wrap {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  body.ll-dashboard-page .modern-logo strong {
+    font-size: 0.95rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.02em !important;
+    color: #fff !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    display: block !important;
+  }
+
+  body.ll-dashboard-page .modern-logo small,
+  body.ll-dashboard-page .tagline-desktop {
+    display: none !important;
+  }
+
+  body.ll-dashboard-page .header-right {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 0.4rem !important;
+    flex-shrink: 0 !important;
+    min-width: 0 !important;
+  }
+
+  body.ll-dashboard-page .user-area {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.35rem !important;
+    padding: 0.2rem 0.5rem 0.2rem 0.22rem !important;
+    max-width: 135px !important;
+    min-width: 0 !important;
+    flex-shrink: 0 !important;
+    border-radius: 999px !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid var(--ll-border) !important;
+  }
+
+  body.ll-dashboard-page .user-avatar {
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    min-height: 26px !important;
+    font-size: 0.75rem !important;
+    flex-shrink: 0 !important;
+  }
+
+  body.ll-dashboard-page .user-chip {
+    font-size: 0.78rem !important;
+    max-width: 80px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    display: inline-block !important;
+    min-width: 0 !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Compact Balance Card: Reduced gaps above and below */
+  body.ll-dashboard-page .balance-card {
+    padding: 1rem 0.85rem !important;
+    margin-bottom: 0.65rem !important;
+    border-radius: 16px !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
+
+  body.ll-dashboard-page .balance-label {
+    font-size: 0.68rem !important;
+    letter-spacing: 1px !important;
+    margin-bottom: 0.2rem !important;
+  }
+
+  body.ll-dashboard-page .net-balance {
+    font-size: clamp(1.65rem, 6.5vw, 2.25rem) !important;
+    margin-bottom: 0.35rem !important;
+  }
+
+  body.ll-dashboard-page .balance-status {
+    font-size: 0.7rem !important;
+    padding: 0.22rem 0.65rem !important;
+  }
+
+  body.ll-dashboard-page .balance-decoration {
+    opacity: 0.15 !important;
+  }
+
+  /* Summary Tiles: Compact, readable, connected layout */
+  body.ll-dashboard-page .dashboard-stats {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.45rem !important;
+    margin-bottom: 1rem !important;
+  }
+
+  body.ll-dashboard-page .modern-stat {
+    padding: 0.55rem 0.45rem !important;
+    border-radius: 12px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.25rem !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  body.ll-dashboard-page .modern-stat .stat-icon {
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    font-size: 0.75rem !important;
+    border-radius: 6px !important;
+  }
+
+  body.ll-dashboard-page .modern-stat .label {
+    font-size: 0.65rem !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0.3px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+  }
+
+  body.ll-dashboard-page .modern-stat .value {
+    font-size: 0.88rem !important;
+    font-family: var(--ll-font-mono) !important;
+    font-weight: 700 !important;
+    margin-top: 0 !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+  }
+
+  /* Section Header & All Groups spacing */
+  body.ll-dashboard-page .groups-section {
+    margin-bottom: 1.5rem !important;
+  }
+
+  body.ll-dashboard-page .section-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    margin-bottom: 0.75rem !important;
+    flex-wrap: wrap !important;
+  }
+
+  body.ll-dashboard-page .section-header h2 {
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.4rem !important;
+  }
+
+  body.ll-dashboard-page .section-header p {
+    font-size: 0.78rem !important;
+    margin: 0.15rem 0 0 !important;
+  }
+
+  body.ll-dashboard-page .activity-indicator {
+    font-size: 0.72rem !important;
+  }
+
+  body.ll-dashboard-page .add-group-btn {
+    padding: 0.4rem 0.75rem !important;
+    font-size: 0.8rem !important;
+    border-radius: var(--ll-radius-sm) !important;
+  }
+
+  /* Recent Activity & Expenses */
+  body.ll-dashboard-page .recent-activity-section {
+    margin-top: 1.25rem !important;
+    margin-bottom: 2rem !important;
+  }
+
+  body.ll-dashboard-page .recent-activity-list {
+    gap: 0.5rem !important;
+    margin-top: 0.65rem !important;
+  }
+
+  body.ll-dashboard-page .recent-expense-card {
+    padding: 0.65rem 0.85rem !important;
+    gap: 0.65rem !important;
+    border-radius: var(--ll-radius-sm) !important;
+  }
+
+  body.ll-dashboard-page .category-icon-pill {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 1rem !important;
+    border-radius: 8px !important;
+  }
+
+  body.ll-dashboard-page .recent-expense-title {
+    font-size: 0.85rem !important;
+  }
+
+  body.ll-dashboard-page .recent-expense-meta {
+    font-size: 0.7rem !important;
+  }
+
+  body.ll-dashboard-page .recent-expense-amount {
+    font-size: 0.95rem !important;
+  }
+}
+
+/* Extra narrow screens (<= 360px): Gracefully hide text and keep icons */
+@media (max-width: 360px) {
+  body.ll-dashboard-page .app-header-inner {
+    padding: 0.4rem 0.65rem !important;
+    gap: 0.35rem !important;
+  }
+
+  body.ll-dashboard-page .modern-logo strong {
+    display: none !important;
+  }
+
+  body.ll-dashboard-page .user-area {
+    max-width: 110px !important;
+    padding: 0.15rem 0.4rem 0.15rem 0.15rem !important;
+  }
+
+  body.ll-dashboard-page .user-chip {
+    max-width: 60px !important;
+    font-size: 0.75rem !important;
+  }
+
+  body.ll-dashboard-page .modern-stat {
+    padding: 0.45rem 0.35rem !important;
+  }
+
+  body.ll-dashboard-page .modern-stat .value {
+    font-size: 0.82rem !important;
+  }
+
+  body.ll-dashboard-page .modern-group-card {
+    padding: 0.65rem 0.65rem !important;
+    gap: 0.5rem !important;
+  }
+
+  body.ll-dashboard-page .modern-group-card .group-icon {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    min-height: 34px !important;
+    font-size: 0.9rem !important;
+  }
+
+  body.ll-dashboard-page .modern-group-card .group-main h3 {
+    font-size: 0.88rem !important;
+  }
+
+  body.ll-dashboard-page .modern-group-card .balance-pill {
+    padding: 0.25rem 0.45rem !important;
+    max-width: 105px !important;
+  }
+
+  body.ll-dashboard-page .modern-group-card .balance-pill .bal-amount {
+    font-size: 0.85rem !important;
+  }
+}
+
+
+/* Distinct Section Headers & Icons */
+body.ll-dashboard-page .section-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 1rem !important;
+  margin-bottom: 1rem !important;
+  flex-wrap: wrap !important;
+}
+
+body.ll-dashboard-page .section-header h2 {
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+body.ll-dashboard-page .section-header p {
+  font-size: 0.825rem !important;
+  margin: 0.2rem 0 0 !important;
+  color: var(--ll-text-muted) !important;
+}
+
+body.ll-dashboard-page .groups-section {
+  margin-bottom: 2.25rem !important;
+}
+
+body.ll-dashboard-page .monthly-spending-section {
+  margin-bottom: 2.25rem !important;
+}
+
+body.ll-dashboard-page .monthly-analytics-section {
+  margin-bottom: 2.5rem !important;
+}
+
+/* Settings Phone Verification Card Styles */
+body.ll-dashboard-page .settings-phone-card {
+  margin-bottom: 1.25rem !important;
+}
+
+body.ll-dashboard-page .settings-phone-card .notif-pill-warning {
+  background: rgba(251, 191, 36, 0.15) !important;
+  color: var(--ll-warning) !important;
+  border: 1px solid rgba(251, 191, 36, 0.3) !important;
+}
+
+body.ll-dashboard-page .settings-phone-view {
+  transition: all 0.2s var(--ll-ease) !important;
+}
+
+body.ll-dashboard-page .btn-phone-action {
+  min-height: 42px !important;
+  padding: 0.5rem 1rem !important;
+  font-weight: 600 !important;
+  border-radius: 12px !important;
+}
+
+body.ll-dashboard-page .btn-outline-danger {
+  background: transparent !important;
+  color: var(--ll-negative) !important;
+  border: 1px solid rgba(251, 113, 133, 0.3) !important;
+  transition: all 0.2s var(--ll-ease) !important;
+}
+
+body.ll-dashboard-page .btn-outline-danger:hover {
+  background: rgba(251, 113, 133, 0.15) !important;
+  border-color: var(--ll-negative) !important;
+  color: #fff !important;
+}
+
+/* ============================================================
+   DEDICATED VIEWS & SPA ROUTING AFFORDANCES
+   ============================================================ */
+
+body.ll-dashboard-page .dashboard-view {
+  display: none;
+  animation: fadeInView 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+body.ll-dashboard-page .dashboard-view.active {
+  display: block;
+}
+
+@keyframes fadeInView {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+body.ll-dashboard-page .view-header-bar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin-bottom: 1.5rem !important;
+  padding-bottom: 0.85rem !important;
+  border-bottom: 1px solid var(--ll-border) !important;
+  flex-wrap: wrap !important;
+  gap: 0.75rem !important;
+}
+
+body.ll-dashboard-page .btn-back-dashboard {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.45rem !important;
+  padding: 0.45rem 0.85rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  border-radius: var(--ll-radius-sm) !important;
+  color: var(--ll-text) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--ll-border) !important;
+  transition: all 0.2s var(--ll-ease) !important;
+  cursor: pointer !important;
+}
+
+body.ll-dashboard-page .btn-back-dashboard:hover {
+  background: var(--ll-surface-raised) !important;
+  border-color: var(--ll-border-bright) !important;
+  color: #fff !important;
+  transform: translateX(-2px) !important;
+}
+
+/* Sidebar Active State Indicator */
+body.ll-dashboard-page .sidebar-item.active {
+  background: rgba(16, 185, 129, 0.12) !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+}
+
+body.ll-dashboard-page .sidebar-item.active .sidebar-icon {
+  transform: scale(1.1) !important;
+}
+
+/* ============================================================
+   RECENT ACTIVITY & USER'S OWN EXPENSES SECTION
+   ============================================================ */
+
+body.ll-dashboard-page .recent-activity-section {
+  margin-top: 2rem !important;
+  margin-bottom: 2.5rem !important;
+}
+
+body.ll-dashboard-page .recent-activity-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.75rem !important;
+  margin-top: 1rem !important;
+}
+
+body.ll-dashboard-page .recent-expense-card {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  background: var(--ll-surface) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: var(--ll-radius-md) !important;
+  padding: 0.85rem 1.15rem !important;
+  transition: all 0.2s var(--ll-ease) !important;
+  gap: 1rem !important;
+}
+
+body.ll-dashboard-page .recent-expense-card:hover {
+  border-color: var(--ll-border-bright) !important;
+  background: var(--ll-surface-raised) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+}
+
+body.ll-dashboard-page .recent-expense-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.85rem !important;
+  min-width: 0 !important;
+  flex: 1 !important;
+}
+
+body.ll-dashboard-page .category-icon-pill {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--ll-border) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.15rem !important;
+  flex-shrink: 0 !important;
+}
+
+body.ll-dashboard-page .recent-expense-title {
+  font-weight: 600 !important;
+  color: var(--ll-text) !important;
+  font-size: 0.925rem !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+body.ll-dashboard-page .recent-expense-meta {
+  font-size: 0.75rem !important;
+  color: var(--ll-text-muted) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.4rem !important;
+  margin-top: 0.15rem !important;
+  flex-wrap: wrap !important;
+}
+
+body.ll-dashboard-page .group-tag {
+  color: var(--ll-brand) !important;
+  font-weight: 500 !important;
+}
+
+body.ll-dashboard-page .recent-expense-right {
+  text-align: right !important;
+  flex-shrink: 0 !important;
+}
+
+body.ll-dashboard-page .recent-expense-amount {
+  font-family: var(--ll-font-mono) !important;
+  font-size: 1.05rem !important;
+  font-weight: 700 !important;
+  color: var(--ll-text) !important;
+}
+
+body.ll-dashboard-page .recent-expense-status {
+  font-size: 0.725rem !important;
+  color: var(--ll-text-muted) !important;
+  margin-top: 0.15rem !important;
+}
+
+body.ll-dashboard-page .recent-expense-status.paid-by-you {
+  color: var(--ll-positive) !important;
+  font-weight: 500 !important;
+}
+
+body.ll-dashboard-page .empty-activity-card {
+  display: flex !important;
+  align-items: center !important;
+  gap: 1rem !important;
+  padding: 1.5rem !important;
+  background: var(--ll-surface) !important;
+  border: 1px dashed var(--ll-border) !important;
+  border-radius: var(--ll-radius-md) !important;
+  color: var(--ll-text-muted) !important;
+}
+
+body.ll-dashboard-page .empty-activity-icon {
+  font-size: 1.75rem !important;
+  opacity: 0.7 !important;
+}
+
+/* ============================================================
+   SETTINGS REORDER & PHONE INPUT POLISH
+   ============================================================ */
+
+body.ll-dashboard-page .settings-notif-card {
+  margin-bottom: 1.25rem !important;
+}
+
+body.ll-dashboard-page .settings-field-label {
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  color: var(--ll-text-muted) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  display: block !important;
+  margin-bottom: 0.4rem !important;
+}
+
+body.ll-dashboard-page .phone-input-row {
+  display: flex !important;
+  gap: 0.5rem !important;
+  align-items: stretch !important;
+}
+
+body.ll-dashboard-page .phone-input-field {
+  flex: 1 !important;
+  min-width: 180px !important;
+  box-sizing: border-box !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 12px !important;
+  padding: 0.65rem 0.95rem !important;
+  color: #fff !important;
+  font-family: var(--ll-font-sans) !important;
+  font-size: 0.95rem !important;
+  line-height: 1.4 !important;
+  min-height: 42px !important;
+  transition: all 0.2s var(--ll-ease) !important;
+}
+
+body.ll-dashboard-page .phone-input-field:focus {
+  border-color: var(--ll-brand) !important;
+  box-shadow: 0 0 0 3px var(--ll-brand-glow) !important;
+  outline: none !important;
+}
+
+body.ll-dashboard-page .phone-input-field::placeholder {
+  color: var(--ll-text-muted) !important;
+  font-size: 0.9rem !important;
+  font-weight: 400 !important;
+  opacity: 0.7 !important;
+}
+
+@media (max-width: 480px) {
+  body.ll-dashboard-page .phone-input-row {
+    flex-direction: column !important;
+  }
+
+  body.ll-dashboard-page .phone-input-row .btn-phone-action {
     width: 100% !important;
   }
 }
