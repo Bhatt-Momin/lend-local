@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import type { NotificationResponse } from 'expo-notifications';
 
 import { useAuth } from '../context/AuthContext';
+import { getNotificationTargetRoute } from '../utils/notificationRouting';
 import {
   addNotificationReceivedListener,
   addNotificationResponseReceivedListener,
@@ -171,11 +172,16 @@ export function NotificationPushHandler(): null {
         lastProcessedResponseIdRef.current = responseId;
       }
 
-      // Navigate safely if notification payload contains a valid groupId
-      if (data && typeof data.groupId === 'string' && data.groupId.trim()) {
-        const cleanGroupId = data.groupId.trim();
+      // Navigate safely if notification payload resolves to a valid target route
+      const targetRoute = getNotificationTargetRoute(data);
+      if (targetRoute) {
+        const cleanGroupId = data && typeof data.groupId === 'string' ? data.groupId.trim() : '';
         try {
-          router.push(`/group/${cleanGroupId}`);
+          if (cleanGroupId) {
+            router.push(`/group/${cleanGroupId}`);
+          } else {
+            router.push(targetRoute as any);
+          }
         } catch (navErr) {
           console.warn('[NotificationPushHandler] Navigation to group failed:', navErr);
         }

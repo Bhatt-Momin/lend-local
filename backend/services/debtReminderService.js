@@ -15,8 +15,8 @@
 const Group = require('../models/Group');
 const Expense = require('../models/Expense');
 const Notification = require('../models/Notification');
-const { getGroupLedger } = require('../utils/helpers');
-const { createNotification } = require('./notificationService');
+const helpers = require('../utils/helpers');
+const notificationService = require('./notificationService');
 
 let isJobRunning = false;
 
@@ -35,7 +35,7 @@ async function findOutstandingDebts({ thresholdDays = 30, asOfDate = new Date() 
   for (const group of groups) {
     let ledger;
     try {
-      ledger = await getGroupLedger(group._id);
+      ledger = await helpers.getGroupLedger(group._id);
     } catch (err) {
       console.warn(`Failed to compute ledger for group ${group._id} during debt check:`, err.message);
       continue;
@@ -139,7 +139,7 @@ async function sendDebtReminders({ thresholdDays = 30, asOfDate = new Date() } =
           continue;
         }
 
-        const notificationResult = await createNotification({
+        const notificationResult = await notificationService.createNotification({
           recipient: candidate.debtorId,
           sender: candidate.creditorId,
           type: 'debt_reminder',
