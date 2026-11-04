@@ -349,6 +349,87 @@ async function runAllTests() {
 
   console.log('✅ Deduplication & Multi-Cycle Simulation verified.');
 
+  // 8. Mobile & Web Client Contract Invariants for Debt Reminders
+  console.log('8. Testing Mobile & Web Client Contract Invariants for Debt Reminders...');
+
+  // 8A: Mobile API types must include 'debt_reminder'
+  const mobileTypesPath = path.join(__dirname, 'mobile', 'src', 'types', 'api.ts');
+  const mobileTypesSource = fs.readFileSync(mobileTypesPath, 'utf8');
+  assert(
+    mobileTypesSource.includes("| 'debt_reminder'"),
+    'mobile/src/types/api.ts NotificationType must include debt_reminder'
+  );
+
+  // 8B: Mobile NotificationInboxModal must map 'debt_reminder' to reminder icon
+  const mobileInboxPath = path.join(__dirname, 'mobile', 'src', 'components', 'NotificationInboxModal.tsx');
+  const mobileInboxSource = fs.readFileSync(mobileInboxPath, 'utf8');
+  assert(
+    mobileInboxSource.includes("case 'debt_reminder':") &&
+    mobileInboxSource.includes("return '⏰';"),
+    'NotificationInboxModal.tsx must map debt_reminder to alarm icon ⏰'
+  );
+
+  // 8C: Web service-worker must route debt_reminder with groupId to /group.html?id=...
+  const swPath = path.join(__dirname, 'frontend', 'service-worker.js');
+  const swSource = fs.readFileSync(swPath, 'utf8');
+  assert(
+    swSource.includes('payload.data.type === "debt_reminder"'),
+    'frontend/service-worker.js must route debt_reminder with groupId to /group.html?id=...'
+  );
+
+  // 8D: Web firebase.js must route debt_reminder with groupId to /group.html?id=...
+  const fbPath = path.join(__dirname, 'frontend', 'js', 'firebase.js');
+  const fbSource = fs.readFileSync(fbPath, 'utf8');
+  assert(
+    fbSource.includes('payload.data.type === "debt_reminder"'),
+    'frontend/js/firebase.js must route debt_reminder with groupId to /group.html?id=...'
+  );
+
+  // 8E: Functional routing simulation
+  function resolveNotificationUrl(payload) {
+    let url = "/dashboard.html";
+    if (payload.data?.groupId) {
+      if (payload.data.type === "payment_claim" && payload.data.paymentId) {
+        url = "/group.html?id=" + payload.data.groupId + "&claimIntentId=" + payload.data.paymentId;
+      } else if (
+        payload.data.type === "payment_confirmed" ||
+        payload.data.type === "payment_rejected" ||
+        payload.data.type === "debt_reminder"
+      ) {
+        url = "/group.html?id=" + payload.data.groupId;
+      }
+    }
+    return url;
+  }
+
+  const reminderPayload = {
+    data: {
+      type: 'debt_reminder',
+      groupId: 'grp_test_999',
+      amount: '45.00',
+    },
+  };
+  const resolvedUrl = resolveNotificationUrl(reminderPayload);
+  assert.strictEqual(
+    resolvedUrl,
+    '/group.html?id=grp_test_999',
+    'debt_reminder notification with groupId must resolve to group URL'
+  );
+
+  const fallbackPayload = {
+    data: {
+      type: 'debt_reminder',
+      // no groupId
+    },
+  };
+  assert.strictEqual(
+    resolveNotificationUrl(fallbackPayload),
+    '/dashboard.html',
+    'Notification without groupId must fall back to /dashboard.html'
+  );
+
+  console.log('✅ Mobile & Web Client Contract Invariants verified.');
+
   console.log('\n🎉 All Stage 4: 30-Day Debt Reminder Tests Passed Successfully!');
 }
 

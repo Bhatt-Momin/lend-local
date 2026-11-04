@@ -282,7 +282,7 @@ async function initializeFirebaseMessaging() {
         if (payload.data.groupId) {
           if (payload.data.type === "payment_claim" && payload.data.paymentId) {
              url = "/group.html?id=" + payload.data.groupId + "&claimIntentId=" + payload.data.paymentId;
-          } else if (payload.data.type === "payment_confirmed" || payload.data.type === "payment_rejected") {
+          } else if (payload.data.type === "payment_confirmed" || payload.data.type === "payment_rejected" || payload.data.type === "debt_reminder") {
              url = "/group.html?id=" + payload.data.groupId;
           }
         }

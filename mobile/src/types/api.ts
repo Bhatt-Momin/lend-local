@@ -346,7 +346,8 @@ export type NotificationType =
   | 'payment_claim'
   | 'payment_confirmed'
   | 'payment_rejected'
-  | 'system';
+  | 'system'
+  | 'debt_reminder';
 
 export interface NotificationItem {
   id: string;

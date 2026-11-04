@@ -169,6 +169,8 @@ export function NotificationInboxModal({
         return '✅';
       case 'payment_rejected':
         return '❌';
+      case 'debt_reminder':
+        return '⏰';
       default:
         return '🔔';
     }
