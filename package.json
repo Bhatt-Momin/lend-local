@@ -1,0 +1,9 @@
+{
+  "name": "lendlocal",
+  "version": "1.1.0",
+  "description": "LendLocal — Shared expense management PWA & Android app",
+  "private": true,
+  "scripts": {
+    "test": "node tests/test_inapp_update.js && node tests/test_m3_website_download.js && node tests/test_stage2_stage3_fixes.js"
+  }
+}

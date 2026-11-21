@@ -17,13 +17,13 @@ const assert = require('assert');
 
 console.log('--- Running Native Android Milestone 3 (M3) Test Suite ---');
 
-const loginHtmlPath = path.join(__dirname, 'frontend', 'login.html');
-const dashboardHtmlPath = path.join(__dirname, 'frontend', 'dashboard.html');
-const helpersJsPath = path.join(__dirname, 'frontend', 'js', 'helpers.js');
-const cssPath = path.join(__dirname, 'frontend', 'css', 'auth-premium.css');
-const manifestPath = path.join(__dirname, 'frontend', 'manifest.json');
-const appJsonPath = path.join(__dirname, 'mobile', 'app.json');
-const easJsonPath = path.join(__dirname, 'mobile', 'eas.json');
+const loginHtmlPath = path.join(__dirname, '..', 'frontend', 'login.html');
+const dashboardHtmlPath = path.join(__dirname, '..', 'frontend', 'dashboard.html');
+const helpersJsPath = path.join(__dirname, '..', 'frontend', 'js', 'helpers.js');
+const cssPath = path.join(__dirname, '..', 'frontend', 'css', 'auth-premium.css');
+const manifestPath = path.join(__dirname, '..', 'frontend', 'manifest.json');
+const appJsonPath = path.join(__dirname, '..', 'mobile', 'app.json');
+const easJsonPath = path.join(__dirname, '..', 'mobile', 'eas.json');
 
 const loginHtml = fs.readFileSync(loginHtmlPath, 'utf8');
 const dashboardHtml = fs.readFileSync(dashboardHtmlPath, 'utf8');

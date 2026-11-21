@@ -26,7 +26,7 @@ console.log('--- Running LendLocal Stage 2 & 3 Fixes Verification Suite ---');
 // 1. DeepLinkHandler Untrusted Host Alerting
 // =========================================================================
 console.log('1. Testing DeepLinkHandler Untrusted Host Feedback...');
-const deepLinkHandlerPath = path.join(__dirname, 'mobile/src/components/DeepLinkHandler.tsx');
+const deepLinkHandlerPath = path.join(__dirname, '..', 'mobile', 'src', 'components', 'DeepLinkHandler.tsx');
 const deepLinkHandlerContent = fs.readFileSync(deepLinkHandlerPath, 'utf8');
 
 assert(
@@ -43,7 +43,7 @@ console.log('✅ DeepLinkHandler Untrusted Host Feedback verified.');
 // 2. PaymentModal In-Flight Polling Invalidation & Unmount Cleanup
 // =========================================================================
 console.log('2. Testing PaymentModal Polling Cleanup...');
-const paymentModalPath = path.join(__dirname, 'mobile/src/components/PaymentModal.tsx');
+const paymentModalPath = path.join(__dirname, '..', 'mobile', 'src', 'components', 'PaymentModal.tsx');
 const paymentModalContent = fs.readFileSync(paymentModalPath, 'utf8');
 
 assert(
@@ -61,7 +61,7 @@ console.log('✅ PaymentModal Polling Cleanup verified.');
 // 3. Notification Bell Badge Layout Invariants (No Negative Margins)
 // =========================================================================
 console.log('3. Testing Bell Badge Layout Invariants...');
-const homeScreenPath = path.join(__dirname, 'mobile/src/app/index.tsx');
+const homeScreenPath = path.join(__dirname, '..', 'mobile', 'src', 'app', 'index.tsx');
 const homeScreenContent = fs.readFileSync(homeScreenPath, 'utf8');
 
 assert(
@@ -84,7 +84,7 @@ console.log('✅ Bell Badge Layout Invariants verified.');
 // 4. NotificationPushHandler Fallback Feedback for Missing groupId
 // =========================================================================
 console.log('4. Testing NotificationPushHandler Fallback Feedback...');
-const pushHandlerPath = path.join(__dirname, 'mobile/src/components/NotificationPushHandler.tsx');
+const pushHandlerPath = path.join(__dirname, '..', 'mobile', 'src', 'components', 'NotificationPushHandler.tsx');
 const pushHandlerContent = fs.readFileSync(pushHandlerPath, 'utf8');
 
 assert(
@@ -102,7 +102,7 @@ console.log('✅ NotificationPushHandler Fallback Feedback verified.');
 // 5. API Client User-Friendly Timeout Message
 // =========================================================================
 console.log('5. Testing API Client Timeout Message...');
-const clientPath = path.join(__dirname, 'mobile/src/services/client.ts');
+const clientPath = path.join(__dirname, '..', 'mobile', 'src', 'services', 'client.ts');
 const clientContent = fs.readFileSync(clientPath, 'utf8');
 
 assert(
@@ -116,7 +116,7 @@ console.log('✅ API Client Timeout Message verified.');
 // 6. PhoneVerificationModal Cooldown Timer Cleanup
 // =========================================================================
 console.log('6. Testing PhoneVerificationModal Cooldown Cleanup & Keyboard Handling...');
-const phoneModalPath = path.join(__dirname, 'mobile/src/components/PhoneVerificationModal.tsx');
+const phoneModalPath = path.join(__dirname, '..', 'mobile', 'src', 'components', 'PhoneVerificationModal.tsx');
 const phoneModalContent = fs.readFileSync(phoneModalPath, 'utf8');
 
 assert(
@@ -135,7 +135,7 @@ console.log('✅ PhoneVerificationModal Cooldown Cleanup & Keyboard Handling ver
 // 7. In-App Update System Advanced Manifest Validation & Safety
 // =========================================================================
 console.log('7. Testing In-App Update Advanced Manifest Safety...');
-const updateServicePath = path.join(__dirname, 'mobile/src/services/updateService.ts');
+const updateServicePath = path.join(__dirname, '..', 'mobile', 'src', 'services', 'updateService.ts');
 const updateServiceContent = fs.readFileSync(updateServicePath, 'utf8');
 
 // 7A: Incompatible application ID rejection
@@ -159,7 +159,7 @@ assert(
 );
 
 // 7D: Component presentation
-const updateHandlerPath = path.join(__dirname, 'mobile/src/components/AppUpdateHandler.tsx');
+const updateHandlerPath = path.join(__dirname, '..', 'mobile', 'src', 'components', 'AppUpdateHandler.tsx');
 const updateHandlerContent = fs.readFileSync(updateHandlerPath, 'utf8');
 
 assert(
@@ -196,7 +196,7 @@ console.log('✅ In-App Update Advanced Manifest Safety verified.');
 // 8. SHA-256 Utility & Real Checksum Validation
 // =========================================================================
 console.log('8. Testing SHA-256 Utility & Real Checksum Validation...');
-const sha256SourcePath = path.join(__dirname, 'mobile/src/utils/sha256.ts');
+const sha256SourcePath = path.join(__dirname, '..', 'mobile', 'src', 'utils', 'sha256.ts');
 assert(fs.existsSync(sha256SourcePath), 'mobile/src/utils/sha256.ts must exist');
 const sha256Content = fs.readFileSync(sha256SourcePath, 'utf8');
 
@@ -211,7 +211,7 @@ assert(
 );
 
 // 8B: Backend manifest contains real APK checksum
-const serverPath = path.join(__dirname, 'backend/server.js');
+const serverPath = path.join(__dirname, '..', 'backend', 'server.js');
 const serverContent = fs.readFileSync(serverPath, 'utf8');
 assert(
   serverContent.includes('sha256: "2a7d975ec6f8a7faa4f035ff4fb9d5d409f89128e5500a7f8c98e1df87a1f7e0"'),
@@ -222,7 +222,7 @@ assert(
   'backend/server.js manifest must declare applicationId com.lendlocal.app'
 );
 // 8C: Native streaming SHA-256 in ApkInstallerModule.kt and index.ts
-const apkModulePath = path.join(__dirname, 'mobile/modules/apk-installer/android/src/main/java/expo/modules/apkinstaller/ApkInstallerModule.kt');
+const apkModulePath = path.join(__dirname, '..', 'mobile', 'modules', 'apk-installer', 'android', 'src', 'main', 'java', 'expo', 'modules', 'apkinstaller', 'ApkInstallerModule.kt');
 assert(fs.existsSync(apkModulePath), 'ApkInstallerModule.kt must exist');
 const apkModuleContent = fs.readFileSync(apkModulePath, 'utf8');
 
@@ -240,7 +240,7 @@ assert(
   'ApkInstallerModule.kt must stream bytes through SHA-256 with an 8KB buffer without loading APK into memory'
 );
 
-const apkIndexPath = path.join(__dirname, 'mobile/modules/apk-installer/index.ts');
+const apkIndexPath = path.join(__dirname, '..', 'mobile', 'modules', 'apk-installer', 'index.ts');
 assert(fs.existsSync(apkIndexPath), 'modules/apk-installer/index.ts must exist');
 const apkIndexContent = fs.readFileSync(apkIndexPath, 'utf8');
 assert(
@@ -399,9 +399,9 @@ console.log('✅ SHA-256 Utility & Real Checksum Validation verified.');
 // 9. Android Keyboard Handling Consistency Across Screens
 // =========================================================================
 console.log('9. Testing Android Keyboard Handling Consistency...');
-const loginContent = fs.readFileSync(path.join(__dirname, 'mobile/src/app/(auth)/login.tsx'), 'utf8');
-const registerContent = fs.readFileSync(path.join(__dirname, 'mobile/src/app/(auth)/register.tsx'), 'utf8');
-const groupNewContent = fs.readFileSync(path.join(__dirname, 'mobile/src/app/group/new.tsx'), 'utf8');
+const loginContent = fs.readFileSync(path.join(__dirname, '..', 'mobile', 'src', 'app', '(auth)', 'login.tsx'), 'utf8');
+const registerContent = fs.readFileSync(path.join(__dirname, '..', 'mobile', 'src', 'app', '(auth)', 'register.tsx'), 'utf8');
+const groupNewContent = fs.readFileSync(path.join(__dirname, '..', 'mobile', 'src', 'app', 'group', 'new.tsx'), 'utf8');
 
 assert(
   loginContent.includes("behavior={Platform.OS === 'ios' ? 'padding' : 'height'}"),

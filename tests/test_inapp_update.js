@@ -17,7 +17,7 @@ console.log('--- Running Stage 5: In-App Android Update System Test Suite ---');
 
 // 1. Backend Server app-version Manifest Contract
 console.log('1. Testing Backend /api/app-version Route Invariants...');
-const serverJsPath = path.join(__dirname, 'backend', 'server.js');
+const serverJsPath = path.join(__dirname, '..', 'backend', 'server.js');
 const serverJs = fs.readFileSync(serverJsPath, 'utf8');
 
 assert(serverJs.includes('app.get("/api/app-version"'), 'server.js must define GET /api/app-version route');
@@ -32,7 +32,7 @@ console.log('✅ Backend /api/app-version Route Invariants verified.');
 
 // 2. Mobile Package ID & App Config Invariants
 console.log('2. Testing Mobile App Invariants (app.json)...');
-const appJsonPath = path.join(__dirname, 'mobile', 'app.json');
+const appJsonPath = path.join(__dirname, '..', 'mobile', 'app.json');
 const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
 
 assert.strictEqual(appJson.expo.android.package, 'com.lendlocal.app', 'Android package must remain com.lendlocal.app');
@@ -42,9 +42,9 @@ console.log('✅ Mobile App Invariants verified.');
 
 // 3. Mobile updateService Implementation Invariants
 console.log('3. Testing Mobile updateService & AppUpdateHandler Invariants...');
-const updateServicePath = path.join(__dirname, 'mobile', 'src', 'services', 'updateService.ts');
-const updateHandlerPath = path.join(__dirname, 'mobile', 'src', 'components', 'AppUpdateHandler.tsx');
-const layoutPath = path.join(__dirname, 'mobile', 'src', 'app', '_layout.tsx');
+const updateServicePath = path.join(__dirname, '..', 'mobile', 'src', 'services', 'updateService.ts');
+const updateHandlerPath = path.join(__dirname, '..', 'mobile', 'src', 'components', 'AppUpdateHandler.tsx');
+const layoutPath = path.join(__dirname, '..', 'mobile', 'src', 'app', '_layout.tsx');
 
 assert(fs.existsSync(updateServicePath), 'updateService.ts must exist');
 assert(fs.existsSync(updateHandlerPath), 'AppUpdateHandler.tsx must exist');

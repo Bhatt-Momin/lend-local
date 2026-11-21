@@ -5,4 +5,5 @@ node_modules/
 npm-debug.log*
 backend/config/firebase-service-account.json
 mobile/google-services.json
-
+GEMINI_AUDIT_*.md
+*.apk
