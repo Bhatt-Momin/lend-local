@@ -103,7 +103,7 @@ app.get("/api/config", (req, res) => res.status(200).json({ razorpayEnabled: pro
 // In production (Render) without LOCAL_APK_PATH, this is disabled and the production GitHub release manifest is served.
 const DEFAULT_LOCAL_APK_PATH = "/tmp/lendlocal-v1.1.0.apk";
 const V1_0_0_SHA256 = "2a7d975ec6f8a7faa4f035ff4fb9d5d409f89128e5500a7f8c98e1df87a1f7e0";
-const V1_1_0_SHA256 = "d155d57204bb9baea17a0167b01655b652343f2b124f28613593880a55f78835";
+const V1_1_0_SHA256 = "ee769cc4824f4980260639dacb4f607238f807e8142b3b340b1a8fd5273ccdca";
 
 // Backward-compatible SHA-256 references for test invariants (exact string forms)
 const V1_0_0_SHA256_REF = 'sha256: "2a7d975ec6f8a7faa4f035ff4fb9d5d409f89128e5500a7f8c98e1df87a1f7e0"';
@@ -153,7 +153,7 @@ app.get("/api/app-version", (req, res) => {
     releaseNotes: "LendLocal v1.1.0 — In-app updates, phone verification, and spending analytics.",
     apkUrl: "https://github.com/Bhatt-Momin/lend-local/releases/download/v1.1.0/lendlocal.apk",
     releasesPageUrl: "https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.1.0",
-    sha256: "d155d57204bb9baea17a0167b01655b652343f2b124f28613593880a55f78835",
+    sha256: "ee769cc4824f4980260639dacb4f607238f807e8142b3b340b1a8fd5273ccdca",
     minSupportedVersion: "1.0.0",
     minSupportedVersionCode: 1,
     publishedAt: "2026-11-10T00:00:00Z",
