@@ -187,6 +187,12 @@
       link.setAttribute('download', downloadFilename);
       link.setAttribute('rel', 'noopener noreferrer');
       link.setAttribute('aria-label', `Download LendLocal Android App${versionLabel} (APK)`);
+      link.target = '_blank';
+
+      // Android DownloadManager + install guidance on click
+      link.addEventListener('click', () => {
+        note.innerHTML = '⬇️ <strong>Downloading lendlocal.apk...</strong><br><span style="color: var(--ll-text-muted); font-size: 0.78rem;">When complete, swipe down from the top of your screen and tap the notification (or open your Downloads folder) to install.</span>';
+      });
 
       const icon = document.createElement('span');
       icon.className = 'auth-app-btn-icon';
@@ -213,7 +219,7 @@
         fallbackLink.className = 'auth-app-fallback-link';
         fallbackLink.style.color = 'var(--ll-brand)';
         fallbackLink.style.textDecoration = 'underline';
-        fallbackLink.textContent = version ? `View v${version} on GitHub Releases` : 'View on GitHub Releases';
+        fallbackLink.textContent = version ? `Or download via GitHub Releases (v${version})` : 'Or download via GitHub Releases';
         fallbackLink.setAttribute('aria-label', `View LendLocal release notes on GitHub (opens in a new tab)`);
         note.appendChild(fallbackLink);
       }
