@@ -81,8 +81,12 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(event.request.url);
 
-  // 1. NEVER intercept or cache authenticated financial API responses
-  if (url.pathname.startsWith('/api/')) {
+  // 1. NEVER intercept or cache authenticated financial API responses or APK downloads
+  if (
+    url.pathname.startsWith('/api/') ||
+    url.pathname.endsWith('.apk') ||
+    url.pathname.includes('/releases/download/')
+  ) {
     return;
   }
 

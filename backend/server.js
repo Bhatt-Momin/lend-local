@@ -171,6 +171,9 @@ app.all("/api/app-version/download", (req, res) => {
     return res.status(404).json({ error: "APK download is unavailable on this server." });
   }
 
+  res.setHeader("Content-Type", "application/vnd.android.package-archive");
+  res.setHeader("Content-Length", localApk.size);
+  res.setHeader("Content-Disposition", 'attachment; filename="lendlocal-v1.1.0.apk"');
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   res.download(localApk.path, "lendlocal-v1.1.0.apk", (err) => {
     if (err && !res.headersSent) {
