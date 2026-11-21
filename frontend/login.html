@@ -179,19 +179,28 @@
         : GITHUB_RELEASES_URL;
 
       slot.textContent = '';
+
+      // Primary: Direct APK Download button
       const link = document.createElement('a');
       link.href = targetUrl;
       link.className = 'auth-app-btn';
       link.id = 'androidDownloadBtn';
-      const downloadFilename = version ? `lendlocal-v${version}.apk` : 'lendlocal.apk';
-      link.setAttribute('download', downloadFilename);
-      link.setAttribute('rel', 'noopener noreferrer');
-      link.setAttribute('aria-label', `Download LendLocal Android App${versionLabel} (APK)`);
       link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.setAttribute('aria-label', `Download LendLocal Android App${versionLabel} (APK)`);
+
+      // Omit `download` attribute for cross-origin GitHub URLs — mobile Chrome
+      // quarantines large cross-origin streams into .crdownload locks. Let GitHub's
+      // native Content-Disposition: attachment header govern the filename instead.
+      const isCrossOriginGitHub = targetUrl && targetUrl.includes('github.com');
+      if (!isCrossOriginGitHub) {
+        const downloadFilename = version ? `lendlocal-v${version}.apk` : 'lendlocal.apk';
+        link.setAttribute('download', downloadFilename);
+      }
 
       // Android DownloadManager + install guidance on click
       link.addEventListener('click', () => {
-        note.innerHTML = '⬇️ <strong>Downloading lendlocal.apk...</strong><br><span style="color: var(--ll-text-muted); font-size: 0.78rem;">When complete, swipe down from the top of your screen and tap the notification (or open your Downloads folder) to install.</span>';
+        note.innerHTML = '⬇️ <strong>Download started!</strong><br><span style="color: var(--ll-text-muted); font-size: 0.78rem;">If Chrome holds the file at 100%, open your phone\'s <strong>Files > Downloads</strong> app to tap and install.</span>';
       });
 
       const icon = document.createElement('span');
@@ -200,18 +209,37 @@
       icon.textContent = '🤖';
 
       const label = document.createElement('span');
-      label.textContent = `Download Android App${versionLabel}`;
+      label.textContent = `Direct APK Download${versionLabel}`;
 
       link.appendChild(icon);
       link.appendChild(document.createTextNode(' '));
       link.appendChild(label);
 
+      // Secondary: GitHub Releases button
+      const releasesUrl = (manifestRelUrl && (typeof isValidHttpsUrl === 'function' ? isValidHttpsUrl(manifestRelUrl) : true))
+        ? manifestRelUrl
+        : GITHUB_RELEASES_URL;
+
+      const secondaryBtn = document.createElement('a');
+      secondaryBtn.href = releasesUrl;
+      secondaryBtn.target = '_blank';
+      secondaryBtn.rel = 'noopener noreferrer';
+      secondaryBtn.className = 'auth-app-btn auth-app-btn-secondary';
+      secondaryBtn.style.cssText = 'margin-top: 0.5rem; background: rgba(255,255,255,0.06); border: 1px solid var(--ll-border); color: var(--ll-text); display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 12px; text-decoration: none; font-size: 0.85rem; font-weight: 600;';
+      secondaryBtn.innerHTML = `<span>📦</span> Download via GitHub Releases (Instant Install)`;
+
+      // Click guidance on secondary button
+      secondaryBtn.addEventListener('click', () => {
+        note.innerHTML = '⬇️ <strong>Download started!</strong><br><span style="color: var(--ll-text-muted); font-size: 0.78rem;">If Chrome holds the file at 100%, open your phone\'s <strong>Files > Downloads</strong> app to tap and install.</span>';
+      });
+
       const note = document.createElement('p');
       note.className = 'auth-app-note';
       note.id = 'androidDownloadNote';
-      note.textContent = `Direct APK download for Android devices${versionLabel}. `;
 
       if (releasesUrl) {
+        // Fallback link kept inside note for backward compatibility, but the secondary
+        // button above is the primary recommended action now.
         const fallbackLink = document.createElement('a');
         fallbackLink.href = releasesUrl;
         fallbackLink.target = '_blank';
@@ -225,6 +253,7 @@
       }
 
       slot.appendChild(link);
+      slot.appendChild(secondaryBtn);
       slot.appendChild(note);
     }
 
