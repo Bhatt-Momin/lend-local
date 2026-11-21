@@ -215,10 +215,6 @@
       link.appendChild(document.createTextNode(' '));
       link.appendChild(label);
 
-      // Secondary: GitHub Releases button
-      const releasesUrl = (manifestRelUrl && (typeof isValidHttpsUrl === 'function' ? isValidHttpsUrl(manifestRelUrl) : true))
-        ? manifestRelUrl
-        : GITHUB_RELEASES_URL;
 
       const secondaryBtn = document.createElement('a');
       secondaryBtn.href = releasesUrl;
