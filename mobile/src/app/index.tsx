@@ -18,6 +18,7 @@ import { NotificationInboxModal } from '../components/NotificationInboxModal';
 import { ServerConfigModal } from '../components/ServerConfigModal';
 import { SettingsModal } from '../components/SettingsModal';
 import { UpiConfigModal } from '../components/UpiConfigModal';
+import { PhoneVerificationModal } from '../components/PhoneVerificationModal';
 import { ThemedText } from '../components/themed-text';
 import { ThemedView } from '../components/themed-view';
 import { BottomTabInset, Brand, MaxContentWidth, Spacing, Surfaces } from '../constants/theme';
@@ -33,6 +34,7 @@ export default function HomeScreen() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showServerModal, setShowServerModal] = useState(false);
   const [showUpiModal, setShowUpiModal] = useState(false);
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showMonthlyModal, setShowMonthlyModal] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
@@ -253,6 +255,20 @@ export default function HomeScreen() {
   const handleUpiSuccess = useCallback((newUpiId: string | null) => {
     setEditingUpiId(newUpiId);
   }, []);
+
+  const handleOpenPhoneFromSettings = useCallback(() => {
+    setShowSettingsModal(false);
+    setReturnToSettings(true);
+    setTimeout(() => setShowPhoneModal(true), 150);
+  }, []);
+
+  const handleClosePhoneModal = useCallback(() => {
+    setShowPhoneModal(false);
+    if (returnToSettings) {
+      setReturnToSettings(false);
+      setTimeout(() => setShowSettingsModal(true), 150);
+    }
+  }, [returnToSettings]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -744,6 +760,7 @@ export default function HomeScreen() {
           isRefreshingUser={isRefreshingUser}
           onRefreshUser={() => refreshUser().catch(() => {})}
           onOpenUpiModal={handleOpenUpiFromSettings}
+          onOpenPhoneModal={handleOpenPhoneFromSettings}
           onOpenServerModal={handleOpenServerFromSettings}
           onLogout={handleLogout}
           isLoggingOut={isLoggingOut}
@@ -759,6 +776,14 @@ export default function HomeScreen() {
           onClose={handleCloseUpiModal}
           initialUpiId={editingUpiId !== undefined ? editingUpiId : user?.upiId}
           onSuccess={handleUpiSuccess}
+        />
+
+        <PhoneVerificationModal
+          visible={showPhoneModal}
+          onClose={handleClosePhoneModal}
+          onSuccess={() => {
+            refreshUser().catch(() => {});
+          }}
         />
 
         <NotificationInboxModal
@@ -852,14 +877,15 @@ const styles = StyleSheet.create({
     borderColor: Surfaces.darkBorder,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   headerIcon: {
     fontSize: 16,
   },
   bellBadge: {
-    marginTop: -22,
-    marginRight: -22,
-    alignSelf: 'flex-end',
+    position: "absolute",
+    top: -4,
+    right: -4,
     backgroundColor: Brand.primary,
     borderRadius: 9,
     minWidth: 18,

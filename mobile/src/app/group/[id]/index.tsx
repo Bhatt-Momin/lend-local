@@ -1783,7 +1783,8 @@ const styles = StyleSheet.create({
   filterChipsScroll: {
     flexDirection: 'row',
     gap: Spacing.one,
-    paddingRight: Spacing.two,
+    paddingHorizontal: 2,
+    paddingRight: Spacing.four,
   },
   filterChip: {
     paddingHorizontal: 12,

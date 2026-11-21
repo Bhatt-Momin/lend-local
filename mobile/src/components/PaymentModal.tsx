@@ -97,7 +97,15 @@ export function PaymentModal({
     }
     pollCountRef.current = 0;
     isPollingFetchRef.current = false;
+    statusRequestIdRef.current += 1;
   }, []);
+
+  // Ensure polling is cleanly torn down on component unmount
+  useEffect(() => {
+    return () => {
+      stopPolling();
+    };
+  }, [stopPolling]);
 
   // Initialize or reset modal state
   useEffect(() => {

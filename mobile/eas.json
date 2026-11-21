@@ -11,6 +11,15 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://lendlocal-58sf.onrender.com/api"
       }
+    },
+    "production": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://lendlocal-58sf.onrender.com/api"
+      }
     }
   }
 }

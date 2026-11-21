@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef } from 'react';
+import { Alert } from 'react-native';
 import type { NotificationResponse } from 'expo-notifications';
 
 import { useAuth } from '../context/AuthContext';
@@ -186,8 +187,17 @@ export function NotificationPushHandler(): null {
           console.warn('[NotificationPushHandler] Navigation to group failed:', navErr);
         }
       } else {
-        // Limitation: If payload lacks groupId or target destination, keep user safely in current screen
+        // Notification payload lacks groupId or target destination
         console.log('[NotificationPushHandler] Notification payload lacks target groupId; remaining on current screen');
+        const notifTitle = response.notification?.request?.content?.title;
+        const notifBody = response.notification?.request?.content?.body;
+        if (notifTitle || notifBody) {
+          Alert.alert(
+            notifTitle || 'Notification',
+            notifBody || 'This notification has no associated group to open.',
+            [{ text: 'OK' }]
+          );
+        }
       }
     },
     [router]

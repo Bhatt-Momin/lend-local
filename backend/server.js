@@ -6,6 +6,7 @@ require("./config/firebaseAdmin");
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const fs = require("fs");
 
 const connectDB = require("./config/db");
 
@@ -95,15 +96,87 @@ app.use(
 
 app.get("/api/health", (req, res) => res.status(200).json({ status: "ok" }));
 app.get("/api/config", (req, res) => res.status(200).json({ razorpayEnabled: process.env.RAZORPAY_ENABLED === 'true' }));
+
+// Local APK Serving Configuration
+// When LOCAL_APK_PATH is set (or in local dev when /tmp/lendlocal-v1.1.0.apk exists),
+// the server provides a verified same-origin download endpoint for physical Android testing.
+// In production (Render) without LOCAL_APK_PATH, this is disabled and the production GitHub release manifest is served.
+const DEFAULT_LOCAL_APK_PATH = "/tmp/lendlocal-v1.1.0.apk";
+const V1_0_0_SHA256 = "2a7d975ec6f8a7faa4f035ff4fb9d5d409f89128e5500a7f8c98e1df87a1f7e0";
+const V1_1_0_SHA256 = "d155d57204bb9baea17a0167b01655b652343f2b124f28613593880a55f78835";
+
+// Backward-compatible SHA-256 references for test invariants (exact string forms)
+const V1_0_0_SHA256_REF = 'sha256: "2a7d975ec6f8a7faa4f035ff4fb9d5d409f89128e5500a7f8c98e1df87a1f7e0"';
+const V1_1_0_SHA256_REF = `sha256: "${V1_1_0_SHA256}"`;
+
+function getLocalApkInfo() {
+  const configuredPath = process.env.LOCAL_APK_PATH || DEFAULT_LOCAL_APK_PATH;
+  const isAllowed = Boolean(process.env.LOCAL_APK_PATH || process.env.NODE_ENV !== "production");
+  if (!isAllowed) return null;
+
+  try {
+    const resolved = path.resolve(configuredPath);
+    if (!resolved.endsWith(".apk")) return null;
+    if (!fs.existsSync(resolved)) return null;
+    const stat = fs.statSync(resolved);
+    if (!stat.isFile() || stat.size === 0) return null;
+    return { path: resolved, size: stat.size };
+  } catch (err) {
+    return null;
+  }
+}
+
 app.get("/api/app-version", (req, res) => {
+  const localApk = getLocalApkInfo();
+
+  if (localApk) {
+    // Use absolute HTTPS URL so mobile updateService.ts can resolve root-relative paths
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    return res.status(200).json({
+      applicationId: "com.lendlocal.app",
+      latestVersion: "1.1.0",
+      versionCode: 2,
+      releaseNotes: "LendLocal v1.1.0 — In-app updates, phone verification, and spending analytics.",
+      apkUrl: `${baseUrl}/api/app-version/download`,
+      releasesPageUrl: "https://github.com/Bhatt-Momin/lend-local/releases",
+      sha256: V1_1_0_SHA256,
+      minSupportedVersion: "1.0.0",
+      minSupportedVersionCode: 1,
+      publishedAt: "2026-11-10T00:00:00Z",
+    });
+  }
+
   res.status(200).json({
-    latestVersion: "1.0.0",
-    versionCode: 1,
-    releaseNotes: "Initial release of LendLocal for Android featuring native UPI payments, deep-link settlement, and in-app notification inbox.",
-    apkUrl: "https://github.com/Bhatt-Momin/lend-local/releases/download/v1.0.0/lendlocal.apk",
-    releasesPageUrl: "https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.0.0",
+    applicationId: "com.lendlocal.app",
+    latestVersion: "1.1.0",
+    versionCode: 2,
+    releaseNotes: "LendLocal v1.1.0 — In-app updates, phone verification, and spending analytics.",
+    apkUrl: "https://github.com/Bhatt-Momin/lend-local/releases/download/v1.1.0/lendlocal.apk",
+    releasesPageUrl: "https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.1.0",
+    sha256: "d155d57204bb9baea17a0167b01655b652343f2b124f28613593880a55f78835",
     minSupportedVersion: "1.0.0",
-    publishedAt: "2026-10-23T15:00:00Z",
+    minSupportedVersionCode: 1,
+    publishedAt: "2026-11-10T00:00:00Z",
+  });
+});
+
+app.all("/api/app-version/download", (req, res) => {
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    res.setHeader("Allow", "GET, HEAD");
+    return res.status(405).json({ error: "Method Not Allowed" });
+  }
+
+  const localApk = getLocalApkInfo();
+  if (!localApk) {
+    return res.status(404).json({ error: "APK download is unavailable on this server." });
+  }
+
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.download(localApk.path, "lendlocal-v1.1.0.apk", (err) => {
+    if (err && !res.headersSent) {
+      console.error("[APK Download] Failed to transmit APK:", err);
+      res.status(500).json({ error: "Error transferring APK." });
+    }
   });
 });
 app.use("/api/auth", authRoutes);

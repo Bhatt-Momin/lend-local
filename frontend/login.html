@@ -69,7 +69,7 @@
             <p class="auth-app-desc">Native app with seamless UPI payments and instant deep-link settlement.</p>
           </div>
         </div>
-        <div id="androidDownloadSlot" class="auth-app-action" data-download-url="">
+        <div id="androidDownloadSlot" class="auth-app-action">
           <button type="button" class="auth-app-btn" id="androidDownloadBtn" disabled aria-disabled="true">
             <span class="auth-app-btn-icon" aria-hidden="true">🤖</span>
             <span>Download Android App</span>
@@ -150,55 +150,169 @@
     });
 
     // Android App Download Integration Point
-    // Set to a verified HTTPS asset URL (e.g. GitHub Releases) when published
-    const APK_DOWNLOAD_URL = 'https://github.com/Bhatt-Momin/lend-local/releases/download/v1.0.0/lendlocal.apk';
-    const GITHUB_RELEASES_URL = 'https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.0.0';
+    const GITHUB_RELEASES_URL = 'https://github.com/Bhatt-Momin/lend-local/releases';
+    let isFetchingAndroidDownload = false;
 
-    function initAndroidDownload() {
+    function renderAndroidDownloadSuccess(manifestData) {
       const slot = document.getElementById('androidDownloadSlot');
       if (!slot) return;
-      const targetUrl = (slot.getAttribute('data-download-url') || APK_DOWNLOAD_URL || '').trim();
-      if (targetUrl && (targetUrl.startsWith('https://') || targetUrl.startsWith('/'))) {
-        slot.textContent = '';
-        const link = document.createElement('a');
-        link.href = targetUrl;
-        link.className = 'auth-app-btn';
-        link.id = 'androidDownloadBtn';
-        link.setAttribute('download', 'lendlocal.apk');
-        link.setAttribute('rel', 'noopener noreferrer');
-        link.setAttribute('aria-label', 'Download LendLocal Android App (APK)');
+      const targetUrl = (manifestData && manifestData.apkUrl) ? String(manifestData.apkUrl).trim() : '';
 
-        const icon = document.createElement('span');
-        icon.className = 'auth-app-btn-icon';
-        icon.setAttribute('aria-hidden', 'true');
-        icon.textContent = '🤖';
+      const isValid = typeof isValidHttpsUrl === 'function'
+        ? isValidHttpsUrl(targetUrl)
+        : (targetUrl && (targetUrl.startsWith('https://') || targetUrl.startsWith('/')));
 
-        const label = document.createElement('span');
-        label.textContent = 'Download Android App';
+      if (!isValid) {
+        renderAndroidDownloadFailure();
+        return;
+      }
 
-        link.appendChild(icon);
-        link.appendChild(document.createTextNode(' '));
-        link.appendChild(label);
+      const rawVersion = (manifestData && manifestData.latestVersion) ? manifestData.latestVersion : '';
+      const version = typeof normalizeAppVersion === 'function'
+        ? normalizeAppVersion(rawVersion)
+        : String(rawVersion).replace(/^v+/i, '').trim();
+      const versionLabel = version ? ` (v${version})` : '';
 
-        const note = document.createElement('p');
-        note.className = 'auth-app-note';
-        note.id = 'androidDownloadNote';
-        note.textContent = 'Direct APK download for Android devices. ';
+      const manifestRelUrl = (manifestData && manifestData.releasesPageUrl) ? String(manifestData.releasesPageUrl).trim() : '';
+      const releasesUrl = (manifestRelUrl && (typeof isValidHttpsUrl === 'function' ? isValidHttpsUrl(manifestRelUrl) : true))
+        ? manifestRelUrl
+        : GITHUB_RELEASES_URL;
 
+      slot.textContent = '';
+      const link = document.createElement('a');
+      link.href = targetUrl;
+      link.className = 'auth-app-btn';
+      link.id = 'androidDownloadBtn';
+      const downloadFilename = version ? `lendlocal-v${version}.apk` : 'lendlocal.apk';
+      link.setAttribute('download', downloadFilename);
+      link.setAttribute('rel', 'noopener noreferrer');
+      link.setAttribute('aria-label', `Download LendLocal Android App${versionLabel} (APK)`);
+
+      const icon = document.createElement('span');
+      icon.className = 'auth-app-btn-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = '🤖';
+
+      const label = document.createElement('span');
+      label.textContent = `Download Android App${versionLabel}`;
+
+      link.appendChild(icon);
+      link.appendChild(document.createTextNode(' '));
+      link.appendChild(label);
+
+      const note = document.createElement('p');
+      note.className = 'auth-app-note';
+      note.id = 'androidDownloadNote';
+      note.textContent = `Direct APK download for Android devices${versionLabel}. `;
+
+      if (releasesUrl) {
         const fallbackLink = document.createElement('a');
-        fallbackLink.href = GITHUB_RELEASES_URL;
+        fallbackLink.href = releasesUrl;
         fallbackLink.target = '_blank';
         fallbackLink.rel = 'noopener noreferrer';
         fallbackLink.className = 'auth-app-fallback-link';
         fallbackLink.style.color = 'var(--ll-brand)';
         fallbackLink.style.textDecoration = 'underline';
-        fallbackLink.textContent = 'View on GitHub Releases';
-        fallbackLink.setAttribute('aria-label', 'View LendLocal v1.0.0 release notes on GitHub (opens in a new tab)');
-
+        fallbackLink.textContent = version ? `View v${version} on GitHub Releases` : 'View on GitHub Releases';
+        fallbackLink.setAttribute('aria-label', `View LendLocal release notes on GitHub (opens in a new tab)`);
         note.appendChild(fallbackLink);
+      }
 
-        slot.appendChild(link);
-        slot.appendChild(note);
+      slot.appendChild(link);
+      slot.appendChild(note);
+    }
+
+    function renderAndroidDownloadFailure() {
+      const slot = document.getElementById('androidDownloadSlot');
+      if (!slot) return;
+
+      slot.textContent = '';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'auth-app-btn';
+      btn.id = 'androidDownloadBtn';
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
+
+      const icon = document.createElement('span');
+      icon.className = 'auth-app-btn-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = '🤖';
+
+      const label = document.createElement('span');
+      label.textContent = 'Download Android App';
+
+      btn.appendChild(icon);
+      btn.appendChild(document.createTextNode(' '));
+      btn.appendChild(label);
+
+      const note = document.createElement('p');
+      note.className = 'auth-app-note';
+      note.id = 'androidDownloadNote';
+      note.setAttribute('role', 'status');
+      note.textContent = 'Unable to check the latest version. ';
+
+      const retryBtn = document.createElement('button');
+      retryBtn.type = 'button';
+      retryBtn.id = 'androidRetryBtn';
+      retryBtn.className = 'auth-app-retry-btn';
+      retryBtn.style.background = 'none';
+      retryBtn.style.border = 'none';
+      retryBtn.style.padding = '0';
+      retryBtn.style.color = 'var(--ll-brand)';
+      retryBtn.style.textDecoration = 'underline';
+      retryBtn.style.cursor = 'pointer';
+      retryBtn.style.font = 'inherit';
+      retryBtn.textContent = 'Retry';
+      retryBtn.setAttribute('aria-label', 'Retry checking latest Android version');
+      retryBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        initAndroidDownload();
+      });
+
+      const releasesLink = document.createElement('a');
+      releasesLink.href = GITHUB_RELEASES_URL;
+      releasesLink.target = '_blank';
+      releasesLink.rel = 'noopener noreferrer';
+      releasesLink.className = 'auth-app-fallback-link';
+      releasesLink.style.color = 'var(--ll-brand)';
+      releasesLink.style.textDecoration = 'underline';
+      releasesLink.textContent = 'GitHub Releases';
+      releasesLink.setAttribute('aria-label', 'View LendLocal releases on GitHub (opens in a new tab)');
+
+      note.appendChild(retryBtn);
+      note.appendChild(document.createTextNode(' or visit '));
+      note.appendChild(releasesLink);
+      note.appendChild(document.createTextNode('.'));
+
+      slot.appendChild(btn);
+      slot.appendChild(note);
+    }
+
+    async function initAndroidDownload() {
+      if (isFetchingAndroidDownload) return;
+      isFetchingAndroidDownload = true;
+
+      const slot = document.getElementById('androidDownloadSlot');
+      const noteEl = document.getElementById('androidDownloadNote');
+      if (noteEl) {
+        noteEl.textContent = 'Checking latest version...';
+      }
+
+      try {
+        if (typeof fetchAppVersion === 'function') {
+          const manifest = await fetchAppVersion({ timeoutMs: 3000 });
+          if (manifest && manifest.apkUrl) {
+            renderAndroidDownloadSuccess(manifest);
+            return;
+          }
+        }
+        renderAndroidDownloadFailure();
+      } catch (err) {
+        renderAndroidDownloadFailure();
+      } finally {
+        isFetchingAndroidDownload = false;
       }
     }
     initAndroidDownload();

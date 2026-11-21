@@ -41,6 +41,36 @@ export const authApi = {
     });
   },
 
+  startPhoneVerification: async (
+    phoneNumber: string
+  ): Promise<{ message: string; phoneMasked?: string; cooldownSeconds?: number }> => {
+    return apiRequest<{ message: string; phoneMasked?: string; cooldownSeconds?: number }>(
+      '/auth/phone/start-verification',
+      {
+        method: 'POST',
+        body: JSON.stringify({ phoneNumber }),
+      }
+    );
+  },
+
+  confirmPhoneVerification: async (
+    payload: { otp: string; phoneNumber?: string }
+  ): Promise<{ message: string; user: UserProfile }> => {
+    return apiRequest<{ message: string; user: UserProfile }>(
+      '/auth/phone/confirm-verification',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  removePhone: async (): Promise<{ message: string }> => {
+    return apiRequest<{ message: string }>('/auth/phone', {
+      method: 'DELETE',
+    });
+  },
+
   forgotPasswordPhone: async (phoneNumber: string): Promise<{ message: string; cooldownSeconds?: number }> => {
     return apiRequest<{ message: string; cooldownSeconds?: number }>('/auth/forgot-password-phone', {
       method: 'POST',

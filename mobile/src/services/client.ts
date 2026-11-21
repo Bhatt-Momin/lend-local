@@ -96,7 +96,7 @@ export async function apiRequest<T = any>(
       const seconds = Math.round(timeoutMs / 1000);
       const timeStr = seconds > 0 ? `${seconds}s` : `${timeoutMs}ms`;
       throw {
-        message: `Request timed out (${timeStr}). If the server was sleeping, please retry.`,
+        message: `Request timed out (${timeStr}). The server took too long to respond; please retry.`,
         status: 0,
       } as ApiError;
     }

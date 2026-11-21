@@ -9,6 +9,9 @@ export interface UserProfile {
   name: string;
   email: string;
   upiId?: string | null;
+  phoneNumber?: string | null;
+  phoneVerified?: boolean;
+  phoneVerifiedAt?: string | null;
 }
 
 export async function saveAuthToken(token: string): Promise<void> {

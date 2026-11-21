@@ -21,11 +21,11 @@ const serverJsPath = path.join(__dirname, 'backend', 'server.js');
 const serverJs = fs.readFileSync(serverJsPath, 'utf8');
 
 assert(serverJs.includes('app.get("/api/app-version"'), 'server.js must define GET /api/app-version route');
-assert(serverJs.includes('latestVersion: "1.0.0"') || serverJs.includes('"latestVersion": "1.0.0"'), 'Manifest must report latestVersion 1.0.0');
-assert(serverJs.includes('versionCode: 1') || serverJs.includes('"versionCode": 1'), 'Manifest must report versionCode 1');
-assert(serverJs.includes('https://github.com/Bhatt-Momin/lend-local/releases/download/v1.0.0/lendlocal.apk'),
+assert(serverJs.includes('latestVersion: "1.1.0"') || serverJs.includes('"latestVersion": "1.1.0"'), 'Manifest must report latestVersion 1.1.0');
+assert(serverJs.includes('versionCode: 2') || serverJs.includes('"versionCode": 2'), 'Manifest must report versionCode 2');
+assert(serverJs.includes('https://github.com/Bhatt-Momin/lend-local/releases/download/v1.1.0/lendlocal.apk'),
   'Manifest must point to verified GitHub release APK');
-assert(serverJs.includes('https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.0.0'),
+assert(serverJs.includes('https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.1.0'),
   'Manifest must include release page URL');
 
 console.log('✅ Backend /api/app-version Route Invariants verified.');
@@ -36,8 +36,8 @@ const appJsonPath = path.join(__dirname, 'mobile', 'app.json');
 const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
 
 assert.strictEqual(appJson.expo.android.package, 'com.lendlocal.app', 'Android package must remain com.lendlocal.app');
-assert.strictEqual(appJson.expo.version, '1.0.0', 'Expo version must be 1.0.0');
-assert.strictEqual(appJson.expo.android.versionCode, 1, 'Initial Android versionCode must be 1');
+assert.strictEqual(appJson.expo.version, '1.1.0', 'Expo version must be 1.1.0');
+assert.strictEqual(appJson.expo.android.versionCode, 2, 'Initial Android versionCode must be 2');
 console.log('✅ Mobile App Invariants verified.');
 
 // 3. Mobile updateService Implementation Invariants
@@ -78,15 +78,15 @@ function evaluateUpdateStatus(installedVersionCode, manifest) {
 }
 
 const currentManifest = {
-  latestVersion: '1.0.0',
-  versionCode: 1,
+  latestVersion: '1.1.0',
+  versionCode: 2,
   releaseNotes: 'Initial release',
-  apkUrl: 'https://github.com/Bhatt-Momin/lend-local/releases/download/v1.0.0/lendlocal.apk',
+  apkUrl: 'https://github.com/Bhatt-Momin/lend-local/releases/download/v1.1.0/lendlocal.apk',
 };
 
-// 4A: Running version code 1 with manifest version code 1 -> hasUpdate = false
-const sameVersionResult = evaluateUpdateStatus(1, currentManifest);
-assert.strictEqual(sameVersionResult.hasUpdate, false, 'Installed version 1 with manifest 1 must not trigger update prompt');
+// 4A: Running version code 2 with manifest version code 2 -> hasUpdate = false
+const sameVersionResult = evaluateUpdateStatus(2, currentManifest);
+assert.strictEqual(sameVersionResult.hasUpdate, false, 'Installed version 2 with manifest 2 must not trigger update prompt');
 
 // 4B: Future release published with version code 2 -> hasUpdate = true
 const futureManifest = {

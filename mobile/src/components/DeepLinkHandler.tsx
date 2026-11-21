@@ -93,8 +93,11 @@ export function DeepLinkHandler() {
 
       const parsed = parseDeepLink(url);
       if (!parsed.isValid) {
-        if (parsed.error && parsed.scheme === 'lendlocal') {
-          Alert.alert('Invalid Link', parsed.error);
+        if (parsed.error) {
+          Alert.alert(
+            parsed.scheme === 'lendlocal' ? 'Invalid Link' : 'Untrusted Link',
+            parsed.error
+          );
         }
         return;
       }

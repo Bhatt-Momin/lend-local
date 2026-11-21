@@ -821,13 +821,130 @@
         <div class="modal-actions modern-modal-actions">
           <button class="btn btn-primary" id="gotItInstallBtn" type="button">Got it</button>
         </div>
-        <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--ll-border); text-align: center;">
+        <div id="dashboardAndroidContainer" style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--ll-border); text-align: center;">
           <p style="font-size: 0.85rem; color: var(--ll-text-muted); margin-bottom: 0.75rem;">Using Android? You can also download the APK directly:</p>
-          <a href="https://github.com/Bhatt-Momin/lend-local/releases/download/v1.0.0/lendlocal.apk" class="btn btn-outline-dark" style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;" download>
-            <span aria-hidden="true">🤖</span> Download Android APK
+          <a id="dashboardAndroidDownloadBtn" href="https://github.com/Bhatt-Momin/lend-local/releases" class="btn btn-outline-dark" style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;" target="_blank" rel="noopener noreferrer" aria-label="Download LendLocal Android App (APK)">
+            <span aria-hidden="true">🤖</span> <span id="dashboardAndroidBtnLabel">Download Android App</span>
           </a>
+          <p id="dashboardAndroidReleaseNotes" style="font-size: 0.75rem; color: var(--ll-text-muted); margin-top: 0.5rem; margin-bottom: 0;">
+            <span id="dashboardAndroidStatus"></span>
+            <button type="button" id="dashboardAndroidRetryBtn" style="display: none; background: none; border: none; padding: 0; color: var(--ll-brand); text-decoration: underline; cursor: pointer; font: inherit;" aria-label="Retry checking latest Android version">Retry</button>
+            <span id="dashboardAndroidSep" style="display: none;"> or visit </span>
+            <a id="dashboardAndroidNotesLink" href="https://github.com/Bhatt-Momin/lend-local/releases" target="_blank" rel="noopener noreferrer" style="color: var(--ll-brand); text-decoration: underline;" aria-label="View LendLocal releases on GitHub (opens in a new tab)">GitHub Releases</a>
+          </p>
         </div>
       </div>
     </div>
+
+  <script>
+    let isFetchingDashboardDownload = false;
+
+    async function initDashboardAndroidDownload() {
+      if (isFetchingDashboardDownload) return;
+      isFetchingDashboardDownload = true;
+
+      const btn = document.getElementById('dashboardAndroidDownloadBtn');
+      const label = document.getElementById('dashboardAndroidBtnLabel');
+      const statusEl = document.getElementById('dashboardAndroidStatus');
+      const retryBtn = document.getElementById('dashboardAndroidRetryBtn');
+      const sepEl = document.getElementById('dashboardAndroidSep');
+      const notesLink = document.getElementById('dashboardAndroidNotesLink');
+
+      if (!btn) {
+        isFetchingDashboardDownload = false;
+        return;
+      }
+
+      if (retryBtn && !retryBtn.dataset.bound) {
+        retryBtn.dataset.bound = 'true';
+        retryBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          initDashboardAndroidDownload();
+        });
+      }
+
+      if (statusEl) {
+        statusEl.textContent = 'Checking latest version...';
+        statusEl.style.display = 'inline';
+      }
+      if (retryBtn) retryBtn.style.display = 'none';
+      if (sepEl) sepEl.style.display = 'none';
+
+      const generalReleasesUrl = 'https://github.com/Bhatt-Momin/lend-local/releases';
+
+      try {
+        if (typeof fetchAppVersion === 'function') {
+          const manifest = await fetchAppVersion({ timeoutMs: 3000 });
+          if (manifest && manifest.apkUrl && (typeof isValidHttpsUrl === 'function' ? isValidHttpsUrl(manifest.apkUrl) : manifest.apkUrl.startsWith('https://'))) {
+            const rawVersion = manifest.latestVersion || '';
+            const version = typeof normalizeAppVersion === 'function'
+              ? normalizeAppVersion(rawVersion)
+              : String(rawVersion).replace(/^v+/i, '').trim();
+            const versionLabel = version ? ` (v${version})` : '';
+
+            btn.href = manifest.apkUrl;
+            btn.removeAttribute('target');
+            const downloadFilename = version ? `lendlocal-v${version}.apk` : 'lendlocal.apk';
+            btn.setAttribute('download', downloadFilename);
+            btn.setAttribute('rel', 'noopener noreferrer');
+            btn.setAttribute('aria-label', `Download LendLocal Android App${versionLabel} (APK)`);
+            if (label) {
+              label.textContent = `Download Android App${versionLabel}`;
+            }
+
+            if (statusEl) {
+              statusEl.textContent = '';
+              statusEl.style.display = 'none';
+            }
+
+            if (notesLink) {
+              const manifestRelUrl = manifest.releasesPageUrl ? String(manifest.releasesPageUrl).trim() : '';
+              const releasesUrl = (manifestRelUrl && (typeof isValidHttpsUrl === 'function' ? isValidHttpsUrl(manifestRelUrl) : true))
+                ? manifestRelUrl
+                : generalReleasesUrl;
+              notesLink.href = releasesUrl;
+              notesLink.textContent = version ? `View v${version} on GitHub Releases` : 'View on GitHub Releases';
+              notesLink.setAttribute('aria-label', `View LendLocal release notes on GitHub (opens in a new tab)`);
+              notesLink.style.display = 'inline';
+            }
+            return;
+          }
+        }
+        renderDashboardFailure();
+      } catch (e) {
+        renderDashboardFailure();
+      } finally {
+        isFetchingDashboardDownload = false;
+      }
+
+      function renderDashboardFailure() {
+        btn.href = generalReleasesUrl;
+        btn.target = '_blank';
+        btn.removeAttribute('download');
+        btn.setAttribute('aria-label', 'View LendLocal releases on GitHub');
+        if (label) {
+          label.textContent = 'View Releases on GitHub';
+        }
+
+        if (statusEl) {
+          statusEl.textContent = 'Unable to check latest version. ';
+          statusEl.style.display = 'inline';
+        }
+        if (retryBtn) {
+          retryBtn.style.display = 'inline';
+        }
+        if (sepEl) {
+          sepEl.style.display = 'inline';
+        }
+        if (notesLink) {
+          notesLink.href = generalReleasesUrl;
+          notesLink.textContent = 'GitHub Releases';
+          notesLink.setAttribute('aria-label', 'View LendLocal releases on GitHub (opens in a new tab)');
+          notesLink.style.display = 'inline';
+        }
+      }
+    }
+    initDashboardAndroidDownload();
+  </script>
 </body>
 </html>

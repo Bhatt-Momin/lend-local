@@ -17,10 +17,14 @@ export interface SettingsModalProps {
     name: string;
     email: string;
     upiId?: string | null;
+    phoneNumber?: string | null;
+    phoneVerified?: boolean;
+    phoneVerifiedAt?: string | null;
   } | null;
   isRefreshingUser?: boolean;
   onRefreshUser?: () => void;
   onOpenUpiModal: (currentUpiId?: string | null) => void;
+  onOpenPhoneModal: () => void;
   onOpenServerModal: () => void;
   onLogout: () => void;
   isLoggingOut?: boolean;
@@ -33,6 +37,7 @@ export function SettingsModal({
   isRefreshingUser = false,
   onRefreshUser,
   onOpenUpiModal,
+  onOpenPhoneModal,
   onOpenServerModal,
   onLogout,
   isLoggingOut = false,
@@ -153,6 +158,51 @@ export function SettingsModal({
               >
                 <ThemedText style={styles.actionPillText}>
                   {upiButtonLabel}
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Settings Section: Security & Recovery */}
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionLabel}>Security & Recovery</ThemedText>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <ThemedText style={styles.settingTitle}>Phone Recovery</ThemedText>
+                <ThemedText
+                  style={[
+                    styles.settingSub,
+                    user.phoneVerified ? styles.phoneVerifiedActive : styles.phoneMuted,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {user.phoneVerified && user.phoneNumber
+                    ? `${user.phoneNumber} (Verified)`
+                    : 'Not verified (SMS recovery inactive)'}
+                </ThemedText>
+              </View>
+
+              <TouchableOpacity
+                onPress={onOpenPhoneModal}
+                style={[
+                  styles.actionPillBtn,
+                  user.phoneVerified ? styles.actionPillBtnSecondary : undefined,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  user.phoneVerified
+                    ? `Verified phone ${user.phoneNumber}. Tap to manage.`
+                    : 'Phone not verified. Tap to verify.'
+                }
+              >
+                <ThemedText
+                  style={[
+                    styles.actionPillText,
+                    user.phoneVerified ? styles.actionPillTextSecondary : undefined,
+                  ]}
+                >
+                  {user.phoneVerified ? 'Manage' : '+ Verify'}
                 </ThemedText>
               </TouchableOpacity>
             </View>
@@ -333,6 +383,13 @@ const styles = StyleSheet.create({
   upiMuted: {
     color: '#7A93A6',
     fontStyle: 'italic',
+  },
+  phoneVerifiedActive: {
+    color: '#10B981',
+    fontWeight: '600',
+  },
+  phoneMuted: {
+    color: '#7A93A6',
   },
   actionPillBtn: {
     paddingHorizontal: 12,
