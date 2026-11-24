@@ -10,9 +10,11 @@ import type {
   ExpenseFilters,
   ExpenseItem,
   GroupBalancesResponse,
+  GroupBudgetResponse,
   GroupDetail,
   PaymentIntentItem,
   RenameGroupResponse,
+  UpdateBudgetPayload,
   UpdateExpensePayload,
 } from '../types/api';
 import {
@@ -30,6 +32,8 @@ export interface UseGroupDetailResult {
   group: GroupDetail | null;
   expenses: ExpenseItem[];
   balances: GroupBalancesResponse | null;
+  budget: GroupBudgetResponse | null;
+  updateBudget: (payload: UpdateBudgetPayload) => Promise<any>;
   activeIntents: PaymentIntentItem[];
   activeIntentsVerified: boolean;
   activeIntentsError: string | null;
@@ -75,6 +79,7 @@ export function useGroupDetail(
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [balances, setBalances] = useState<GroupBalancesResponse | null>(null);
+  const [budget, setBudget] = useState<GroupBudgetResponse | null>(null);
   const [activeIntents, setActiveIntents] = useState<PaymentIntentItem[]>([]);
   const [activeIntentsVerified, setActiveIntentsVerified] = useState<boolean>(true);
   const [activeIntentsError, setActiveIntentsError] = useState<string | null>(null);
@@ -162,11 +167,12 @@ export function useGroupDetail(
           });
 
         const currentFilters = filtersRef.current;
-        const [groupRes, expensesRes, balancesRes] = await Promise.all([
+        const [groupRes, expensesRes, balancesRes, , budgetRes] = await Promise.all([
           groupsApi.getById(groupId),
           expensesApi.list(groupId, currentFilters),
           balancesApi.get(groupId),
           activeIntentsPromise,
+          groupsApi.getBudget(groupId).catch(() => null),
         ]);
 
         if (currentRequestId !== requestIdRef.current) return;
@@ -174,6 +180,7 @@ export function useGroupDetail(
         setGroup(groupRes.group);
         setExpenses(expensesRes.expenses ?? []);
         setBalances(balancesRes);
+        setBudget(budgetRes ?? null);
         setFilterError(null);
 
         if (activeIntentsFetchSucceeded) {
@@ -472,6 +479,13 @@ export function useGroupDetail(
     group,
     expenses,
     balances,
+    budget,
+    updateBudget: async (payload: UpdateBudgetPayload) => {
+      const res = await groupsApi.updateBudget(groupId, payload);
+      // Refresh budget data after update
+      await load(true, true);
+      return res;
+    },
     activeIntents,
     activeIntentsVerified,
     activeIntentsError,

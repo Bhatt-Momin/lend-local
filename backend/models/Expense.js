@@ -12,6 +12,31 @@ const splitSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    percentage: {
+      type: Number,
+      min: 0,
+      max: 100,
+    },
+    shares: {
+      type: Number,
+      min: 0,
+    },
+  },
+  { _id: false }
+);
+
+const payerSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: [0.01, 'Payer amount must be at least ₹0.01'],
+    },
   },
   { _id: false }
 );
@@ -38,11 +63,15 @@ const expenseSchema = new mongoose.Schema(
     paidBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: false,
+    },
+    payers: {
+      type: [payerSchema],
+      default: undefined,
     },
     splitType: {
       type: String,
-      enum: ['equal', 'custom'],
+      enum: ['equal', 'custom', 'exact', 'percentage', 'shares'],
       default: 'equal',
     },
     splits: {
@@ -72,5 +101,44 @@ const expenseSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Pre-save hook: validate payers vs amount and maintain backwards compatibility with paidBy
+expenseSchema.pre('save', function (next) {
+  const expense = this;
+
+  if (Array.isArray(expense.payers) && expense.payers.length > 0) {
+    const totalPayerPaise = expense.payers.reduce(
+      (sum, p) => sum + Math.round(Number(p.amount || 0) * 100),
+      0
+    );
+    const expensePaise = Math.round(Number(expense.amount || 0) * 100);
+
+    if (Math.abs(totalPayerPaise - expensePaise) > 1) {
+      return next(
+        new Error(
+          `Sum of payer amounts (₹${(totalPayerPaise / 100).toFixed(2)}) must equal expense amount (₹${(expensePaise / 100).toFixed(2)})`
+        )
+      );
+    }
+
+    if (!expense.paidBy && expense.payers[0]?.user) {
+      expense.paidBy = expense.payers[0].user;
+    }
+  } else if (!expense.paidBy) {
+    return next(new Error('Expense must have a payer (paidBy or payers array)'));
+  }
+
+  next();
+});
+
+expenseSchema.methods.getPayersList = function () {
+  if (Array.isArray(this.payers) && this.payers.length > 0) {
+    return this.payers;
+  }
+  if (this.paidBy) {
+    return [{ user: this.paidBy, amount: this.amount }];
+  }
+  return [];
+};
 
 module.exports = mongoose.model('Expense', expenseSchema);

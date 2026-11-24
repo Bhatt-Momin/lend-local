@@ -504,7 +504,7 @@ textarea {
 }
 
 .modal-backdrop.open {
-  display: flex;
+  display: flex !important;
   animation: fadeIn 0.25s ease;
 }
 

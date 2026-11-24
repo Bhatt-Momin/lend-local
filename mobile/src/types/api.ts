@@ -83,6 +83,19 @@ export interface GroupsResponse {
   groups: GroupSummary[];
 }
 
+export interface GroupBudgetResponse {
+  monthlyLimit: number;
+  categoryLimits: Record<string, number>;
+  currentMonthSpent: number;
+  percentageUsed: number;
+  alertsSent: Array<{ month: string; threshold: number; category: string }>;
+}
+
+export interface UpdateBudgetPayload {
+  monthlyLimit: number;
+  categoryLimits?: Record<string, number>;
+}
+
 export interface GroupDetail {
   id: string;
   name: string;
@@ -92,6 +105,11 @@ export interface GroupDetail {
   updatedAt: string;
   createdAt: string;
   isActiveMember: boolean;
+  budget?: {
+    monthlyLimit?: number;
+    categoryLimits?: Record<string, number>;
+    alertsSent?: string[];
+  };
 }
 
 export interface GroupDetailResponse {
@@ -157,6 +175,8 @@ export interface DeleteGroupResponse {
 // EXPENSES DOMAIN CONTRACTS
 // ============================================================================
 
+export type ExpenseSplitType = 'equal' | 'custom' | 'exact' | 'percentage' | 'shares';
+
 export interface ExpenseSplitAllocation {
   user: {
     id: string | null;
@@ -164,6 +184,8 @@ export interface ExpenseSplitAllocation {
     email?: string | null;
   };
   share: number;
+  percentage?: number;
+  shares?: number;
 }
 
 export interface ExpensePayer {
@@ -172,14 +194,20 @@ export interface ExpensePayer {
   email?: string | null;
 }
 
+export interface ExpensePayerContribution {
+  user: ExpensePayer | string;
+  amount: number;
+}
+
 export interface ExpenseItem {
   id: string;
   description: string;
   amount: number;
   category: string;
-  splitType: 'equal' | 'custom';
+  splitType: ExpenseSplitType;
   date: string;
   paidBy: ExpensePayer;
+  payers?: ExpensePayerContribution[];
   createdBy?: string | null;
   splits: ExpenseSplitAllocation[];
   createdAt?: string;
@@ -200,6 +228,8 @@ export interface ExpenseFilters {
 export interface CustomSplitShareInput {
   user: string;
   share: number;
+  percentage?: number;
+  shares?: number;
 }
 
 export interface CreateExpensePayload {
@@ -207,8 +237,9 @@ export interface CreateExpensePayload {
   description: string;
   amount: number;
   paidBy?: string;
-  splitType?: 'equal' | 'custom';
-  splits?: Array<string | { user: string; share?: number }>;
+  payers?: Array<{ user: string; amount: number }>;
+  splitType?: ExpenseSplitType;
+  splits?: Array<string | { user: string; share?: number; percentage?: number; shares?: number }>;
   category?: string;
   date?: string | Date;
 }
@@ -217,8 +248,9 @@ export interface UpdateExpensePayload {
   description: string;
   amount: number;
   paidBy?: string;
-  splitType?: 'equal' | 'custom';
-  splits?: Array<string | { user: string; share?: number }>;
+  payers?: Array<{ user: string; amount: number }>;
+  splitType?: ExpenseSplitType;
+  splits?: Array<string | { user: string; share?: number; percentage?: number; shares?: number }>;
   category?: string;
   date?: string | Date;
 }

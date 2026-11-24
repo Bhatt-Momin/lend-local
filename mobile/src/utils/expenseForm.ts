@@ -13,7 +13,8 @@
  * 3. Monetary amounts in INR have at most two decimal places: ₹0.01 <= amount <= ₹10,000,000.
  */
 
-import type { CreateExpensePayload } from '../types/api';
+import { evaluateMathExpression } from './math';
+import type { CreateExpensePayload, ExpenseSplitType } from '../types/api';
 
 export const MIN_EXPENSE_AMOUNT = 0.01;
 export const MAX_EXPENSE_AMOUNT = 10000000; // ₹10,000,000
@@ -96,16 +97,22 @@ export function parseAmountToPaise(input: string | number | null | undefined): P
     if (!trimmed) {
       return { valid: false, paise: 0, amount: 0, error: 'Amount is required' };
     }
-    // Reject malformed strings like "abc", "12.34.56", "-5", "+10", "NaN"
-    if (!/^\d+(\.\d+)?$/.test(trimmed)) {
+    if (/[+\-*/()]/.test(trimmed)) {
+      const evalRes = evaluateMathExpression(trimmed);
+      if (!evalRes.valid || evalRes.value === undefined) {
+        return { valid: false, paise: 0, amount: 0, error: evalRes.error || 'Invalid math expression' };
+      }
+      num = evalRes.value;
+    } else if (!/^\d+(\.\d+)?$/.test(trimmed)) {
       return { valid: false, paise: 0, amount: 0, error: 'Please enter a valid amount' };
+    } else {
+      // Precision check on string input: reject more than 2 decimal places
+      const parts = trimmed.split('.');
+      if (parts.length === 2 && parts[1].length > 2) {
+        return { valid: false, paise: 0, amount: 0, error: 'Amount must have at most two decimal places' };
+      }
+      num = Number(trimmed);
     }
-    // Precision check on string input: reject more than 2 decimal places
-    const parts = trimmed.split('.');
-    if (parts.length === 2 && parts[1].length > 2) {
-      return { valid: false, paise: 0, amount: 0, error: 'Amount must have at most two decimal places' };
-    }
-    num = Number(trimmed);
   }
 
   if (!Number.isFinite(num) || isNaN(num) || num <= 0) {
@@ -430,6 +437,276 @@ export function validateCustomSplits(
   };
 }
 
+export interface PercentageSplitInputItem {
+  user: string;
+  percentage: number | string;
+}
+
+export interface PercentageSplitValidatedItem {
+  user: string;
+  percentage: number;
+}
+
+export interface ValidatePercentageSplitsResult {
+  valid: boolean;
+  totalPercentage: number;
+  splits: PercentageSplitValidatedItem[];
+  error?: string;
+}
+
+export function validatePercentageSplits(
+  splits: PercentageSplitInputItem[],
+  validMemberIds?: string[] | Set<string>
+): ValidatePercentageSplitsResult {
+  if (!Array.isArray(splits) || splits.length === 0) {
+    return { valid: false, totalPercentage: 0, splits: [], error: 'At least one participant is required' };
+  }
+
+  const memberSet = validMemberIds
+    ? validMemberIds instanceof Set
+      ? validMemberIds
+      : new Set(Array.from(validMemberIds).map((m) => String(m).trim()))
+    : null;
+
+  const unique = new Set<string>();
+  const validatedSplits: PercentageSplitValidatedItem[] = [];
+  let totalPct = 0;
+
+  for (const item of splits) {
+    const userId = String(item.user || '').trim();
+    if (!userId) {
+      return { valid: false, totalPercentage: totalPct, splits: [], error: 'Invalid split participant' };
+    }
+    if (unique.has(userId)) {
+      return { valid: false, totalPercentage: totalPct, splits: [], error: 'Duplicate split participant' };
+    }
+    unique.add(userId);
+
+    if (memberSet && !memberSet.has(userId)) {
+      return { valid: false, totalPercentage: totalPct, splits: [], error: 'All split users must be group members' };
+    }
+
+    const rawVal = String(item.percentage ?? '').trim();
+    if (rawVal === '') {
+      return { valid: false, totalPercentage: totalPct, splits: [], error: 'Please enter a percentage for all selected participants' };
+    }
+
+    let pct: number;
+    if (/[+\-*/()]/.test(rawVal)) {
+      const evalRes = evaluateMathExpression(rawVal);
+      if (!evalRes.valid || evalRes.value === undefined) {
+        return { valid: false, totalPercentage: totalPct, splits: [], error: evalRes.error || 'Invalid math expression in percentage' };
+      }
+      pct = evalRes.value;
+    } else {
+      pct = Number(rawVal);
+    }
+
+    if (!Number.isFinite(pct) || isNaN(pct) || pct < 0 || pct > 100) {
+      return { valid: false, totalPercentage: totalPct, splits: [], error: 'Percentage must be between 0 and 100' };
+    }
+
+    totalPct += pct;
+    validatedSplits.push({ user: userId, percentage: pct });
+  }
+
+  if (Math.abs(totalPct - 100) > 0.05) {
+    return {
+      valid: false,
+      totalPercentage: totalPct,
+      splits: validatedSplits,
+      error: `Percentages must sum to 100% (currently ${totalPct.toFixed(1)}%)`,
+    };
+  }
+
+  return {
+    valid: true,
+    totalPercentage: 100,
+    splits: validatedSplits,
+  };
+}
+
+export interface SharesSplitInputItem {
+  user: string;
+  shares: number | string;
+}
+
+export interface SharesSplitValidatedItem {
+  user: string;
+  shares: number;
+}
+
+export interface ValidateSharesSplitsResult {
+  valid: boolean;
+  totalShares: number;
+  splits: SharesSplitValidatedItem[];
+  error?: string;
+}
+
+export function validateSharesSplits(
+  splits: SharesSplitInputItem[],
+  validMemberIds?: string[] | Set<string>
+): ValidateSharesSplitsResult {
+  if (!Array.isArray(splits) || splits.length === 0) {
+    return { valid: false, totalShares: 0, splits: [], error: 'At least one participant is required' };
+  }
+
+  const memberSet = validMemberIds
+    ? validMemberIds instanceof Set
+      ? validMemberIds
+      : new Set(Array.from(validMemberIds).map((m) => String(m).trim()))
+    : null;
+
+  const unique = new Set<string>();
+  const validatedSplits: SharesSplitValidatedItem[] = [];
+  let totalShares = 0;
+
+  for (const item of splits) {
+    const userId = String(item.user || '').trim();
+    if (!userId) {
+      return { valid: false, totalShares, splits: [], error: 'Invalid split participant' };
+    }
+    if (unique.has(userId)) {
+      return { valid: false, totalShares, splits: [], error: 'Duplicate split participant' };
+    }
+    unique.add(userId);
+
+    if (memberSet && !memberSet.has(userId)) {
+      return { valid: false, totalShares, splits: [], error: 'All split users must be group members' };
+    }
+
+    const rawVal = String(item.shares ?? '').trim();
+    if (rawVal === '') {
+      return { valid: false, totalShares, splits: [], error: 'Please enter shares for all selected participants' };
+    }
+
+    let sh: number;
+    if (/[+\-*/()]/.test(rawVal)) {
+      const evalRes = evaluateMathExpression(rawVal);
+      if (!evalRes.valid || evalRes.value === undefined) {
+        return { valid: false, totalShares, splits: [], error: evalRes.error || 'Invalid math expression in shares' };
+      }
+      sh = evalRes.value;
+    } else {
+      sh = Number(rawVal);
+    }
+
+    if (!Number.isFinite(sh) || isNaN(sh) || sh <= 0) {
+      return { valid: false, totalShares, splits: [], error: 'Shares must be greater than 0' };
+    }
+
+    totalShares += sh;
+    validatedSplits.push({ user: userId, shares: sh });
+  }
+
+  if (totalShares <= 0) {
+    return { valid: false, totalShares: 0, splits: [], error: 'Total shares must be greater than 0' };
+  }
+
+  return {
+    valid: true,
+    totalShares,
+    splits: validatedSplits,
+  };
+}
+
+export interface MultiPayerInputItem {
+  user: string;
+  amount: number | string;
+}
+
+export interface MultiPayerValidatedItem {
+  user: string;
+  amount: number;
+  amountPaise: number;
+}
+
+export interface ValidateMultiPayersResult {
+  valid: boolean;
+  totalPayerPaise: number;
+  payers: MultiPayerValidatedItem[];
+  error?: string;
+}
+
+export function validateMultiPayers(
+  payers: MultiPayerInputItem[],
+  totalPaise: number,
+  validMemberIds?: string[] | Set<string>
+): ValidateMultiPayersResult {
+  if (!Array.isArray(payers) || payers.length === 0) {
+    return { valid: false, totalPayerPaise: 0, payers: [], error: 'At least one payer is required' };
+  }
+
+  const memberSet = validMemberIds
+    ? validMemberIds instanceof Set
+      ? validMemberIds
+      : new Set(Array.from(validMemberIds).map((m) => String(m).trim()))
+    : null;
+
+  const unique = new Set<string>();
+  const validatedPayers: MultiPayerValidatedItem[] = [];
+  let totalPayerPaise = 0;
+
+  for (const item of payers) {
+    const userId = String(item.user || '').trim();
+    if (!userId) continue;
+
+    if (unique.has(userId)) {
+      return { valid: false, totalPayerPaise, payers: [], error: 'Duplicate payer in payers list' };
+    }
+    unique.add(userId);
+
+    if (memberSet && !memberSet.has(userId)) {
+      return { valid: false, totalPayerPaise, payers: [], error: 'All payers must be group members' };
+    }
+
+    const rawVal = String(item.amount ?? '').trim();
+    if (!rawVal) continue;
+
+    let pAmount: number;
+    if (/[+\-*/()]/.test(rawVal)) {
+      const evalRes = evaluateMathExpression(rawVal);
+      if (!evalRes.valid || evalRes.value === undefined) {
+        return { valid: false, totalPayerPaise, payers: [], error: evalRes.error || 'Invalid math expression in payer amount' };
+      }
+      pAmount = evalRes.value;
+    } else {
+      pAmount = Number(rawVal);
+    }
+
+    if (isNaN(pAmount) || pAmount <= 0) continue;
+
+    const pPaise = Math.round(pAmount * 100);
+    totalPayerPaise += pPaise;
+    validatedPayers.push({
+      user: userId,
+      amount: pPaise / 100,
+      amountPaise: pPaise,
+    });
+  }
+
+  if (validatedPayers.length === 0) {
+    return { valid: false, totalPayerPaise: 0, payers: [], error: 'Enter amounts paid by group members' };
+  }
+
+  if (Math.abs(totalPayerPaise - totalPaise) > 1) {
+    const paidFormatted = (totalPayerPaise / 100).toFixed(2);
+    const totalFormatted = (totalPaise / 100).toFixed(2);
+    return {
+      valid: false,
+      totalPayerPaise,
+      payers: validatedPayers,
+      error: `Sum of payer amounts (₹${paidFormatted}) must equal total expense (₹${totalFormatted})`,
+    };
+  }
+
+  return {
+    valid: true,
+    totalPayerPaise,
+    payers: validatedPayers,
+  };
+}
+
 export interface ExpenseAuthContext {
   currentUserId?: string | null;
   groupCreatorId?: string | null;
@@ -665,7 +942,8 @@ export interface BuildEqualExpenseParams {
   groupId: string;
   description: string;
   amountInput: string | number;
-  paidBy: string;
+  paidBy?: string;
+  payers?: MultiPayerInputItem[];
   selectedParticipants: string[];
   category?: string;
   dateInput?: string | Date;
@@ -715,7 +993,20 @@ export function buildEqualExpensePayload(params: BuildEqualExpenseParams): Build
       : new Set(params.validMemberIds.map((m) => String(m).trim()))
     : null;
 
-  const paidBy = String(params.paidBy || '').trim();
+  let paidBy = String(params.paidBy || '').trim();
+  let validatedPayers: Array<{ user: string; amount: number }> | undefined;
+
+  if (params.payers && params.payers.length > 0) {
+    const payerRes = validateMultiPayers(params.payers, parsedAmount.paise, memberSet || undefined);
+    if (!payerRes.valid) {
+      return { valid: false, error: payerRes.error };
+    }
+    validatedPayers = payerRes.payers.map((p) => ({ user: p.user, amount: p.amount }));
+    if (!paidBy && validatedPayers.length > 0) {
+      paidBy = validatedPayers[0].user;
+    }
+  }
+
   if (!paidBy) {
     return { valid: false, error: 'Payer is required' };
   }
@@ -761,6 +1052,7 @@ export function buildEqualExpensePayload(params: BuildEqualExpenseParams): Build
       description: trimmedDesc,
       amount: parsedAmount.amount,
       paidBy,
+      ...(validatedPayers ? { payers: validatedPayers } : {}),
       splitType: 'equal',
       splits: normalizedParticipants,
       category,
@@ -806,7 +1098,8 @@ export interface BuildCustomExpenseParams {
   groupId: string;
   description: string;
   amountInput: string | number;
-  paidBy: string;
+  paidBy?: string;
+  payers?: MultiPayerInputItem[];
   customSplits: CustomSplitInputItem[];
   category?: string;
   dateInput?: string | Date;
@@ -823,17 +1116,6 @@ export interface BuildCustomExpenseResult {
 
 /**
  * Validates form inputs and constructs a normalized CreateExpensePayload for custom split.
- * Enforces:
- * - Non-empty groupId.
- * - Trimmed description between 1 and 200 characters.
- * - Amount parsed via parseAmountToPaise (within limits, safe integer paise, at most 2 decimals).
- * - Payer must be a non-empty string and a valid group member if validMemberIds provided.
- * - Custom splits non-empty, unique participants, valid members.
- * - Each share must be non-negative numeric amount with at most 2 decimal places.
- * - Zero shares are allowed.
- * - Sum of all shares in integer paise must strictly match the total amount in paise.
- * - Category trimmed, max 40 characters, defaults to 'General'.
- * - Date strictly validated via validateExpenseDate.
  */
 export function buildCustomExpensePayload(params: BuildCustomExpenseParams): BuildCustomExpenseResult {
   const groupId = String(params.groupId || '').trim();
@@ -860,7 +1142,20 @@ export function buildCustomExpensePayload(params: BuildCustomExpenseParams): Bui
       : new Set(Array.from(params.validMemberIds).map((m) => String(m).trim()))
     : null;
 
-  const paidBy = String(params.paidBy || '').trim();
+  let paidBy = String(params.paidBy || '').trim();
+  let validatedPayers: Array<{ user: string; amount: number }> | undefined;
+
+  if (params.payers && params.payers.length > 0) {
+    const payerRes = validateMultiPayers(params.payers, parsedAmount.paise, memberSet || undefined);
+    if (!payerRes.valid) {
+      return { valid: false, error: payerRes.error };
+    }
+    validatedPayers = payerRes.payers.map((p) => ({ user: p.user, amount: p.amount }));
+    if (!paidBy && validatedPayers.length > 0) {
+      paidBy = validatedPayers[0].user;
+    }
+  }
+
   if (!paidBy) {
     return { valid: false, error: 'Payer is required' };
   }
@@ -900,8 +1195,159 @@ export function buildCustomExpensePayload(params: BuildCustomExpenseParams): Bui
       description: trimmedDesc,
       amount: parsedAmount.amount,
       paidBy,
+      ...(validatedPayers ? { payers: validatedPayers } : {}),
       splitType: 'custom',
       splits: finalSplits,
+      category,
+      date: dateResult.isoDate,
+    },
+  };
+}
+
+export interface BuildPercentageExpenseParams {
+  groupId: string;
+  description: string;
+  amountInput: string | number;
+  paidBy?: string;
+  payers?: MultiPayerInputItem[];
+  percentageSplits: PercentageSplitInputItem[];
+  category?: string;
+  dateInput?: string | Date;
+  validMemberIds?: string[] | Set<string>;
+}
+
+export interface BuildPercentageExpenseResult {
+  valid: boolean;
+  payload?: CreateExpensePayload;
+  error?: string;
+}
+
+export function buildPercentageExpensePayload(params: BuildPercentageExpenseParams): BuildPercentageExpenseResult {
+  const groupId = String(params.groupId || '').trim();
+  if (!groupId) return { valid: false, error: 'Group ID is required' };
+
+  const trimmedDesc = String(params.description || '').trim();
+  if (!trimmedDesc) return { valid: false, error: 'Description is required' };
+  if (trimmedDesc.length > 200) return { valid: false, error: 'Description cannot exceed 200 characters' };
+
+  const parsedAmount = parseAmountToPaise(params.amountInput);
+  if (!parsedAmount.valid) return { valid: false, error: parsedAmount.error || 'Please enter a valid amount' };
+
+  const memberSet = params.validMemberIds
+    ? params.validMemberIds instanceof Set
+      ? params.validMemberIds
+      : new Set(Array.from(params.validMemberIds).map((m) => String(m).trim()))
+    : null;
+
+  let paidBy = String(params.paidBy || '').trim();
+  let validatedPayers: Array<{ user: string; amount: number }> | undefined;
+
+  if (params.payers && params.payers.length > 0) {
+    const payerRes = validateMultiPayers(params.payers, parsedAmount.paise, memberSet || undefined);
+    if (!payerRes.valid) return { valid: false, error: payerRes.error };
+    validatedPayers = payerRes.payers.map((p) => ({ user: p.user, amount: p.amount }));
+    if (!paidBy && validatedPayers.length > 0) {
+      paidBy = validatedPayers[0].user;
+    }
+  }
+
+  if (!paidBy) return { valid: false, error: 'Payer is required' };
+  if (memberSet && !memberSet.has(paidBy)) return { valid: false, error: 'Payer must be a member of the group' };
+
+  const splitRes = validatePercentageSplits(params.percentageSplits, memberSet || undefined);
+  if (!splitRes.valid) return { valid: false, error: splitRes.error };
+
+  const trimmedCategory = String(params.category || '').trim().slice(0, 40);
+  const category = trimmedCategory || 'General';
+
+  const dateResult = validateExpenseDate(params.dateInput);
+  if (!dateResult.valid || !dateResult.isoDate) return { valid: false, error: dateResult.error || 'Please enter a valid date' };
+
+  return {
+    valid: true,
+    payload: {
+      groupId,
+      description: trimmedDesc,
+      amount: parsedAmount.amount,
+      paidBy,
+      ...(validatedPayers ? { payers: validatedPayers } : {}),
+      splitType: 'percentage',
+      splits: splitRes.splits,
+      category,
+      date: dateResult.isoDate,
+    },
+  };
+}
+
+export interface BuildSharesExpenseParams {
+  groupId: string;
+  description: string;
+  amountInput: string | number;
+  paidBy?: string;
+  payers?: MultiPayerInputItem[];
+  sharesSplits: SharesSplitInputItem[];
+  category?: string;
+  dateInput?: string | Date;
+  validMemberIds?: string[] | Set<string>;
+}
+
+export interface BuildSharesExpenseResult {
+  valid: boolean;
+  payload?: CreateExpensePayload;
+  error?: string;
+}
+
+export function buildSharesExpensePayload(params: BuildSharesExpenseParams): BuildSharesExpenseResult {
+  const groupId = String(params.groupId || '').trim();
+  if (!groupId) return { valid: false, error: 'Group ID is required' };
+
+  const trimmedDesc = String(params.description || '').trim();
+  if (!trimmedDesc) return { valid: false, error: 'Description is required' };
+  if (trimmedDesc.length > 200) return { valid: false, error: 'Description cannot exceed 200 characters' };
+
+  const parsedAmount = parseAmountToPaise(params.amountInput);
+  if (!parsedAmount.valid) return { valid: false, error: parsedAmount.error || 'Please enter a valid amount' };
+
+  const memberSet = params.validMemberIds
+    ? params.validMemberIds instanceof Set
+      ? params.validMemberIds
+      : new Set(Array.from(params.validMemberIds).map((m) => String(m).trim()))
+    : null;
+
+  let paidBy = String(params.paidBy || '').trim();
+  let validatedPayers: Array<{ user: string; amount: number }> | undefined;
+
+  if (params.payers && params.payers.length > 0) {
+    const payerRes = validateMultiPayers(params.payers, parsedAmount.paise, memberSet || undefined);
+    if (!payerRes.valid) return { valid: false, error: payerRes.error };
+    validatedPayers = payerRes.payers.map((p) => ({ user: p.user, amount: p.amount }));
+    if (!paidBy && validatedPayers.length > 0) {
+      paidBy = validatedPayers[0].user;
+    }
+  }
+
+  if (!paidBy) return { valid: false, error: 'Payer is required' };
+  if (memberSet && !memberSet.has(paidBy)) return { valid: false, error: 'Payer must be a member of the group' };
+
+  const splitRes = validateSharesSplits(params.sharesSplits, memberSet || undefined);
+  if (!splitRes.valid) return { valid: false, error: splitRes.error };
+
+  const trimmedCategory = String(params.category || '').trim().slice(0, 40);
+  const category = trimmedCategory || 'General';
+
+  const dateResult = validateExpenseDate(params.dateInput);
+  if (!dateResult.valid || !dateResult.isoDate) return { valid: false, error: dateResult.error || 'Please enter a valid date' };
+
+  return {
+    valid: true,
+    payload: {
+      groupId,
+      description: trimmedDesc,
+      amount: parsedAmount.amount,
+      paidBy,
+      ...(validatedPayers ? { payers: validatedPayers } : {}),
+      splitType: 'shares',
+      splits: splitRes.splits,
       category,
       date: dateResult.isoDate,
     },

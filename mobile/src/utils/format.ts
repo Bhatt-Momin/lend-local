@@ -35,6 +35,19 @@ export function getBalanceLabel(myBalance: number): string {
   return `You owe ${formatINR(Math.abs(myBalance))}`;
 }
 
+export function getMemberBalanceLabel(balance: number, isMe: boolean): string {
+  const tone = getBalanceTone(balance);
+  if (tone === 'settled') return 'Settled up';
+  if (isMe) {
+    return tone === 'owed'
+      ? `You are owed ${formatINR(balance)}`
+      : `You owe ${formatINR(Math.abs(balance))}`;
+  }
+  return tone === 'owed'
+    ? `Gets back ${formatINR(balance)}`
+    : `Owes ${formatINR(Math.abs(balance))}`;
+}
+
 export const BALANCE_COLORS: Record<BalanceTone, string> = {
   settled: '#10B981',
   owed: '#10B981',

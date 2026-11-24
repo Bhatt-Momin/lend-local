@@ -108,6 +108,15 @@
             >
               ✏️ Rename
             </button>
+            <button
+              id="showGroupQrBtn"
+              class="btn-rename"
+              type="button"
+              aria-label="Group QR Code"
+              title="Show Group QR Code"
+            >
+              📷 QR Invite
+            </button>
           </div>
 
           <form id="renameGroupForm" class="rename-group-form" style="display: none;">
@@ -178,6 +187,26 @@
 
         </div>
 
+      </section>
+
+      <!-- BUDGET PROGRESS WIDGET -->
+      <section id="groupBudgetCard" class="budget-card" style="margin: 1rem 0; padding: 1.25rem; border-radius: 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.25rem;">🎯</span>
+            <strong style="color: var(--ll-text); font-size: 1.05rem;">Monthly Budget</strong>
+            <span id="budgetPctBadge" style="font-size: 0.8rem; padding: 2px 8px; border-radius: 12px; background: rgba(16,185,129,0.15); color: #10B981; font-weight: 600;">0%</span>
+          </div>
+          <button type="button" id="openBudgetModalBtn" class="btn btn-ghost btn-sm" style="font-size: 0.85rem; padding: 4px 10px;">⚙️ Set Budget</button>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--ll-text-muted); margin-bottom: 8px;">
+          <span>This Month Spent: <strong id="budgetSpentVal" style="color: var(--ll-text);">₹0.00</strong></span>
+          <span>Monthly Limit: <strong id="budgetLimitVal" style="color: var(--ll-text);">No limit</strong></span>
+        </div>
+        <div class="budget-progress-track" style="height: 10px; border-radius: 6px; background: rgba(255,255,255,0.08); overflow: hidden; position: relative;">
+          <div id="budgetProgressBar" style="height: 100%; width: 0%; background: #10B981; border-radius: 6px; transition: width 0.4s ease, background 0.4s ease;"></div>
+        </div>
+        <div id="budgetAlertMsg" style="display: none; font-size: 0.8rem; margin-top: 8px; padding: 6px 12px; border-radius: 8px;"></div>
       </section>
 
 
@@ -581,12 +610,15 @@
             <input
               id="expAmount"
               name="amount"
-              type="number"
-              min="0.01"
-              step="0.01"
+              type="text"
+              inputmode="decimal"
               required
-              placeholder="500"
+              placeholder="e.g. 500 or 12+34"
+              autocomplete="off"
             />
+            <div id="expAmountPreview" style="display: none; font-size: 0.85rem; color: #10B981; margin-top: 5px; font-weight: 600;">
+              Preview: <span id="expAmountPreviewVal">₹0.00</span>
+            </div>
 
           </div>
 
@@ -615,18 +647,33 @@
           </div>
 
 
-          <!-- PAID BY -->
+          <!-- PAID BY & MULTI-PAYER -->
           <div class="field">
 
-            <label for="expPaidBy">
-              Paid by
-            </label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label style="margin: 0;">Paid by</label>
+              <div class="btn-group-segmented" style="display: flex; gap: 4px; background: rgba(255,255,255,0.06); padding: 2px; border-radius: 8px;">
+                <button type="button" id="tabSinglePayer" class="btn btn-ghost btn-sm active" style="font-size: 0.75rem; padding: 3px 8px; border-radius: 6px;">Single</button>
+                <button type="button" id="tabMultiPayer" class="btn btn-ghost btn-sm" style="font-size: 0.75rem; padding: 3px 8px; border-radius: 6px;">Multiple</button>
+              </div>
+            </div>
 
-            <select
-              id="expPaidBy"
-              name="paidBy"
-              required
-            ></select>
+            <!-- Single Payer Dropdown -->
+            <div id="singlePayerContainer">
+              <select
+                id="expPaidBy"
+                name="paidBy"
+              ></select>
+            </div>
+
+            <!-- Multiple Payers List -->
+            <div id="multiPayerContainer" style="display: none;">
+              <div id="multiPayerList" class="split-list" style="margin-bottom: 8px;"></div>
+              <div class="split-summary-bar" style="font-size: 0.82rem; padding: 6px 10px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between;">
+                <span>Total Paid: <strong id="multiPayerTotal">₹0.00</strong></span>
+                <span>Remaining: <strong id="multiPayerRemaining">₹0.00</strong></span>
+              </div>
+            </div>
 
           </div>
 
@@ -648,7 +695,15 @@
               </option>
 
               <option value="custom">
-                Custom amounts
+                Exact amounts (₹)
+              </option>
+
+              <option value="percentage">
+                Percentage (%)
+              </option>
+
+              <option value="shares">
+                Shares / Ratio
               </option>
 
             </select>
@@ -837,10 +892,71 @@
     </div>
   </div>
 
+  <!-- =========================================
+       BUDGET MODAL
+  ========================================== -->
+  <div id="budgetModal" class="modal-backdrop modern-modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal modern-modal">
+      <div class="modal-header">
+        <div>
+          <h2>Monthly Group Budget</h2>
+          <p>Set a spending limit to track group expenses and get alerts.</p>
+        </div>
+        <button type="button" class="close-modal" id="closeBudgetModalBtn">×</button>
+      </div>
+      <form id="budgetForm" class="form-stack">
+        <div class="modal-body-scroll">
+          <div id="budgetModalAlert" class="alert alert-error" role="alert" style="display: none;"></div>
+          <div class="field">
+            <label for="budgetMonthlyLimitInput">Monthly Limit (₹)</label>
+            <input
+              id="budgetMonthlyLimitInput"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="e.g. 25000 (0 for no limit)"
+            />
+            <small style="color: var(--ll-text-muted); display: block; margin-top: 4px;">
+              Members receive alerts when group spending crosses 80% and 100% of this limit.
+            </small>
+          </div>
+        </div>
+        <div class="modern-modal-actions">
+          <button type="button" class="btn btn-ghost" id="cancelBudgetBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveBudgetBtn">Save Budget</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =========================================
+       GROUP QR CODE MODAL
+  ========================================== -->
+  <div id="groupQrModal" class="modal-backdrop modern-modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal modern-modal" style="text-align: center;">
+      <div class="modal-header">
+        <div>
+          <h2>Group Invite QR</h2>
+          <p>Scan with LendLocal APK or your camera to join this group.</p>
+        </div>
+        <button type="button" class="close-modal" id="closeGroupQrBtn">×</button>
+      </div>
+      <div class="modal-body-scroll" style="display: flex; flex-direction: column; align-items: center; padding: 1.5rem 1rem;">
+        <div id="groupQrContainer" style="padding: 16px; background: #ffffff; border-radius: 12px; display: inline-block; box-shadow: 0 4px 16px rgba(0,0,0,0.2);"></div>
+        <p id="groupQrDeepLinkText" style="font-size: 0.82rem; color: var(--ll-text-muted); margin-top: 1rem; word-break: break-all; max-width: 320px;"></p>
+        <button type="button" class="btn btn-ghost btn-sm" id="copyGroupInviteLinkBtn" style="margin-top: 8px;">📋 Copy Invite Link</button>
+      </div>
+      <div class="modern-modal-actions">
+        <button type="button" class="btn btn-primary" id="doneGroupQrBtn">Done</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <script src="/js/helpers.js"></script>
+  <script src="/js/math.js"></script>
   <script src="/js/api.js"></script>
 
   <script src="/js/pwa.js"></script>

@@ -18,6 +18,7 @@ const STATIC_ASSETS = [
   "/css/group-premium.css",
   "/css/auth-premium.css",
   "/js/helpers.js",
+  "/js/math.js",
   "/js/api.js",
   "/js/pwa.js",
   "/js/firebase.js",

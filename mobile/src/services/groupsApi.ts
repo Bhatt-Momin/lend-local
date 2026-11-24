@@ -2,6 +2,8 @@ import { apiRequest } from './client';
 import {
   GroupsResponse,
   GroupDetailResponse,
+  GroupBudgetResponse,
+  UpdateBudgetPayload,
   CreateGroupPayload,
   CreateGroupResponse,
   AddMemberPayload,
@@ -88,6 +90,26 @@ export const groupsApi = {
   delete: async (groupId: string): Promise<DeleteGroupResponse> => {
     return apiRequest<DeleteGroupResponse>(`/groups/${groupId}`, {
       method: 'DELETE',
+    });
+  },
+
+  /**
+   * Fetches the group budget status including monthly limit, amount spent,
+   * percentage used, and alerts sent.
+   */
+  getBudget: async (groupId: string): Promise<GroupBudgetResponse> => {
+    return apiRequest<GroupBudgetResponse>(`/groups/${groupId}/budget`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Updates the group budget (monthly limit and optional category limits).
+   */
+  updateBudget: async (groupId: string, payload: UpdateBudgetPayload): Promise<{ message: string; budget: any }> => {
+    return apiRequest<{ message: string; budget: any }>(`/groups/${groupId}/budget`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     });
   },
 };

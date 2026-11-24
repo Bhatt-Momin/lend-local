@@ -13,6 +13,94 @@ const router = express.Router();
 router.use(protect);
 
 const { checkParticipation, getGroupLedger } = require('../utils/helpers');
+const { evaluateMathExpression } = require('../utils/math');
+
+async function checkAndSendBudgetAlerts(groupId, groupName) {
+  try {
+    const group = await Group.findById(groupId);
+    if (!group || !group.budget || !group.budget.monthlyLimit || group.budget.monthlyLimit <= 0) return null;
+
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const expensesThisMonth = await Expense.find({
+      group: groupId,
+      date: { $gte: currentMonthStart, $lt: currentMonthEnd },
+    }).select('amount');
+
+    const monthlySpentPaise = expensesThisMonth.reduce(
+      (acc, ex) => acc + Math.round(Number(ex.amount || 0) * 100),
+      0
+    );
+    const monthlyLimitPaise = Math.round(Number(group.budget.monthlyLimit) * 100);
+    const percentageUsed = Math.round((monthlySpentPaise / monthlyLimitPaise) * 100);
+
+    if (!Array.isArray(group.budget.alertsSent)) {
+      group.budget.alertsSent = [];
+    }
+
+    let triggeredAlert = null;
+
+    if (percentageUsed >= 100) {
+      const sent100 = group.budget.alertsSent.some(
+        (a) => a.month === currentMonthKey && a.threshold === 100 && a.category === 'Overall'
+      );
+      if (!sent100) {
+        group.budget.alertsSent.push({
+          month: currentMonthKey,
+          threshold: 100,
+          category: 'Overall',
+          sentAt: new Date(),
+        });
+        await group.save();
+
+        await createMulticastNotifications({
+          recipients: group.members.map((m) => m.toString()),
+          sender: group.createdBy,
+          type: 'budget_alert',
+          title: '🚨 Budget Exceeded',
+          body: `Group "${group.name || groupName || 'Group'}" reached ${percentageUsed}% of its monthly budget (₹${(monthlySpentPaise / 100).toFixed(2)} of ₹${group.budget.monthlyLimit}).`,
+          data: { groupId: group._id.toString(), threshold: 100 },
+          dedupePrefix: `budget:${group._id}:${currentMonthKey}:100`,
+          sendPush: true,
+        });
+        triggeredAlert = '100';
+      }
+    } else if (percentageUsed >= 80) {
+      const sent80 = group.budget.alertsSent.some(
+        (a) => a.month === currentMonthKey && a.threshold >= 80 && a.category === 'Overall'
+      );
+      if (!sent80) {
+        group.budget.alertsSent.push({
+          month: currentMonthKey,
+          threshold: 80,
+          category: 'Overall',
+          sentAt: new Date(),
+        });
+        await group.save();
+
+        await createMulticastNotifications({
+          recipients: group.members.map((m) => m.toString()),
+          sender: group.createdBy,
+          type: 'budget_alert',
+          title: '⚠️ Budget Warning (80%)',
+          body: `Group "${group.name || groupName || 'Group'}" reached ${percentageUsed}% of its monthly budget (₹${(monthlySpentPaise / 100).toFixed(2)} of ₹${group.budget.monthlyLimit}).`,
+          data: { groupId: group._id.toString(), threshold: 80 },
+          dedupePrefix: `budget:${group._id}:${currentMonthKey}:80`,
+          sendPush: true,
+        });
+        triggeredAlert = '80';
+      }
+    }
+
+    return { percentageUsed, triggeredAlert };
+  } catch (err) {
+    console.error('Budget alert check error:', err);
+    return null;
+  }
+}
 
 async function assertMember(groupId, userId) {
   const group = await Group.findById(groupId);
@@ -55,7 +143,7 @@ function computeUserSharePaise(expense, userIdStr) {
   });
   if (!splitItem) return 0;
 
-  if (expense.splitType === 'custom') {
+  if (expense.splitType === 'custom' || expense.splitType === 'exact' || expense.splitType === 'percentage' || expense.splitType === 'shares') {
     return Math.round(Number(splitItem.share || 0) * 100);
   }
 
@@ -311,58 +399,63 @@ router.get('/:groupId', async (req, res) => {
 
     let expenses = await Expense.find(query)
       .populate('paidBy', 'name email')
+      .populate('payers.user', 'name email')
       .populate('splits.user', 'name email')
       .sort({ date: -1, createdAt: -1 });
 
     if (!isActiveMember) {
       expenses = expenses.filter(e => {
         const uId = req.user._id.toString();
-        const isPayer = e.paidBy && e.paidBy._id.toString() === uId;
+        const isPayer = (e.paidBy && e.paidBy._id.toString() === uId) ||
+          (Array.isArray(e.payers) && e.payers.some(p => (p.user?._id || p.user)?.toString() === uId));
         const inSplits = e.splits && e.splits.some(s => s.user && s.user._id.toString() === uId);
         return isPayer || inSplits;
       });
     }
 
     res.json({
-
       expenses: expenses.map((e) => ({
-
         id: e._id,
-
         description: e.description,
-
         amount: e.amount,
-
         category: e.category,
-
         splitType: e.splitType,
-
         date: e.date,
-
-        paidBy: {
+        paidBy: e.paidBy ? {
           id: e.paidBy._id,
           name: e.paidBy.name,
           ...(isActiveMember && e.paidBy.email ? { email: e.paidBy.email } : {})
-        },
-
+        } : null,
+        payers: (Array.isArray(e.payers) && e.payers.length > 0)
+          ? e.payers.map(p => ({
+              user: {
+                id: p.user?._id || p.user?.id || p.user,
+                name: p.user?.name || 'Unknown',
+                ...(isActiveMember && p.user?.email ? { email: p.user.email } : {})
+              },
+              amount: p.amount,
+            }))
+          : (e.paidBy ? [{
+              user: {
+                id: e.paidBy._id,
+                name: e.paidBy.name,
+                ...(isActiveMember && e.paidBy.email ? { email: e.paidBy.email } : {})
+              },
+              amount: e.amount,
+            }] : []),
         createdBy: e.createdBy ? e.createdBy.toString() : null,
-
         splits: e.splits.map((s) => ({
-
           user: {
-            id: s.user._id,
-            name: s.user.name,
-            ...(isActiveMember && s.user.email ? { email: s.user.email } : {})
+            id: s.user?._id || s.user?.id || s.user,
+            name: s.user?.name || 'Unknown',
+            ...(isActiveMember && s.user?.email ? { email: s.user.email } : {})
           },
-
           share: s.share,
-
+          ...(s.percentage !== undefined ? { percentage: s.percentage } : {}),
+          ...(s.shares !== undefined ? { shares: s.shares } : {}),
         })),
-
         createdAt: e.createdAt,
-
       })),
-
     });
 
   } catch (err) {
@@ -400,11 +493,20 @@ router.post('/', async (req, res) => {
     } = req.body;
 
 
+    let numericAmount = amount;
+    if (typeof amount === 'string') {
+      const evalRes = evaluateMathExpression(amount);
+      if (!evalRes.valid) {
+        return res.status(400).json({ message: evalRes.error || 'Invalid amount expression' });
+      }
+      numericAmount = evalRes.value;
+    }
+
     if (
       !groupId ||
       typeof description !== 'string' ||
       !description.trim() ||
-      typeof amount !== 'number'
+      typeof numericAmount !== 'number'
     ) {
       return res.status(400).json({
         message: 'groupId, non-empty description, and numeric amount are required'
@@ -415,22 +517,21 @@ router.post('/', async (req, res) => {
     const MAX_AMOUNT = (Number.isFinite(envMax) && envMax > 0) ? envMax : 10000000;
 
     if (
-      !Number.isFinite(amount) ||
-      amount <= 0 ||
-      amount > MAX_AMOUNT
+      !Number.isFinite(numericAmount) ||
+      numericAmount <= 0 ||
+      numericAmount > MAX_AMOUNT
     ) {
       return res.status(400).json({
         message: 'Valid finite positive amount required within limits'
       });
     }
 
-    if (parseFloat(amount.toFixed(2)) !== amount) {
+    if (parseFloat(numericAmount.toFixed(2)) !== numericAmount) {
       return res.status(400).json({
         message: 'Amount must have at most two decimal places'
       });
     }
 
-    const numericAmount = amount;
     const totalPaise = Math.round(numericAmount * 100);
     if (!Number.isSafeInteger(totalPaise) || totalPaise <= 0 || totalPaise > Math.round(MAX_AMOUNT * 100)) {
       return res.status(400).json({
@@ -438,174 +539,210 @@ router.post('/', async (req, res) => {
       });
     }
 
+    const group = await assertMember(groupId, req.user._id);
 
-    const group =
-      await assertMember(
-        groupId,
-        req.user._id
-      );
-
-
-    const payerId =
-      paidBy ||
-      req.user._id.toString();
-
-
-    if (
-      !group.members.some(
-        (m) =>
-          m.toString() === payerId
-      )
-    ) {
-
-      return res.status(400).json({
-        message:
-          'Payer must be a group member'
-      });
-
+    // Multi-payer vs single payer resolution
+    let finalPayers = [];
+    if (Array.isArray(req.body.payers) && req.body.payers.length > 0) {
+      let totalPayerPaise = 0;
+      for (const p of req.body.payers) {
+        const uId = (p.user?._id || p.user?.id || p.user)?.toString();
+        if (!uId || !group.members.some((m) => m.toString() === uId)) {
+          return res.status(400).json({ message: 'All payers must be active group members' });
+        }
+        let pAmt = p.amount;
+        if (typeof pAmt === 'string') {
+          const pEval = evaluateMathExpression(pAmt);
+          if (!pEval.valid) return res.status(400).json({ message: pEval.error || 'Invalid payer amount expression' });
+          pAmt = pEval.value;
+        }
+        const pNum = Number(pAmt);
+        if (!Number.isFinite(pNum) || pNum < 0.01) {
+          return res.status(400).json({ message: 'Payer amount must be at least ₹0.01' });
+        }
+        const pPaise = Math.round(pNum * 100);
+        totalPayerPaise += pPaise;
+        finalPayers.push({ user: uId, amount: pPaise / 100 });
+      }
+      if (Math.abs(totalPayerPaise - totalPaise) > 1) {
+        return res.status(400).json({
+          message: `Sum of payer amounts (₹${(totalPayerPaise / 100).toFixed(2)}) must equal expense amount (₹${(totalPaise / 100).toFixed(2)})`
+        });
+      }
+    } else {
+      const payerId = paidBy || req.user._id.toString();
+      if (!group.members.some((m) => m.toString() === payerId)) {
+        return res.status(400).json({ message: 'Payer must be a group member' });
+      }
+      finalPayers = [{ user: payerId, amount: numericAmount }];
     }
+    const payerId = finalPayers[0].user;
 
-
-    const type =
-      splitType === 'custom'
-        ? 'custom'
-        : 'equal';
-
+    const type = ['custom', 'exact', 'percentage', 'shares'].includes(splitType)
+      ? splitType
+      : 'equal';
 
     let finalSplits = [];
-
 
     // =================================================
     // EQUAL SPLIT
     // =================================================
-
     if (type === 'equal') {
-
       const participantIds =
-        Array.isArray(splits) &&
-        splits.length
-
-          ? splits.map(
-              (s) =>
-                (s.user || s).toString()
-            )
-
-          : group.members.map(
-              (m) =>
-                m.toString()
-            );
+        Array.isArray(splits) && splits.length
+          ? splits.map((s) => (s.user || s).toString())
+          : group.members.map((m) => m.toString());
 
       const uniqueIds = new Set();
-      for (
-        const id of participantIds
-      ) {
-
+      for (const id of participantIds) {
         if (uniqueIds.has(id)) {
-          return res.status(400).json({
-            message: 'Duplicate split participant'
-          });
+          return res.status(400).json({ message: 'Duplicate split participant' });
         }
         uniqueIds.add(id);
 
-        if (
-          !group.members.some(
-            (m) =>
-              m.toString() === id
-          )
-        ) {
-
-          return res.status(400).json({
-            message:
-              'All split participants must be group members'
-          });
-
+        if (!group.members.some((m) => m.toString() === id)) {
+          return res.status(400).json({ message: 'All split participants must be group members' });
         }
-
       }
 
-
-      const n =
-        participantIds.length;
-
-
+      const n = participantIds.length;
       if (!n) {
-
-        return res.status(400).json({
-          message:
-            'At least one participant is required'
-        });
-
+        return res.status(400).json({ message: 'At least one participant is required' });
       }
 
-
-      const totalPaise = Math.round(numericAmount * 100);
       const basePaise = Math.floor(totalPaise / n);
       const remainderPaise = totalPaise % n;
 
       finalSplits = participantIds.map((id, idx) => ({
         user: id,
-        share: (basePaise + (idx < remainderPaise ? 1 : 0)) / 100
+        share: (basePaise + (idx < remainderPaise ? 1 : 0)) / 100,
       }));
-
     }
 
+    // =================================================
+    // PERCENTAGE SPLIT
+    // =================================================
+    else if (type === 'percentage') {
+      if (!Array.isArray(splits) || !splits.length) {
+        return res.status(400).json({ message: 'Percentage splits are required' });
+      }
+      let totalPercentage = 0;
+      const rawSplits = [];
+      const uniqueIds = new Set();
+      for (const s of splits) {
+        const uId = (s.user || '').toString();
+        if (uniqueIds.has(uId)) return res.status(400).json({ message: 'Duplicate split participant' });
+        uniqueIds.add(uId);
+        if (!group.members.some((m) => m.toString() === uId)) {
+          return res.status(400).json({ message: 'All split users must be group members' });
+        }
+        let pct = s.percentage;
+        if (typeof pct === 'string') {
+          const evalPct = evaluateMathExpression(pct);
+          if (evalPct.valid) pct = evalPct.value;
+        }
+        const pctNum = Number(pct);
+        if (!Number.isFinite(pctNum) || pctNum < 0 || pctNum > 100) {
+          return res.status(400).json({ message: 'Invalid split percentage' });
+        }
+        totalPercentage += pctNum;
+        rawSplits.push({ user: uId, percentage: pctNum });
+      }
+      if (Math.abs(totalPercentage - 100) > 0.05) {
+        return res.status(400).json({ message: `Split percentages must sum to 100% (got ${totalPercentage.toFixed(2)}%)` });
+      }
+      let allocatedPaise = 0;
+      finalSplits = rawSplits.map((s) => {
+        const sharePaise = Math.floor((totalPaise * s.percentage) / 100);
+        allocatedPaise += sharePaise;
+        return { user: s.user, share: sharePaise / 100, percentage: s.percentage };
+      });
+      let remPaise = totalPaise - allocatedPaise;
+      const sorted = [...finalSplits].sort((a, b) => b.percentage - a.percentage);
+      for (let i = 0; i < remPaise; i++) {
+        const target = sorted[i % sorted.length];
+        const match = finalSplits.find((f) => f.user === target.user);
+        if (match) match.share = Math.round((match.share * 100 + 1)) / 100;
+      }
+    }
 
     // =================================================
-    // CUSTOM SPLIT
+    // SHARES SPLIT
     // =================================================
+    else if (type === 'shares') {
+      if (!Array.isArray(splits) || !splits.length) {
+        return res.status(400).json({ message: 'Share splits are required' });
+      }
+      let totalShares = 0;
+      const rawSplits = [];
+      const uniqueIds = new Set();
+      for (const s of splits) {
+        const uId = (s.user || '').toString();
+        if (uniqueIds.has(uId)) return res.status(400).json({ message: 'Duplicate split participant' });
+        uniqueIds.add(uId);
+        if (!group.members.some((m) => m.toString() === uId)) {
+          return res.status(400).json({ message: 'All split users must be group members' });
+        }
+        let sh = s.shares;
+        if (typeof sh === 'string') {
+          const evalSh = evaluateMathExpression(sh);
+          if (evalSh.valid) sh = evalSh.value;
+        }
+        const shNum = Number(sh);
+        if (!Number.isFinite(shNum) || shNum <= 0) {
+          return res.status(400).json({ message: 'Share count must be greater than 0' });
+        }
+        totalShares += shNum;
+        rawSplits.push({ user: uId, shares: shNum });
+      }
+      if (totalShares <= 0) {
+        return res.status(400).json({ message: 'Total shares must be greater than 0' });
+      }
+      let allocatedPaise = 0;
+      finalSplits = rawSplits.map((s) => {
+        const sharePaise = Math.floor(totalPaise * (s.shares / totalShares));
+        allocatedPaise += sharePaise;
+        return { user: s.user, share: sharePaise / 100, shares: s.shares };
+      });
+      let remPaise = totalPaise - allocatedPaise;
+      const sorted = [...finalSplits].sort((a, b) => b.shares - a.shares);
+      for (let i = 0; i < remPaise; i++) {
+        const target = sorted[i % sorted.length];
+        const match = finalSplits.find((f) => f.user === target.user);
+        if (match) match.share = Math.round((match.share * 100 + 1)) / 100;
+      }
+    }
 
+    // =================================================
+    // CUSTOM / EXACT SPLIT
+    // =================================================
     else {
-
-      if (
-        !Array.isArray(splits) ||
-        !splits.length
-      ) {
-
-        return res.status(400).json({
-          message:
-            'Custom splits are required'
-        });
-
+      if (!Array.isArray(splits) || !splits.length) {
+        return res.status(400).json({ message: 'Custom splits are required' });
       }
 
-
-      finalSplits =
-        splits.map((s) => ({
-
-          user:
-            (s.user || '').toString(),
-
-          share:
-            s.share,
-
-        }));
+      finalSplits = splits.map((s) => {
+        let sh = s.share;
+        if (typeof sh === 'string') {
+          const evalSh = evaluateMathExpression(sh);
+          if (evalSh.valid) sh = evalSh.value;
+        }
+        return {
+          user: (s.user || '').toString(),
+          share: Number(sh),
+        };
+      });
 
       const uniqueIds = new Set();
-      for (
-        const s of finalSplits
-      ) {
-
+      for (const s of finalSplits) {
         if (uniqueIds.has(s.user)) {
-          return res.status(400).json({
-            message: 'Duplicate split participant'
-          });
+          return res.status(400).json({ message: 'Duplicate split participant' });
         }
         uniqueIds.add(s.user);
 
-        if (
-          !group.members.some(
-            (m) =>
-              m.toString() === s.user
-          )
-        ) {
-
-          return res.status(400).json({
-            message:
-              'All split users must be group members'
-          });
-
+        if (!group.members.some((m) => m.toString() === s.user)) {
+          return res.status(400).json({ message: 'All split users must be group members' });
         }
-
 
         const sharePaise = Math.round(s.share * 100);
         if (
@@ -616,98 +753,60 @@ router.post('/', async (req, res) => {
           sharePaise > totalPaise ||
           s.share > MAX_AMOUNT
         ) {
-          return res.status(400).json({
-            message: 'Invalid share amount'
-          });
+          return res.status(400).json({ message: 'Invalid share amount' });
         }
 
         if (parseFloat(s.share.toFixed(2)) !== s.share) {
-          return res.status(400).json({
-            message: 'Share amount must have at most two decimal places'
-          });
+          return res.status(400).json({ message: 'Share amount must have at most two decimal places' });
         }
-
       }
-
 
       const totalCents = Math.round(numericAmount * 100);
       const splitTotalCents = finalSplits.reduce((sum, s) => sum + Math.round(s.share * 100), 0);
 
       if (totalCents !== splitTotalCents) {
         return res.status(400).json({
-          message:
-            `Split shares (₹${(splitTotalCents/100).toFixed(2)}) must equal expense amount (₹${(totalCents/100).toFixed(2)})`
+          message: `Split shares (₹${(splitTotalCents / 100).toFixed(2)}) must equal expense amount (₹${(totalCents / 100).toFixed(2)})`
         });
       }
-
     }
-
 
     // =================================================
     // CREATE EXPENSE
     // =================================================
 
-    const expense =
-      await Expense.create({
-
-        group: groupId,
-
-        description:
-          description.trim(),
-
-        amount:
-          numericAmount,
-
-        paidBy:
-          payerId,
-
-        createdBy:
-          req.user._id,
-
-        splitType:
-          type,
-
-        splits:
-          finalSplits,
-
-        category:
-          (category || 'General').trim(),
-
-        date:
-          date
-            ? new Date(date)
-            : new Date(),
-
-      });
+    const expense = await Expense.create({
+      group: groupId,
+      description: description.trim(),
+      amount: numericAmount,
+      paidBy: payerId,
+      payers: finalPayers,
+      createdBy: req.user._id,
+      splitType: type,
+      splits: finalSplits,
+      category: (category || 'General').trim(),
+      date: date ? new Date(date) : new Date(),
+    });
 
 
     // =================================================
     // POPULATE EXPENSE
     // =================================================
 
-    const populated =
-      await Expense.findById(
-        expense._id
-      )
-      .populate(
-        'paidBy',
-        'name email'
-      )
-      .populate(
-        'splits.user',
-        'name email'
-      );
-
+    const populated = await Expense.findById(expense._id)
+      .populate('paidBy', 'name email')
+      .populate('payers.user', 'name email')
+      .populate('splits.user', 'name email');
 
     // =================================================
     // UPDATE GROUP
     // =================================================
 
-    group.updatedAt =
-      new Date();
-
+    group.updatedAt = new Date();
     await group.save();
 
+    // Trigger spending budget alerts and capture status
+    const budgetStatus = checkAndSendBudgetAlerts(groupId, group.name);
 
     // =================================================
     // NOTIFICATION (IN-APP INBOX & PUSH)
@@ -720,7 +819,8 @@ router.post('/', async (req, res) => {
 
       if (otherMemberIds.length > 0) {
         const title = 'New expense added 💸';
-        const body = `${populated.paidBy.name} added ₹${numericAmount.toFixed(2)} for ${populated.description}`;
+        const payerDisplayName = populated.paidBy?.name || 'Someone';
+        const body = `${payerDisplayName} added ₹${numericAmount.toFixed(2)} for ${populated.description}`;
 
         await createMulticastNotifications({
           recipients: otherMemberIds,
@@ -738,77 +838,63 @@ router.post('/', async (req, res) => {
         });
       }
     } catch (notificationError) {
-      console.error(
-        'Expense notification error:',
-        notificationError
-      );
+      console.error('Expense notification error:', notificationError);
     }
-
 
     // =================================================
     // RESPONSE
     // =================================================
 
+    const budgetInfo = budgetStatus
+      ? { percentageUsed: budgetStatus.percentageUsed, monthlyLimit: group.budget.monthlyLimit, alert: budgetStatus.triggeredAlert }
+      : { percentageUsed: 0, monthlyLimit: group.budget.monthlyLimit, alert: null };
+
     res.status(201).json({
-
       expense: {
-
-        id:
-          populated._id,
-
-        description:
-          populated.description,
-
-        amount:
-          populated.amount,
-
-        category:
-          populated.category,
-
-        splitType:
-          populated.splitType,
-
-        date:
-          populated.date,
-
-        paidBy: {
-
-          id:
-            populated.paidBy._id,
-
-          name:
-            populated.paidBy.name,
-
-          email:
-            populated.paidBy.email,
-
-        },
-
-        splits:
-          populated.splits.map(
-            (s) => ({
-
+        id: populated._id,
+        description: populated.description,
+        amount: populated.amount,
+        category: populated.category,
+        splitType: populated.splitType,
+        date: populated.date,
+        paidBy: populated.paidBy
+          ? {
+              id: populated.paidBy._id,
+              name: populated.paidBy.name,
+              email: populated.paidBy.email,
+            }
+          : null,
+        payers: (Array.isArray(populated.payers) && populated.payers.length > 0)
+          ? populated.payers.map((p) => ({
               user: {
-
-                id:
-                  s.user._id,
-
-                name:
-                  s.user.name,
-
-                email:
-                  s.user.email,
-
+                id: p.user?._id || p.user?.id || p.user,
+                name: p.user?.name || 'Unknown',
+                email: p.user?.email,
               },
-
-              share:
-                s.share,
-
-            })
-          ),
-
+              amount: p.amount,
+            }))
+          : (populated.paidBy
+              ? [{
+                  user: {
+                    id: populated.paidBy._id,
+                    name: populated.paidBy.name,
+                    email: populated.paidBy.email,
+                  },
+                  amount: populated.amount,
+                }]
+              : []),
+        splits: populated.splits.map((s) => ({
+          user: {
+            id: s.user._id,
+            name: s.user.name,
+            email: s.user.email,
+          },
+          share: s.share,
+          ...(s.percentage !== undefined ? { percentage: s.percentage } : {}),
+          ...(s.shares !== undefined ? { shares: s.shares } : {}),
+        })),
       },
-
+      budgetStatus: budgetInfo,
     });
 
   } catch (err) {
@@ -897,6 +983,11 @@ function getAffectedExpenseMemberIds(expenseBefore, expenseAfter, groupMembers, 
   // 1. Participants prior to edit (payer and split users)
   if (expenseBefore) {
     maybeAdd(expenseBefore.paidBy);
+    if (Array.isArray(expenseBefore.payers)) {
+      for (const p of expenseBefore.payers) {
+        maybeAdd(p?.user);
+      }
+    }
     if (Array.isArray(expenseBefore.splits)) {
       for (const s of expenseBefore.splits) {
         maybeAdd(s?.user);
@@ -907,6 +998,11 @@ function getAffectedExpenseMemberIds(expenseBefore, expenseAfter, groupMembers, 
   // 2. Participants after edit (payer and split users)
   if (expenseAfter) {
     maybeAdd(expenseAfter.paidBy);
+    if (Array.isArray(expenseAfter.payers)) {
+      for (const p of expenseAfter.payers) {
+        maybeAdd(p?.user);
+      }
+    }
     if (Array.isArray(expenseAfter.splits)) {
       for (const s of expenseAfter.splits) {
         maybeAdd(s?.user);
@@ -933,7 +1029,16 @@ router.put('/:id', async (req, res) => {
       date
     } = req.body;
 
-    if (typeof description !== 'string' || !description.trim() || typeof amount !== 'number') {
+    let numericAmount = amount;
+    if (typeof amount === 'string') {
+      const evalRes = evaluateMathExpression(amount);
+      if (!evalRes.valid) {
+        return res.status(400).json({ message: evalRes.error || 'Invalid amount expression' });
+      }
+      numericAmount = evalRes.value;
+    }
+
+    if (typeof description !== 'string' || !description.trim() || typeof numericAmount !== 'number') {
       return res.status(400).json({ message: 'non-empty description and numeric amount are required' });
     }
 
@@ -946,7 +1051,8 @@ router.put('/:id', async (req, res) => {
 
     const isCreator = group && group.createdBy.equals(req.user._id);
     const isExpenseCreator = expense.createdBy && expense.createdBy.equals(req.user._id);
-    const isPayer = expense.paidBy.equals(req.user._id);
+    const isPayer = (expense.paidBy && expense.paidBy.equals(req.user._id)) ||
+      (Array.isArray(expense.payers) && expense.payers.some((p) => p.user && p.user.equals(req.user._id)));
 
     let authorized = false;
     if (expense.createdBy) {
@@ -968,27 +1074,60 @@ router.put('/:id', async (req, res) => {
     const envMax = Number(process.env.MAX_EXPENSE_AMOUNT);
     const MAX_AMOUNT = (Number.isFinite(envMax) && envMax > 0) ? envMax : 10000000;
 
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       return res.status(400).json({ message: 'Invalid expense amount' });
     }
-    if (amount > MAX_AMOUNT) {
+    if (numericAmount > MAX_AMOUNT) {
       return res.status(400).json({ message: `Amount exceeds maximum allowed (₹${MAX_AMOUNT})` });
     }
-    if (parseFloat(amount.toFixed(2)) !== amount) {
+    if (parseFloat(numericAmount.toFixed(2)) !== numericAmount) {
       return res.status(400).json({ message: 'Amount must have at most two decimal places' });
     }
-    const numericAmount = amount;
     const totalPaise = Math.round(numericAmount * 100);
     if (!Number.isSafeInteger(totalPaise) || totalPaise <= 0 || totalPaise > Math.round(MAX_AMOUNT * 100)) {
       return res.status(400).json({ message: 'Expense amount exceeds safe integer arithmetic limits' });
     }
 
-    const payerId = paidBy ? paidBy.toString() : req.user._id.toString();
-    if (!group.members.some((m) => m.toString() === payerId)) {
-      return res.status(400).json({ message: 'Payer must be a member of the group' });
+    // Multi-payer vs single payer resolution
+    let finalPayers = [];
+    if (Array.isArray(req.body.payers) && req.body.payers.length > 0) {
+      let totalPayerPaise = 0;
+      for (const p of req.body.payers) {
+        const uId = (p.user?._id || p.user?.id || p.user)?.toString();
+        if (!uId || !group.members.some((m) => m.toString() === uId)) {
+          return res.status(400).json({ message: 'All payers must be active group members' });
+        }
+        let pAmt = p.amount;
+        if (typeof pAmt === 'string') {
+          const pEval = evaluateMathExpression(pAmt);
+          if (!pEval.valid) return res.status(400).json({ message: pEval.error || 'Invalid payer amount expression' });
+          pAmt = pEval.value;
+        }
+        const pNum = Number(pAmt);
+        if (!Number.isFinite(pNum) || pNum < 0.01) {
+          return res.status(400).json({ message: 'Payer amount must be at least ₹0.01' });
+        }
+        const pPaise = Math.round(pNum * 100);
+        totalPayerPaise += pPaise;
+        finalPayers.push({ user: uId, amount: pPaise / 100 });
+      }
+      if (Math.abs(totalPayerPaise - totalPaise) > 1) {
+        return res.status(400).json({
+          message: `Sum of payer amounts (₹${(totalPayerPaise / 100).toFixed(2)}) must equal expense amount (₹${(totalPaise / 100).toFixed(2)})`
+        });
+      }
+    } else {
+      const payerId = paidBy ? paidBy.toString() : (expense.paidBy ? expense.paidBy.toString() : req.user._id.toString());
+      if (!group.members.some((m) => m.toString() === payerId)) {
+        return res.status(400).json({ message: 'Payer must be a member of the group' });
+      }
+      finalPayers = [{ user: payerId, amount: numericAmount }];
     }
+    const payerId = finalPayers[0].user;
 
-    const type = splitType === 'custom' ? 'custom' : 'equal';
+    const type = ['custom', 'exact', 'percentage', 'shares'].includes(splitType)
+      ? splitType
+      : 'equal';
     let finalSplits = [];
 
     // =================================================
@@ -997,8 +1136,7 @@ router.put('/:id', async (req, res) => {
     if (type === 'equal') {
       let participantIds = [];
       if (Array.isArray(splits) && splits.length > 0) {
-        participantIds = splits
-          .map((s) => (s.user || s).toString());
+        participantIds = splits.map((s) => (s.user || s).toString());
       } else {
         participantIds = group.members.map((m) => m.toString());
       }
@@ -1024,21 +1162,123 @@ router.put('/:id', async (req, res) => {
 
       finalSplits = participantIds.map((id, idx) => ({
         user: id,
-        share: (basePaise + (idx < remainderPaise ? 1 : 0)) / 100
+        share: (basePaise + (idx < remainderPaise ? 1 : 0)) / 100,
       }));
     }
+
     // =================================================
-    // CUSTOM SPLIT
+    // PERCENTAGE SPLIT
+    // =================================================
+    else if (type === 'percentage') {
+      if (!Array.isArray(splits) || !splits.length) {
+        return res.status(400).json({ message: 'Percentage splits are required' });
+      }
+      let totalPercentage = 0;
+      const rawSplits = [];
+      const uniqueIds = new Set();
+      for (const s of splits) {
+        const uId = (s.user || '').toString();
+        if (uniqueIds.has(uId)) return res.status(400).json({ message: 'Duplicate split participant' });
+        uniqueIds.add(uId);
+        if (!group.members.some((m) => m.toString() === uId)) {
+          return res.status(400).json({ message: 'All split users must be group members' });
+        }
+        let pct = s.percentage;
+        if (typeof pct === 'string') {
+          const evalPct = evaluateMathExpression(pct);
+          if (evalPct.valid) pct = evalPct.value;
+        }
+        const pctNum = Number(pct);
+        if (!Number.isFinite(pctNum) || pctNum < 0 || pctNum > 100) {
+          return res.status(400).json({ message: 'Invalid split percentage' });
+        }
+        totalPercentage += pctNum;
+        rawSplits.push({ user: uId, percentage: pctNum });
+      }
+      if (Math.abs(totalPercentage - 100) > 0.05) {
+        return res.status(400).json({ message: `Split percentages must sum to 100% (got ${totalPercentage.toFixed(2)}%)` });
+      }
+      let allocatedPaise = 0;
+      finalSplits = rawSplits.map((s) => {
+        const sharePaise = Math.floor((totalPaise * s.percentage) / 100);
+        allocatedPaise += sharePaise;
+        return { user: s.user, share: sharePaise / 100, percentage: s.percentage };
+      });
+      let remPaise = totalPaise - allocatedPaise;
+      const sorted = [...finalSplits].sort((a, b) => b.percentage - a.percentage);
+      for (let i = 0; i < remPaise; i++) {
+        const target = sorted[i % sorted.length];
+        const match = finalSplits.find((f) => f.user === target.user);
+        if (match) match.share = Math.round((match.share * 100 + 1)) / 100;
+      }
+    }
+
+    // =================================================
+    // SHARES SPLIT
+    // =================================================
+    else if (type === 'shares') {
+      if (!Array.isArray(splits) || !splits.length) {
+        return res.status(400).json({ message: 'Share splits are required' });
+      }
+      let totalShares = 0;
+      const rawSplits = [];
+      const uniqueIds = new Set();
+      for (const s of splits) {
+        const uId = (s.user || '').toString();
+        if (uniqueIds.has(uId)) return res.status(400).json({ message: 'Duplicate split participant' });
+        uniqueIds.add(uId);
+        if (!group.members.some((m) => m.toString() === uId)) {
+          return res.status(400).json({ message: 'All split users must be group members' });
+        }
+        let sh = s.shares;
+        if (typeof sh === 'string') {
+          const evalSh = evaluateMathExpression(sh);
+          if (evalSh.valid) sh = evalSh.value;
+        }
+        const shNum = Number(sh);
+        if (!Number.isFinite(shNum) || shNum <= 0) {
+          return res.status(400).json({ message: 'Share count must be greater than 0' });
+        }
+        totalShares += shNum;
+        rawSplits.push({ user: uId, shares: shNum });
+      }
+      if (totalShares <= 0) {
+        return res.status(400).json({ message: 'Total shares must be greater than 0' });
+      }
+      let allocatedPaise = 0;
+      finalSplits = rawSplits.map((s) => {
+        const sharePaise = Math.floor(totalPaise * (s.shares / totalShares));
+        allocatedPaise += sharePaise;
+        return { user: s.user, share: sharePaise / 100, shares: s.shares };
+      });
+      let remPaise = totalPaise - allocatedPaise;
+      const sorted = [...finalSplits].sort((a, b) => b.shares - a.shares);
+      for (let i = 0; i < remPaise; i++) {
+        const target = sorted[i % sorted.length];
+        const match = finalSplits.find((f) => f.user === target.user);
+        if (match) match.share = Math.round((match.share * 100 + 1)) / 100;
+      }
+    }
+
+    // =================================================
+    // CUSTOM / EXACT SPLIT
     // =================================================
     else {
       if (!Array.isArray(splits) || !splits.length) {
         return res.status(400).json({ message: 'Custom splits are required' });
       }
 
-      finalSplits = splits.map((s) => ({
-        user: (s.user || '').toString(),
-        share: s.share,
-      }));
+      finalSplits = splits.map((s) => {
+        let sh = s.share;
+        if (typeof sh === 'string') {
+          const evalSh = evaluateMathExpression(sh);
+          if (evalSh.valid) sh = evalSh.value;
+        }
+        return {
+          user: (s.user || '').toString(),
+          share: Number(sh),
+        };
+      });
 
       const uniqueIds = new Set();
       for (const s of finalSplits) {
@@ -1069,13 +1309,14 @@ router.put('/:id', async (req, res) => {
       const totalCents = Math.round(numericAmount * 100);
       const splitTotalCents = finalSplits.reduce((sum, s) => sum + Math.round(s.share * 100), 0);
       if (totalCents !== splitTotalCents) {
-        return res.status(400).json({ message: `Split shares (₹${(splitTotalCents/100).toFixed(2)}) must equal expense amount (₹${(totalCents/100).toFixed(2)})` });
+        return res.status(400).json({ message: `Split shares (₹${(splitTotalCents / 100).toFixed(2)}) must equal expense amount (₹${(totalCents / 100).toFixed(2)})` });
       }
     }
 
     expense.description = description.trim();
     expense.amount = numericAmount;
     expense.paidBy = payerId;
+    expense.payers = finalPayers;
     expense.splitType = type;
     expense.splits = finalSplits;
     expense.category = (category || 'General').trim();
@@ -1087,10 +1328,14 @@ router.put('/:id', async (req, res) => {
 
     const populated = await Expense.findById(expense._id)
       .populate('paidBy', 'name email')
+      .populate('payers.user', 'name email')
       .populate('splits.user', 'name email');
 
     group.updatedAt = new Date();
     await group.save();
+
+    // Trigger budget alerts asynchronously and capture status
+    const budgetStatus = checkAndSendBudgetAlerts(expense.group, group.name);
 
     // =================================================
     // NOTIFICATION (IN-APP INBOX & PUSH)
@@ -1130,6 +1375,10 @@ router.put('/:id', async (req, res) => {
       console.error('Expense edit notification error (non-fatal):', notificationError);
     }
 
+    const budgetInfo = budgetStatus
+      ? { percentageUsed: budgetStatus.percentageUsed, monthlyLimit: group.budget.monthlyLimit, alert: budgetStatus.triggeredAlert }
+      : { percentageUsed: 0, monthlyLimit: group.budget.monthlyLimit, alert: null };
+
     res.json({
       expense: {
         id: populated._id,
@@ -1143,6 +1392,25 @@ router.put('/:id', async (req, res) => {
           name: populated.paidBy ? populated.paidBy.name : null,
           email: populated.paidBy ? populated.paidBy.email : null,
         },
+        payers: (Array.isArray(populated.payers) && populated.payers.length > 0)
+          ? populated.payers.map((p) => ({
+              user: {
+                id: p.user?._id || p.user?.id || p.user,
+                name: p.user?.name || 'Unknown',
+                email: p.user?.email,
+              },
+              amount: p.amount,
+            }))
+          : (populated.paidBy
+              ? [{
+                  user: {
+                    id: populated.paidBy._id,
+                    name: populated.paidBy.name,
+                    email: populated.paidBy.email,
+                  },
+                  amount: populated.amount,
+                }]
+              : []),
         splits: populated.splits.map((s) => ({
           user: {
             id: s.user ? s.user._id : null,
@@ -1150,8 +1418,11 @@ router.put('/:id', async (req, res) => {
             email: s.user ? s.user.email : null,
           },
           share: s.share,
+          ...(s.percentage !== undefined ? { percentage: s.percentage } : {}),
+          ...(s.shares !== undefined ? { shares: s.shares } : {}),
         })),
-      }
+      },
+      budgetStatus: budgetInfo,
     });
   } catch (err) {
     res.status(err.status || 500).json({ message: err.message || 'Failed to edit expense' });

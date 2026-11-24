@@ -3,10 +3,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Keyboard,
   Modal,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   TextInput,
   TouchableOpacity,
@@ -26,7 +28,7 @@ import { paymentApi } from '../../../services/paymentApi';
 import type { ExpenseItem, PaymentIntentItem, SettlementDebt } from '../../../types/api';
 import { MONGO_ID_REGEX } from '../../../utils/deepLink';
 import { FILTER_CATEGORIES, getCategoryIcon } from '../../../utils/expenseForm';
-import { BALANCE_COLORS, formatINR, getBalanceLabel, getBalanceTone } from '../../../utils/format';
+import { BALANCE_COLORS, formatINR, getBalanceLabel, getBalanceTone, getMemberBalanceLabel } from '../../../utils/format';
 
 type TabType = 'expenses' | 'balances' | 'members';
 
@@ -45,6 +47,8 @@ export default function GroupDetailScreen() {
     group,
     expenses,
     balances,
+    budget,
+    updateBudget,
     activeIntents,
     activeIntentsVerified,
     activeIntentsError,
@@ -91,8 +95,52 @@ export default function GroupDetailScreen() {
   const [isSubmittingRename, setIsSubmittingRename] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [budgetLimitInput, setBudgetLimitInput] = useState('');
+  const [isSubmittingBudget, setIsSubmittingBudget] = useState(false);
 
   const [modalError, setModalError] = useState<string | null>(null);
+
+  const handleCopyInvite = async () => {
+    const inviteLink = `lendlocal://join?code=${encodeURIComponent(group?.id ?? '')}&name=${encodeURIComponent(group?.name ?? '')}`;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(inviteLink);
+        Alert.alert('Copied', 'Invite link copied to clipboard');
+      } else {
+        await Share.share({
+          message: inviteLink,
+          title: `Join ${group?.name || 'group'} on LendLocal`,
+        });
+      }
+    } catch {
+      // Ignore user cancellation or share dismissals
+    }
+  };
+
+  const handleOpenBudgetModal = () => {
+    setBudgetLimitInput(budget && budget.monthlyLimit > 0 ? String(budget.monthlyLimit) : '');
+    setModalError(null);
+    setShowBudgetModal(true);
+  };
+
+  const handleSaveBudget = async () => {
+    try {
+      setIsSubmittingBudget(true);
+      const parsed = parseFloat(budgetLimitInput.trim()) || 0;
+      if (parsed < 0 || isNaN(parsed)) {
+        Alert.alert('Invalid Amount', 'Please enter a valid monthly limit (0 for no limit).');
+        return;
+      }
+      await updateBudget({ monthlyLimit: parsed });
+      setShowBudgetModal(false);
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to update monthly budget');
+    } finally {
+      setIsSubmittingBudget(false);
+    }
+  };
 
   // Debounce search text input (300ms) and coordinate with category filter
   useEffect(() => {
@@ -479,6 +527,15 @@ export default function GroupDetailScreen() {
                 </View>
               ) : null}
 
+              {/* QR Invite button */}
+              <TouchableOpacity
+                style={styles.qrInviteBtn}
+                onPress={() => setShowQrModal(true)}
+                accessibilityLabel="Group invite QR code"
+              >
+                <ThemedText style={styles.qrInviteText}>📷 QR Invite</ThemedText>
+              </TouchableOpacity>
+
               {/* Actions Menu button */}
               {(isActiveMember || isCreator) ? (
                 <TouchableOpacity
@@ -555,6 +612,48 @@ export default function GroupDetailScreen() {
               </View>
             </View>
           </ThemedView>
+
+          {/* Monthly Budget Progress Card */}
+          {budget && (
+            <View style={styles.budgetProgressCard}>
+              <View style={styles.budgetProgressHeader}>
+                <ThemedText type="smallBold" style={styles.budgetProgressTitle}>
+                  Monthly Budget
+                </ThemedText>
+                <ThemedText style={styles.budgetProgressLimit}>
+                  {budget.monthlyLimit > 0 ? `of ₹${budget.monthlyLimit}` : 'No limit set'}
+                </ThemedText>
+              </View>
+              <View style={styles.budgetProgressHeader}>
+                <ThemedText style={styles.budgetProgressSpent}>
+                  ₹{budget.currentMonthSpent}
+                </ThemedText>
+                <ThemedText style={styles.budgetProgressPct}>
+                  {budget.monthlyLimit > 0 ? `${budget.percentageUsed}% used` : 'Tracking only'}
+                </ThemedText>
+              </View>
+              <View style={styles.budgetProgressBarContainer}>
+                <View
+                  style={[
+                    styles.budgetProgressBarFill,
+                    { width: `${budget.monthlyLimit > 0 ? Math.min(100, Math.max(0, budget.percentageUsed)) : 0}%` },
+                    budget.percentageUsed >= 100 && styles.budgetProgressBarRed,
+                    budget.percentageUsed >= 80 && budget.percentageUsed < 100 && styles.budgetProgressBarAmber,
+                    budget.percentageUsed < 80 && styles.budgetProgressBarGreen,
+                  ]}
+                />
+              </View>
+              {isActiveMember ? (
+                <TouchableOpacity
+                  style={styles.budgetProgressBtn}
+                  onPress={handleOpenBudgetModal}
+                  activeOpacity={0.8}
+                >
+                  <ThemedText style={styles.budgetProgressBtnText}>⚙️ Set Budget</ThemedText>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          )}
 
           {/* Action Row */}
           <View style={styles.actionBar}>
@@ -965,7 +1064,10 @@ export default function GroupDetailScreen() {
               {/* Member net balance list */}
               <ThemedView type="backgroundElement" style={styles.sectionCard}>
                 <ThemedText type="smallBold" style={styles.sectionTitle}>
-                  Member Balances
+                  Total Net Balances
+                </ThemedText>
+                <ThemedText type="small" style={styles.sectionSubtitle}>
+                  Overall net balance of each member across all group expenses.
                 </ThemedText>
                 {!balances?.balances || balances.balances.length === 0 ? (
                   <ThemedText type="small" style={styles.emptySub}>
@@ -977,7 +1079,7 @@ export default function GroupDetailScreen() {
                       const isMe = user?.id && b.userId === user.id;
                       const bTone = getBalanceTone(b.net);
                       const bColor = BALANCE_COLORS[bTone];
-                      const bText = getBalanceLabel(b.net);
+                      const bText = getMemberBalanceLabel(b.net, Boolean(isMe));
 
                       return (
                         <View key={b.userId} style={styles.memberBalanceRow}>
@@ -1270,6 +1372,111 @@ export default function GroupDetailScreen() {
           existingIntent={selectedIntent}
           onIntentUpdated={() => refresh(true)}
         />
+
+        {/* MODAL 7: GROUP QR INVITE */}
+        <Modal
+          visible={showQrModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowQrModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <ThemedView type="backgroundElement" style={styles.modalCard}>
+              <ThemedText type="smallBold" style={styles.modalTitle}>
+                Group Invite QR
+              </ThemedText>
+              <ThemedText type="small" style={styles.modalDescription}>
+                Share this QR code with friends to join your group.
+              </ThemedText>
+
+              <View style={styles.qrCodeContainer}>
+                {group?.id && group?.name ? (
+                  <View style={styles.qrSvgContainer}>
+                    <Image
+                      source={{
+                        uri: `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(`lendlocal://join?code=${group.id}&name=${encodeURIComponent(group.name)}`)}`,
+                      }}
+                      style={styles.qrSvg}
+                      resizeMode="contain"
+                    />
+                  </View>
+                ) : (
+                  <ActivityIndicator size="large" color={Brand.primary} />
+                )}
+              </View>
+
+              <ThemedText style={styles.qrDeepLinkText} selectable>
+                lendlocal://join?code={group?.id}&name={encodeURIComponent(group?.name ?? '')}
+              </ThemedText>
+
+              <View style={styles.qrActions}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.modalCancelBtn]}
+                  onPress={() => setShowQrModal(false)}
+                >
+                  <ThemedText style={styles.modalCancelText}>Close</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.qrCopyBtn}
+                  onPress={handleCopyInvite}
+                >
+                  <ThemedText style={styles.qrCopyText}>Share Invite</ThemedText>
+                </TouchableOpacity>
+              </View>
+            </ThemedView>
+          </View>
+        </Modal>
+
+        {/* MODAL 8: GROUP BUDGET SETTINGS */}
+        <Modal
+          visible={showBudgetModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowBudgetModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <ThemedView type="backgroundElement" style={styles.modalCard}>
+              <ThemedText type="smallBold" style={styles.modalTitle}>
+                Monthly Budget Settings
+              </ThemedText>
+              <ThemedText type="small" style={styles.modalDescription}>
+                Set a monthly spending limit for this group. Set to ₹0 to disable limit.
+              </ThemedText>
+
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Monthly limit in ₹ (e.g. 5000)"
+                placeholderTextColor="#64748B"
+                keyboardType="numeric"
+                value={budgetLimitInput}
+                onChangeText={setBudgetLimitInput}
+                editable={!isSubmittingBudget}
+              />
+
+              <View style={styles.modalBtnRow}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.modalCancelBtn]}
+                  onPress={() => setShowBudgetModal(false)}
+                  disabled={isSubmittingBudget}
+                >
+                  <ThemedText style={styles.modalCancelText}>Cancel</ThemedText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.modalSubmitBtn]}
+                  onPress={handleSaveBudget}
+                  disabled={isSubmittingBudget}
+                >
+                  {isSubmittingBudget ? (
+                    <ActivityIndicator size="small" color="#030507" />
+                  ) : (
+                    <ThemedText style={styles.modalSubmitText}>Save Budget</ThemedText>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ThemedView>
+          </View>
+        </Modal>
       </SafeAreaView>
     </ThemedView>
   );
@@ -1506,6 +1713,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.one,
   },
   sectionTitle: { fontSize: 15, fontWeight: '700' },
+  sectionSubtitle: { fontSize: 12, opacity: 0.7, color: '#94A3B8', marginTop: 2, marginBottom: Spacing.two },
   linkText: { color: Brand.primaryLight, fontSize: 13, fontWeight: '600' },
   settledText: { color: Brand.positive, paddingVertical: Spacing.one, fontWeight: '600' },
   settlementList: { gap: Spacing.one },
@@ -1864,4 +2072,69 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.one,
     textAlign: 'center',
   },
+
+  /* Header Action buttons */
+  qrInviteBtn: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 6,
+    backgroundColor: Surfaces.darkCardMid,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
+  },
+  qrInviteText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#F8FAFC',
+  },
+
+  /* Budget Progress Card Styles */
+  budgetProgressCard: {
+    padding: Spacing.four,
+    borderRadius: 16,
+    marginBottom: Spacing.four,
+    backgroundColor: Surfaces.darkCard,
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
+  },
+  budgetProgressTitle: { fontSize: 14, fontWeight: '600', color: '#F8FAFC' },
+  budgetProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.one },
+  budgetProgressSpent: { fontSize: 20, fontWeight: '700', color: '#F8FAFC' },
+  budgetProgressLimit: { fontSize: 13, opacity: 0.7, color: '#94A3B8' },
+  budgetProgressBarContainer: { height: 8, borderRadius: 4, overflow: 'hidden', backgroundColor: Surfaces.darkCardMid, marginVertical: Spacing.two },
+  budgetProgressBarFill: { height: '100%', borderRadius: 4 },
+  budgetProgressBarGreen: { backgroundColor: '#10B981' },
+  budgetProgressBarAmber: { backgroundColor: '#F59E0B' },
+  budgetProgressBarRed: { backgroundColor: '#EF4444' },
+  budgetProgressPct: { fontSize: 13, fontWeight: '600', opacity: 0.8 },
+  budgetProgressBtn: {
+    width: '100%',
+    paddingVertical: 10,
+    marginTop: Spacing.two,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Brand.primary,
+  },
+  budgetProgressBtnText: {
+    color: '#030507',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  /* QR Invite Modal Styles */
+  qrCodeContainer: { alignItems: 'center', marginVertical: Spacing.three },
+  qrSvgContainer: { width: 240, height: 240, marginBottom: Spacing.two, backgroundColor: '#FFFFFF', padding: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  qrSvg: { width: '100%', height: '100%', borderRadius: 8 },
+  qrDeepLinkText: { fontSize: 12, opacity: 0.7, textAlign: 'center', marginBottom: Spacing.two, color: '#94A3B8' },
+  qrActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: Spacing.two, gap: Spacing.two },
+  qrCopyBtn: {
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: 10,
+    backgroundColor: Brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qrCopyText: { color: '#030507', fontSize: 13, fontWeight: '700' },
 });

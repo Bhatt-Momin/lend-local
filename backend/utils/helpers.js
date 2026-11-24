@@ -48,10 +48,27 @@ function calculateLedger({ expenses = [], payments = [], members = [], nameMap =
     const expenseAmountPaise = Math.round(Number(ex.amount || 0) * 100);
     totalSpentPaise += expenseAmountPaise;
 
-    const payerId = ex.paidBy ? (ex.paidBy._id || ex.paidBy.id || ex.paidBy).toString() : null;
-    if (payerId) {
-      if (netPaise[payerId] === undefined) netPaise[payerId] = 0;
-      netPaise[payerId] += expenseAmountPaise;
+    // --- MULTI-PAYER RESOLUTION ---
+    let payersList = [];
+    if (Array.isArray(ex.payers) && ex.payers.length > 0) {
+      payersList = ex.payers
+        .map((p) => ({
+          userId: (p.user?._id || p.user?.id || p.user)?.toString(),
+          amountPaise: Math.round(Number(p.amount || 0) * 100),
+        }))
+        .filter((p) => p.userId && p.amountPaise > 0);
+    }
+    if (payersList.length === 0) {
+      const payerId = ex.paidBy ? (ex.paidBy._id || ex.paidBy.id || ex.paidBy).toString() : null;
+      if (payerId) {
+        payersList = [{ userId: payerId, amountPaise: expenseAmountPaise }];
+      }
+    }
+
+    // Credit each payer with their contributed amount
+    for (const p of payersList) {
+      if (netPaise[p.userId] === undefined) netPaise[p.userId] = 0;
+      netPaise[p.userId] += p.amountPaise;
     }
 
     if (!Array.isArray(ex.splits) || ex.splits.length === 0) {
@@ -111,9 +128,21 @@ function calculateLedger({ expenses = [], payments = [], members = [], nameMap =
         if (netPaise[splitUserId] === undefined) netPaise[splitUserId] = 0;
         netPaise[splitUserId] -= sharePaise;
 
-        // Direct debt: non-payer participant owes payer their share (payer owes self creates no debt)
-        if (payerId && splitUserId !== payerId && sharePaise > 0) {
-          addDirectDebt(splitUserId, payerId, sharePaise);
+        // Direct debt: non-payer participant owes payer(s) their share (payer owes self creates no debt)
+        if (payersList.length === 1) {
+          const singlePayerId = payersList[0].userId;
+          if (singlePayerId && splitUserId !== singlePayerId && sharePaise > 0) {
+            addDirectDebt(splitUserId, singlePayerId, sharePaise);
+          }
+        } else if (payersList.length > 1 && sharePaise > 0 && expenseAmountPaise > 0) {
+          for (const p of payersList) {
+            if (p.userId && p.userId !== splitUserId && p.amountPaise > 0) {
+              const portionPaise = Math.round(sharePaise * (p.amountPaise / expenseAmountPaise));
+              if (portionPaise > 0) {
+                addDirectDebt(splitUserId, p.userId, portionPaise);
+              }
+            }
+          }
         }
       }
     }
@@ -197,6 +226,13 @@ function computeBalances(expenses, members, payments = []) {
     if (ex.paidBy && ex.paidBy.name) {
       nameMap[(ex.paidBy._id || ex.paidBy.id || ex.paidBy).toString()] = ex.paidBy.name;
     }
+    if (Array.isArray(ex.payers)) {
+      ex.payers.forEach((p) => {
+        if (p.user && p.user.name) {
+          nameMap[(p.user._id || p.user.id || p.user).toString()] = p.user.name;
+        }
+      });
+    }
     if (Array.isArray(ex.splits)) {
       ex.splits.forEach((s) => {
         if (s.user && s.user.name) {
@@ -279,7 +315,15 @@ function validatePaymentAmount(amount, authorizedAmount) {
   };
 }
 
-module.exports = { signToken, computeBalances, getGroupLedger, checkParticipation, calculateLedger, validatePaymentAmount };
+module.exports = {
+  signToken,
+  computeBalances,
+  getGroupLedger,
+  getGroupLedgerWithBudget,
+  checkParticipation,
+  calculateLedger,
+  validatePaymentAmount,
+};
 
 async function getGroupLedger(groupId) {
   const Group = require('../models/Group');
@@ -291,6 +335,7 @@ async function getGroupLedger(groupId) {
 
   const expenses = await Expense.find({ group: groupId })
     .populate('paidBy', 'name')
+    .populate('payers.user', 'name')
     .populate('splits.user', 'name');
 
   const payments = await Payment.find({ group: groupId, status: { $in: ['paid', 'recipient_confirmed'] } })
@@ -303,6 +348,11 @@ async function getGroupLedger(groupId) {
   });
   expenses.forEach((ex) => {
     if (ex.paidBy) nameMap[(ex.paidBy._id || ex.paidBy).toString()] = ex.paidBy.name || 'Unknown';
+    if (Array.isArray(ex.payers)) {
+      ex.payers.forEach((p) => {
+        if (p.user) nameMap[(p.user._id || p.user).toString()] = p.user.name || 'Unknown';
+      });
+    }
     if (ex.splits) {
       ex.splits.forEach((s) => {
         if (s.user) nameMap[(s.user._id || s.user).toString()] = s.user.name || 'Unknown';
@@ -324,6 +374,44 @@ async function getGroupLedger(groupId) {
   return { group, expenses, payments, balances, settlements, totalSpent, nameMap };
 }
 
+async function getGroupLedgerWithBudget(groupId) {
+  const ledger = await getGroupLedger(groupId);
+  const now = new Date();
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+  const currentMonthExpenses = ledger.expenses.filter((ex) => {
+    const d = new Date(ex.date);
+    return d >= currentMonthStart && d < currentMonthEnd;
+  });
+
+  let monthlySpentPaise = 0;
+  const categoryBreakdown = {};
+
+  currentMonthExpenses.forEach((ex) => {
+    const expenseAmountPaise = Math.round(Number(ex.amount || 0) * 100);
+    monthlySpentPaise += expenseAmountPaise;
+    const cat = (ex.category || 'General').trim() || 'General';
+    categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + expenseAmountPaise;
+  });
+
+  const monthlyLimitPaise = Math.round(Number(ledger.group.budget?.monthlyLimit || 0) * 100);
+  const percentageUsed = monthlyLimitPaise > 0
+    ? Math.round((monthlySpentPaise / monthlyLimitPaise) * 100)
+    : 0;
+
+  return {
+    ...ledger,
+    monthlySpent: monthlySpentPaise / 100,
+    monthlyLimit: ledger.group.budget?.monthlyLimit || 0,
+    categoryBreakdown: Object.fromEntries(
+      Object.entries(categoryBreakdown).map(([k, v]) => [k, v / 100])
+    ),
+    percentageUsed,
+    alertsSent: ledger.group.budget?.alertsSent || [],
+  };
+}
+
 async function checkParticipation(userId, groupId) {
   const Group = require('../models/Group');
   const Expense = require('../models/Expense');
@@ -341,7 +429,7 @@ async function checkParticipation(userId, groupId) {
 
   const hasExpense = await Expense.exists({
     group: groupId,
-    $or: [{ paidBy: userId }, { 'splits.user': userId }]
+    $or: [{ paidBy: userId }, { 'payers.user': userId }, { 'splits.user': userId }]
   });
   if (hasExpense) {
     return { isActiveMember, isHistoricalParticipant: true };

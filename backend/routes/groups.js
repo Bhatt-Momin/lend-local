@@ -357,6 +357,123 @@ const handleRenameGroup = async (req, res) => {
   }
 };
 
+// =====================================================
+// BUDGET MANAGEMENT
+// =====================================================
+
+router.get('/:id/budget', async (req, res) => {
+  try {
+    const groupId = req.params.id;
+    const { isActiveMember, isHistoricalParticipant } = await checkParticipation(req.user._id, groupId);
+    if (!isHistoricalParticipant) {
+      return res.status(403).json({ message: 'You are not a member of this group' });
+    }
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const currentMonthExpenses = await Expense.find({
+      group: groupId,
+      date: { $gte: currentMonthStart, $lt: currentMonthEnd },
+    });
+
+    let monthlySpentPaise = 0;
+    const categoryBreakdown = {};
+
+    currentMonthExpenses.forEach((ex) => {
+      const expenseAmountPaise = Math.round(Number(ex.amount || 0) * 100);
+      monthlySpentPaise += expenseAmountPaise;
+      const cat = (ex.category || 'General').trim() || 'General';
+      categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + expenseAmountPaise;
+    });
+
+    const monthlyLimitPaise = Math.round(Number(group.budget?.monthlyLimit || 0) * 100);
+    const percentageUsed = monthlyLimitPaise > 0
+      ? Math.round((monthlySpentPaise / monthlyLimitPaise) * 100)
+      : 0;
+
+    const catLimitsObj = group.budget?.categoryLimits ? Object.fromEntries(group.budget.categoryLimits) : {};
+
+    res.json({
+      monthlyLimit: group.budget?.monthlyLimit || 0,
+      categoryLimits: catLimitsObj,
+      currentMonthSpent: monthlySpentPaise / 100,
+      categoryBreakdown: Object.entries(categoryBreakdown).map(([cat, paise]) => {
+        const catLimitPaise = Math.round(Number(catLimitsObj[cat] || 0) * 100);
+        return {
+          category: cat,
+          amount: paise / 100,
+          percentageUsed: catLimitPaise > 0 ? Math.round((paise / catLimitPaise) * 100) : 0,
+        };
+      }),
+      percentageUsed,
+      alertsSent: group.budget?.alertsSent || [],
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Failed to load group budget' });
+  }
+});
+
+router.put('/:id/budget', async (req, res) => {
+  try {
+    const groupId = req.params.id;
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+
+    if (!group.members.some((m) => m.equals(req.user._id))) {
+      return res.status(403).json({ message: 'You are not a member of this group' });
+    }
+
+    const { monthlyLimit, categoryLimits } = req.body;
+
+    if (monthlyLimit !== undefined) {
+      const limitNum = Number(monthlyLimit);
+      if (isNaN(limitNum) || limitNum < 0) {
+        return res.status(400).json({ message: 'Monthly limit must be a non-negative number' });
+      }
+      if (Math.round(limitNum * 100) !== Number((limitNum * 100).toFixed(0))) {
+        return res.status(400).json({ message: 'Monthly limit cannot have more than 2 decimal places' });
+      }
+      if (!group.budget) group.budget = {};
+      group.budget.monthlyLimit = limitNum;
+    }
+
+    if (categoryLimits !== undefined && typeof categoryLimits === 'object' && categoryLimits !== null) {
+      if (!group.budget) group.budget = {};
+      const catMap = new Map();
+      for (const [cat, limit] of Object.entries(categoryLimits)) {
+        const catNum = Number(limit);
+        if (isNaN(catNum) || catNum < 0) {
+          return res.status(400).json({ message: `Limit for ${cat} must be a non-negative number` });
+        }
+        catMap.set(cat, catNum);
+      }
+      group.budget.categoryLimits = catMap;
+    }
+
+    group.updatedAt = new Date();
+    await group.save();
+
+    res.json({
+      message: 'Budget updated successfully',
+      budget: {
+        monthlyLimit: group.budget.monthlyLimit || 0,
+        categoryLimits: group.budget.categoryLimits ? Object.fromEntries(group.budget.categoryLimits) : {},
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Failed to update budget' });
+  }
+});
+
 router.patch('/:id', handleRenameGroup);
 router.put('/:id', handleRenameGroup);
 

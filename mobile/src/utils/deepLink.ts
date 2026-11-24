@@ -120,7 +120,8 @@ export function parseDeepLink(rawUrl: string): ParsedDeepLink {
   // 2. Extract groupId from query parameters or path segments
   let groupIdParam =
     parsed.searchParams.get('groupId') ||
-    parsed.searchParams.get('id');
+    parsed.searchParams.get('id') ||
+    parsed.searchParams.get('code');
 
   if (!groupIdParam) {
     // Check path segments (e.g. lendlocal://group/<id> or https://domain/group/<id>)

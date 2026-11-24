@@ -209,6 +209,10 @@ if (!requireAuth()) {
 
         expenseForm.reset();
 
+        document.getElementById('tabSinglePayer')?.click();
+        const preview = document.getElementById('expAmountPreview');
+        if (preview) preview.style.display = 'none';
+
         expenseForm.date.value =
           new Date()
             .toISOString()
@@ -285,6 +289,10 @@ if (!requireAuth()) {
         closePaymentMethodModal();
       } else if (expenseModal?.classList.contains('open')) {
         closeExpenseModal();
+      } else if (document.getElementById('budgetModal')?.classList.contains('open')) {
+        closeBudgetModal();
+      } else if (document.getElementById('groupQrModal')?.classList.contains('open')) {
+        closeGroupQrModal();
       }
     }
   });
@@ -300,11 +308,76 @@ if (!requireAuth()) {
       renderSplitInputs(e.target.value, false);
     });
 
-  document
-    .getElementById('expAmount')
-    .addEventListener('input', () => {
+  const expAmountEl = document.getElementById('expAmount');
+  const expAmountPreviewEl = document.getElementById('expAmountPreview');
+  const expAmountPreviewValEl = document.getElementById('expAmountPreviewVal');
+
+  function checkAmountMath(inputVal) {
+    if (!inputVal || typeof inputVal !== 'string') {
+      if (expAmountPreviewEl) expAmountPreviewEl.style.display = 'none';
+      return 0;
+    }
+    const trimmed = inputVal.trim();
+    if (/[+\-*/()]/.test(trimmed) && window.evaluateMathExpression) {
+      const res = window.evaluateMathExpression(trimmed);
+      if (res.valid && res.value !== undefined) {
+        if (expAmountPreviewEl) expAmountPreviewEl.style.display = 'block';
+        if (expAmountPreviewValEl) expAmountPreviewValEl.textContent = formatMoney(res.value);
+        return res.value;
+      }
+    }
+    if (expAmountPreviewEl) expAmountPreviewEl.style.display = 'none';
+    return Number(trimmed) || 0;
+  }
+
+  if (expAmountEl) {
+    expAmountEl.addEventListener('input', (e) => {
+      checkAmountMath(e.target.value);
       updateSplitSummary();
+      updateMultiPayerSummary();
     });
+
+    expAmountEl.addEventListener('blur', (e) => {
+      const trimmed = e.target.value.trim();
+      if (/[+\-*/()]/.test(trimmed) && window.evaluateMathExpression) {
+        const res = window.evaluateMathExpression(trimmed);
+        if (res.valid && res.value !== undefined) {
+          e.target.value = res.value.toFixed(2);
+          if (expAmountPreviewEl) expAmountPreviewEl.style.display = 'none';
+          updateSplitSummary();
+          updateMultiPayerSummary();
+        }
+      }
+    });
+  }
+
+  // Multi-payer tab switching
+  const tabSinglePayer = document.getElementById('tabSinglePayer');
+  const tabMultiPayer = document.getElementById('tabMultiPayer');
+  const singlePayerContainer = document.getElementById('singlePayerContainer');
+  const multiPayerContainer = document.getElementById('multiPayerContainer');
+
+  let isMultiPayerMode = false;
+
+  if (tabSinglePayer && tabMultiPayer) {
+    tabSinglePayer.addEventListener('click', () => {
+      isMultiPayerMode = false;
+      tabSinglePayer.classList.add('active');
+      tabMultiPayer.classList.remove('active');
+      if (singlePayerContainer) singlePayerContainer.style.display = 'block';
+      if (multiPayerContainer) multiPayerContainer.style.display = 'none';
+    });
+
+    tabMultiPayer.addEventListener('click', () => {
+      isMultiPayerMode = true;
+      tabMultiPayer.classList.add('active');
+      tabSinglePayer.classList.remove('active');
+      if (singlePayerContainer) singlePayerContainer.style.display = 'none';
+      if (multiPayerContainer) multiPayerContainer.style.display = 'block';
+      renderMultiPayerInputs();
+      updateMultiPayerSummary();
+    });
+  }
 
   /* =========================================================
      HELPERS
@@ -429,12 +502,102 @@ if (!requireAuth()) {
   }
 
   /* =========================================================
+     MULTI-PAYER INPUTS & SUMMARY
+  ========================================================= */
+
+  function renderMultiPayerInputs(initialPayers = null) {
+    const list = document.getElementById('multiPayerList');
+    if (!list) return;
+    list.innerHTML = members
+      .map((member) => {
+        const userId = String(getUserId(member));
+        let val = '';
+        if (initialPayers && initialPayers.length) {
+          const found = initialPayers.find((p) => String(p.user?.id || p.user?._id || p.user) === userId);
+          if (found) val = Number(found.amount).toFixed(2);
+        }
+        return `
+          <div class="split-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 0.9rem; color: var(--ll-text);">${escapeHtml(member.name)}</span>
+            <input
+              type="text"
+              class="multi-payer-amount"
+              data-user="${userId}"
+              placeholder="0.00"
+              value="${val}"
+              inputmode="decimal"
+              style="width: 110px; text-align: right;"
+            />
+          </div>
+        `;
+      })
+      .join('');
+
+    list.querySelectorAll('.multi-payer-amount').forEach((input) => {
+      input.addEventListener('input', () => {
+        updateMultiPayerSummary();
+      });
+      input.addEventListener('blur', (e) => {
+        const trimmed = e.target.value.trim();
+        if (/[+\-*/()]/.test(trimmed) && window.evaluateMathExpression) {
+          const res = window.evaluateMathExpression(trimmed);
+          if (res.valid && res.value !== undefined) {
+            e.target.value = res.value.toFixed(2);
+            updateMultiPayerSummary();
+          }
+        }
+      });
+    });
+  }
+
+  function updateMultiPayerSummary() {
+    const totalEl = document.getElementById('multiPayerTotal');
+    const remEl = document.getElementById('multiPayerRemaining');
+    if (!totalEl || !remEl) return;
+
+    let targetAmt = Number(document.getElementById('expAmount')?.value) || 0;
+    const rawAmt = document.getElementById('expAmount')?.value || '';
+    if (/[+\-*/()]/.test(rawAmt) && window.evaluateMathExpression) {
+      const res = window.evaluateMathExpression(rawAmt);
+      if (res.valid && res.value !== undefined) targetAmt = res.value;
+    }
+    const targetPaise = Math.round(targetAmt * 100);
+
+    let totalPaidPaise = 0;
+    document.querySelectorAll('.multi-payer-amount').forEach((input) => {
+      const raw = input.value.trim();
+      let n = Number(raw) || 0;
+      if (/[+\-*/()]/.test(raw) && window.evaluateMathExpression) {
+        const res = window.evaluateMathExpression(raw);
+        if (res.valid && res.value !== undefined) n = res.value;
+      }
+      totalPaidPaise += Math.round(n * 100);
+    });
+
+    totalEl.textContent = formatMoney(totalPaidPaise / 100);
+    const remPaise = targetPaise - totalPaidPaise;
+    remEl.textContent = formatMoney(remPaise / 100);
+    if (remPaise === 0 && targetPaise > 0) {
+      remEl.style.color = '#10B981';
+    } else if (remPaise < 0) {
+      remEl.style.color = '#EF4444';
+    } else {
+      remEl.style.color = 'var(--ll-text)';
+    }
+  }
+
+  /* =========================================================
      SPLIT INPUTS & SUMMARY
   ========================================================= */
 
   function updateSplitSummary() {
     const splitType = document.getElementById('expSplitType')?.value || 'equal';
-    const amountVal = Number(document.getElementById('expAmount')?.value) || 0;
+    let amountVal = Number(document.getElementById('expAmount')?.value) || 0;
+    const rawAmt = document.getElementById('expAmount')?.value || '';
+    if (/[+\-*/()]/.test(rawAmt) && window.evaluateMathExpression) {
+      const res = window.evaluateMathExpression(rawAmt);
+      if (res.valid && res.value !== undefined) amountVal = res.value;
+    }
     const totalPaise = Math.round(amountVal * 100);
     const summaryEl = document.getElementById('splitSummary');
     const allocEl = document.getElementById('splitAllocated') || document.getElementById('splitAllocatedAmount');
@@ -451,7 +614,6 @@ if (!requireAuth()) {
       const basePaise = count > 0 ? Math.floor(totalPaise / count) : 0;
       const remPaise = count > 0 ? totalPaise % count : 0;
 
-      // Update individual member labels
       document.querySelectorAll('.split-row').forEach((row) => {
         const cb = row.querySelector('.split-check');
         const shareLabel = row.querySelector('.equal-share-label');
@@ -486,8 +648,103 @@ if (!requireAuth()) {
           statusEl.textContent = `Split equally among ${count} member${count > 1 ? 's' : ''}${remMsg}`;
         }
       }
+    } else if (splitType === 'percentage') {
+      let totalPct = 0;
+      let hasEmpty = false;
+
+      checkedBoxes.forEach((cb) => {
+        const input = document.querySelector(`.split-share[data-user="${cb.dataset.user}"]`);
+        const row = cb.closest('.split-row');
+        const previewSpan = row ? row.querySelector('.split-rupee-preview') : null;
+        const valStr = input ? input.value.trim() : '';
+        if (valStr === '') {
+          hasEmpty = true;
+          if (previewSpan) previewSpan.textContent = '₹0.00';
+        } else {
+          let pct = parseFloat(valStr) || 0;
+          if (/[+\-*/()]/.test(valStr) && window.evaluateMathExpression) {
+            const m = window.evaluateMathExpression(valStr);
+            if (m.valid && m.value !== undefined) pct = m.value;
+          }
+          totalPct += pct;
+          const sharePaise = Math.round((totalPaise * pct) / 100);
+          if (previewSpan) previewSpan.textContent = formatMoney(sharePaise / 100);
+        }
+      });
+
+      const remPct = 100 - totalPct;
+      if (allocEl) allocEl.textContent = `${totalPct.toFixed(1)}%`;
+      if (remEl) remEl.textContent = `${remPct.toFixed(1)}%`;
+
+      if (statusEl) {
+        if (count === 0) {
+          statusEl.className = 'split-status-msg split-status-text error invalid';
+          statusEl.textContent = 'Select at least one participant';
+        } else if (hasEmpty) {
+          statusEl.className = 'split-status-msg split-status-text warning invalid';
+          statusEl.textContent = 'Enter percentage for each participant';
+        } else if (Math.abs(remPct) < 0.05) {
+          statusEl.className = 'split-status-msg split-status-text valid';
+          statusEl.textContent = '✓ Percentages total 100% exactly';
+        } else if (remPct > 0) {
+          statusEl.className = 'split-status-msg split-status-text warning invalid';
+          statusEl.textContent = `${remPct.toFixed(1)}% remaining to reach 100%`;
+        } else {
+          statusEl.className = 'split-status-msg split-status-text error invalid';
+          statusEl.textContent = `Overallocated by ${Math.abs(remPct).toFixed(1)}%`;
+        }
+      }
+    } else if (splitType === 'shares') {
+      let totalShares = 0;
+      let hasEmpty = false;
+
+      checkedBoxes.forEach((cb) => {
+        const input = document.querySelector(`.split-share[data-user="${cb.dataset.user}"]`);
+        const valStr = input ? input.value.trim() : '';
+        if (valStr === '') {
+          hasEmpty = true;
+        } else {
+          let sh = parseFloat(valStr) || 0;
+          if (/[+\-*/()]/.test(valStr) && window.evaluateMathExpression) {
+            const m = window.evaluateMathExpression(valStr);
+            if (m.valid && m.value !== undefined) sh = m.value;
+          }
+          totalShares += sh;
+        }
+      });
+
+      // Update rupee preview per row
+      checkedBoxes.forEach((cb) => {
+        const input = document.querySelector(`.split-share[data-user="${cb.dataset.user}"]`);
+        const row = cb.closest('.split-row');
+        const previewSpan = row ? row.querySelector('.split-rupee-preview') : null;
+        const valStr = input ? input.value.trim() : '';
+        let sh = parseFloat(valStr) || 0;
+        if (/[+\-*/()]/.test(valStr) && window.evaluateMathExpression) {
+          const m = window.evaluateMathExpression(valStr);
+          if (m.valid && m.value !== undefined) sh = m.value;
+        }
+        const portionPaise = totalShares > 0 ? Math.round(totalPaise * (sh / totalShares)) : 0;
+        if (previewSpan) previewSpan.textContent = formatMoney(portionPaise / 100);
+      });
+
+      if (allocEl) allocEl.textContent = `${totalShares.toFixed(1)} shares`;
+      if (remEl) remEl.textContent = formatMoney(amountVal);
+
+      if (statusEl) {
+        if (count === 0) {
+          statusEl.className = 'split-status-msg split-status-text error invalid';
+          statusEl.textContent = 'Select at least one participant';
+        } else if (hasEmpty || totalShares <= 0) {
+          statusEl.className = 'split-status-msg split-status-text warning invalid';
+          statusEl.textContent = 'Enter shares for all participants';
+        } else {
+          statusEl.className = 'split-status-msg split-status-text valid';
+          statusEl.textContent = `Proportionally split across ${totalShares} total shares`;
+        }
+      }
     } else {
-      // Custom split
+      // Custom / exact split
       let allocatedPaise = 0;
       let hasEmptyInput = false;
 
@@ -497,7 +754,11 @@ if (!requireAuth()) {
         if (valStr === '') {
           hasEmptyInput = true;
         } else {
-          const val = parseFloat(valStr) || 0;
+          let val = parseFloat(valStr) || 0;
+          if (/[+\-*/()]/.test(valStr) && window.evaluateMathExpression) {
+            const m = window.evaluateMathExpression(valStr);
+            if (m.valid && m.value !== undefined) val = m.value;
+          }
           allocatedPaise += Math.round(val * 100);
         }
       });
@@ -536,7 +797,12 @@ if (!requireAuth()) {
     preserveState = false,
     initialSplits = null
   ) {
-    const amountVal = Number(document.getElementById('expAmount').value) || 0;
+    let amountVal = Number(document.getElementById('expAmount').value) || 0;
+    const rawAmt = document.getElementById('expAmount')?.value || '';
+    if (/[+\-*/()]/.test(rawAmt) && window.evaluateMathExpression) {
+      const res = window.evaluateMathExpression(rawAmt);
+      if (res.valid && res.value !== undefined) amountVal = res.value;
+    }
     const totalPaise = Math.round(amountVal * 100);
 
     const savedValues = {};
@@ -562,57 +828,122 @@ if (!requireAuth()) {
             (s) => String(s.user?.id || s.user?._id || s.user) === userId
           );
           isChecked = !!found;
-          if (found && type === 'custom') {
-            shareValue = Number(found.share).toFixed(2);
+          if (found) {
+            if (type === 'custom') shareValue = Number(found.share).toFixed(2);
+            else if (type === 'percentage') shareValue = found.percentage !== undefined ? String(found.percentage) : '';
+            else if (type === 'shares') shareValue = found.shares !== undefined ? String(found.shares) : '1';
           }
         } else if (preserveState) {
           if (savedChecked[userId] !== undefined) isChecked = savedChecked[userId];
           if (savedValues[userId] !== undefined) shareValue = savedValues[userId];
         }
 
-        if (type === 'custom') {
-          // If editing an existing expense with initialSplits, shareValue was set from initialSplits.
-          // In create mode or when switching to custom, inputs start empty with placeholder "0.00"
-          // so users do not have to clear a prefilled value manually.
+        if (type === 'percentage') {
           if (!initialSplits && !preserveState) {
-            shareValue = '';
+            shareValue = memberCount > 0 ? (100 / memberCount).toFixed(1) : '';
           }
-
           return `
-            <div class="split-row">
-              <label>
+            <div class="split-row" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0;">
+              <label style="display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer;">
                 <input
                   type="checkbox"
                   class="split-check"
                   data-user="${userId}"
                   ${isChecked ? 'checked' : ''}
                 />
-                ${escapeHtml(member.name)}
+                <span>${escapeHtml(member.name)}</span>
+              </label>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <input
+                  type="text"
+                  class="split-share"
+                  data-user="${userId}"
+                  inputmode="decimal"
+                  placeholder="0"
+                  value="${shareValue}"
+                  ${isChecked ? '' : 'disabled'}
+                  style="width: 70px; text-align: right;"
+                />
+                <span style="font-size: 0.85rem; color: var(--ll-text-muted);">%</span>
+                <span class="split-rupee-preview" style="font-size: 0.85rem; color: var(--ll-text); min-width: 65px; text-align: right;">₹0.00</span>
+              </div>
+            </div>
+          `;
+        }
+
+        if (type === 'shares') {
+          if (!initialSplits && !preserveState) {
+            shareValue = '1';
+          }
+          return `
+            <div class="split-row" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0;">
+              <label style="display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer;">
+                <input
+                  type="checkbox"
+                  class="split-check"
+                  data-user="${userId}"
+                  ${isChecked ? 'checked' : ''}
+                />
+                <span>${escapeHtml(member.name)}</span>
+              </label>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <input
+                  type="text"
+                  class="split-share"
+                  data-user="${userId}"
+                  inputmode="decimal"
+                  placeholder="1"
+                  value="${shareValue}"
+                  ${isChecked ? '' : 'disabled'}
+                  style="width: 70px; text-align: right;"
+                />
+                <span style="font-size: 0.85rem; color: var(--ll-text-muted);">shares</span>
+                <span class="split-rupee-preview" style="font-size: 0.85rem; color: var(--ll-text); min-width: 65px; text-align: right;">₹0.00</span>
+              </div>
+            </div>
+          `;
+        }
+
+        if (type === 'custom') {
+          if (!initialSplits && !preserveState) {
+            shareValue = '';
+          }
+
+          return `
+            <div class="split-row" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0;">
+              <label style="display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer;">
+                <input
+                  type="checkbox"
+                  class="split-check"
+                  data-user="${userId}"
+                  ${isChecked ? 'checked' : ''}
+                />
+                <span>${escapeHtml(member.name)}</span>
               </label>
               <input
-                type="number"
+                type="text"
                 class="split-share"
                 data-user="${userId}"
-                min="0"
-                step="0.01"
+                inputmode="decimal"
                 placeholder="0.00"
                 value="${shareValue}"
                 ${isChecked ? '' : 'disabled'}
+                style="width: 100px; text-align: right;"
               />
             </div>
           `;
         }
 
         return `
-          <div class="split-row">
-            <label>
+          <div class="split-row" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0;">
+            <label style="display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer;">
               <input
                 type="checkbox"
                 class="split-check"
                 data-user="${userId}"
                 ${isChecked ? 'checked' : ''}
               />
-              ${escapeHtml(member.name)}
+              <span>${escapeHtml(member.name)}</span>
             </label>
             <span class="equal-share-label" style="color: var(--ll-text-muted); font-size: 0.9rem;">
               ₹0.00 each
@@ -639,10 +970,20 @@ if (!requireAuth()) {
       });
     });
 
-    if (type === 'custom') {
+    if (type !== 'equal') {
       splitList.querySelectorAll('.split-share').forEach((input) => {
         input.addEventListener('input', () => {
           updateSplitSummary();
+        });
+        input.addEventListener('blur', (e) => {
+          const trimmed = e.target.value.trim();
+          if (/[+\-*/()]/.test(trimmed) && window.evaluateMathExpression) {
+            const res = window.evaluateMathExpression(trimmed);
+            if (res.valid && res.value !== undefined) {
+              e.target.value = res.value;
+              updateSplitSummary();
+            }
+          }
         });
       });
     }
@@ -697,7 +1038,8 @@ if (!requireAuth()) {
       groupRes,
       expenseRes,
       balanceRes,
-      activeIntentsRes
+      activeIntentsRes,
+      budgetRes
     ] = await Promise.all([
       api(
         `/groups/${groupId}`
@@ -713,7 +1055,11 @@ if (!requireAuth()) {
 
       api(
         `/payment/active/${groupId}`
-      ).catch((err) => ({ error: true, message: err.message || "Failed to load active intents" }))
+      ).catch((err) => ({ error: true, message: err.message || "Failed to load active intents" })),
+
+      api(
+        `/groups/${groupId}/budget`
+      ).catch(() => null)
     ]);
 
     group =
@@ -846,6 +1192,10 @@ if (!requireAuth()) {
     renderMembers();
 
     renderPaidBy();
+
+    if (budgetRes) {
+      updateBudgetUI(budgetRes);
+    }
 
     // Auto-close UPI modal if the intent was settled in the background
     const upiModal = document.getElementById('upiPayerModal');
@@ -1051,7 +1401,15 @@ if (!requireAuth()) {
           expenseForm.description.value = expense.description;
           expenseForm.amount.value = expense.amount;
           expenseForm.category.value = expense.category || 'General';
-          expenseForm.paidBy.value = expense.paidBy.id || expense.paidBy._id;
+          if (expense.payers && expense.payers.length > 1) {
+            document.getElementById('tabMultiPayer')?.click();
+            renderMultiPayerInputs(expense.payers);
+            updateMultiPayerSummary();
+          } else {
+            document.getElementById('tabSinglePayer')?.click();
+            const pId = expense.paidBy?.id || expense.paidBy?._id || expense.paidBy;
+            if (pId) expenseForm.paidBy.value = pId;
+          }
           if (expense.date) {
             expenseForm.date.value = new Date(expense.date).toISOString().slice(0, 10);
           }
@@ -1768,7 +2126,19 @@ if (!requireAuth()) {
       e.preventDefault();
       hideAlert(expenseAlert);
 
-      const amountVal = Number(expenseForm.amount.value);
+      const rawAmount = expenseForm.amount.value.trim();
+      let amountVal = Number(rawAmount);
+      if (/[+\-*/()]/.test(rawAmount) && window.evaluateMathExpression) {
+        const m = window.evaluateMathExpression(rawAmount);
+        if (m.valid && m.value !== undefined) {
+          amountVal = m.value;
+        } else {
+          showAlert(expenseAlert, m.error || 'Invalid amount expression');
+          if (window.FX) window.FX.shake(expenseAlert);
+          return;
+        }
+      }
+
       if (isNaN(amountVal) || amountVal <= 0 || !isFinite(amountVal)) {
         showAlert(expenseAlert, 'Enter a valid positive expense amount');
         if (window.FX) window.FX.shake(expenseAlert);
@@ -1789,11 +2159,47 @@ if (!requireAuth()) {
         return;
       }
 
-      const paidBy = expenseForm.paidBy.value;
-      if (!paidBy) {
-        showAlert(expenseAlert, 'Select who paid');
-        if (window.FX) window.FX.shake(expenseAlert);
-        return;
+      let payers = null;
+      let paidBy = expenseForm.paidBy.value;
+
+      if (isMultiPayerMode) {
+        payers = [];
+        let totalPayerPaise = 0;
+        const payerInputs = document.querySelectorAll('.multi-payer-amount');
+        for (const input of payerInputs) {
+          const raw = input.value.trim();
+          if (!raw) continue;
+          let val = Number(raw);
+          if (/[+\-*/()]/.test(raw) && window.evaluateMathExpression) {
+            const m = window.evaluateMathExpression(raw);
+            if (m.valid && m.value !== undefined) val = m.value;
+          }
+          if (val > 0) {
+            const pPaise = Math.round(val * 100);
+            totalPayerPaise += pPaise;
+            payers.push({ user: input.dataset.user, amount: pPaise / 100 });
+          }
+        }
+        if (payers.length === 0) {
+          showAlert(expenseAlert, 'Enter amounts paid by group members');
+          if (window.FX) window.FX.shake(expenseAlert);
+          return;
+        }
+        if (Math.abs(totalPayerPaise - totalPaise) > 1) {
+          showAlert(
+            expenseAlert,
+            `Sum of payer amounts (${formatMoney(totalPayerPaise / 100)}) must equal total expense (${formatMoney(amountVal)})`
+          );
+          if (window.FX) window.FX.shake(expenseAlert);
+          return;
+        }
+        paidBy = payers[0].user;
+      } else {
+        if (!paidBy) {
+          showAlert(expenseAlert, 'Select who paid');
+          if (window.FX) window.FX.shake(expenseAlert);
+          return;
+        }
       }
 
       const splitType = expenseForm.splitType.value;
@@ -1810,6 +2216,59 @@ if (!requireAuth()) {
         splits = checked.map((cb) => ({
           user: cb.dataset.user,
         }));
+      } else if (splitType === 'percentage') {
+        let totalPct = 0;
+        splits = [];
+        for (const cb of checked) {
+          const input = document.querySelector(`.split-share[data-user="${cb.dataset.user}"]`);
+          const rawVal = input ? input.value.trim() : '';
+          if (rawVal === '') {
+            showAlert(expenseAlert, 'Please enter a percentage for all selected participants');
+            if (window.FX) window.FX.shake(expenseAlert);
+            return;
+          }
+          let pct = Number(rawVal);
+          if (/[+\-*/()]/.test(rawVal) && window.evaluateMathExpression) {
+            const m = window.evaluateMathExpression(rawVal);
+            if (m.valid && m.value !== undefined) pct = m.value;
+          }
+          if (isNaN(pct) || pct < 0 || pct > 100) {
+            showAlert(expenseAlert, 'Percentage must be between 0 and 100');
+            if (window.FX) window.FX.shake(expenseAlert);
+            return;
+          }
+          totalPct += pct;
+          splits.push({ user: cb.dataset.user, percentage: pct });
+        }
+        if (Math.abs(totalPct - 100) > 0.05) {
+          showAlert(expenseAlert, `Percentages must sum to 100% (currently ${totalPct.toFixed(1)}%)`);
+          if (window.FX) window.FX.shake(expenseAlert);
+          return;
+        }
+      } else if (splitType === 'shares') {
+        let totalShares = 0;
+        splits = [];
+        for (const cb of checked) {
+          const input = document.querySelector(`.split-share[data-user="${cb.dataset.user}"]`);
+          const rawVal = input ? input.value.trim() : '';
+          if (rawVal === '') {
+            showAlert(expenseAlert, 'Please enter shares for all selected participants');
+            if (window.FX) window.FX.shake(expenseAlert);
+            return;
+          }
+          let sh = Number(rawVal);
+          if (/[+\-*/()]/.test(rawVal) && window.evaluateMathExpression) {
+            const m = window.evaluateMathExpression(rawVal);
+            if (m.valid && m.value !== undefined) sh = m.value;
+          }
+          if (isNaN(sh) || sh <= 0) {
+            showAlert(expenseAlert, 'Shares must be greater than 0');
+            if (window.FX) window.FX.shake(expenseAlert);
+            return;
+          }
+          totalShares += sh;
+          splits.push({ user: cb.dataset.user, shares: sh });
+        }
       } else {
         let allocatedPaise = 0;
         splits = [];
@@ -1821,7 +2280,11 @@ if (!requireAuth()) {
             if (window.FX) window.FX.shake(expenseAlert);
             return;
           }
-          const shareNum = Number(rawVal);
+          let shareNum = Number(rawVal);
+          if (/[+\-*/()]/.test(rawVal) && window.evaluateMathExpression) {
+            const m = window.evaluateMathExpression(rawVal);
+            if (m.valid && m.value !== undefined) shareNum = m.value;
+          }
           if (isNaN(shareNum) || shareNum < 0 || !isFinite(shareNum)) {
             showAlert(expenseAlert, 'Each participant share must be a valid non-negative number');
             if (window.FX) window.FX.shake(expenseAlert);
@@ -1864,13 +2327,14 @@ if (!requireAuth()) {
       const endpoint = editId ? `/expenses/${editId}` : '/expenses';
 
       try {
-        await api(endpoint, {
+        const res = await api(endpoint, {
           method,
           body: JSON.stringify({
             groupId,
             description,
             amount: amountVal,
             paidBy,
+            ...(payers ? { payers } : {}),
             splitType,
             splits,
             category: expenseForm.category.value,
@@ -1882,6 +2346,25 @@ if (!requireAuth()) {
 
         if (window.FX) {
           window.FX.toast('Expense saved successfully!');
+        }
+
+        // Display budget status alert if present
+        if (res?.budgetStatus) {
+          const { percentageUsed, monthlyLimit, alert } = res.budgetStatus;
+          const limitDisplay = monthlyLimit > 0 ? `₹${monthlyLimit}` : 'No limit';
+          if (alert === '100') {
+            if (window.FX) {
+              window.FX.toast(`⚠️ Monthly budget exceeded! You have used ${percentageUsed}% of the monthly limit.`);
+            } else {
+              alert(`⚠️ Monthly budget exceeded! You have used ${percentageUsed}% of the monthly limit.`);
+            }
+          } else if (alert === '80') {
+            if (window.FX) {
+              window.FX.toast(`⚠️ Note: Group has reached ${percentageUsed}% of its monthly budget.`);
+            } else {
+              alert(`⚠️ Note: Group has reached ${percentageUsed}% of its monthly budget.`);
+            }
+          }
         }
 
         await initLoadAll(true);
@@ -1999,6 +2482,259 @@ if (!requireAuth()) {
           saveRenameBtn.textContent = saveRenameBtn.dataset.originalText || 'Save';
         }
       }
+    });
+  }
+
+  /* =========================================================
+     GROUP BUDGET & SPENDING ALERTS
+  ========================================================= */
+
+  let currentGroupBudget = null;
+
+  function updateBudgetUI(budgetData) {
+    if (!budgetData) return;
+    currentGroupBudget = budgetData;
+
+    const spentEl = document.getElementById('budgetSpentVal');
+    const limitEl = document.getElementById('budgetLimitVal');
+    const barEl = document.getElementById('budgetProgressBar');
+    const badgeEl = document.getElementById('budgetPctBadge');
+    const alertEl = document.getElementById('budgetAlertMsg');
+
+    if (spentEl) spentEl.textContent = formatMoney(budgetData.currentMonthSpent || 0);
+    if (limitEl) {
+      limitEl.textContent = budgetData.monthlyLimit > 0
+        ? formatMoney(budgetData.monthlyLimit)
+        : 'No limit';
+    }
+
+    if (budgetData.monthlyLimit > 0) {
+      const rawPct = Math.round(budgetData.percentageUsed || 0);
+      const cappedPct = Math.min(rawPct, 100);
+
+      if (badgeEl) {
+        badgeEl.textContent = `${rawPct}%`;
+        if (rawPct >= 100) {
+          badgeEl.style.background = 'rgba(239,68,68,0.2)';
+          badgeEl.style.color = '#EF4444';
+        } else if (rawPct >= 80) {
+          badgeEl.style.background = 'rgba(245,158,11,0.2)';
+          badgeEl.style.color = '#F59E0B';
+        } else {
+          badgeEl.style.background = 'rgba(16,185,129,0.15)';
+          badgeEl.style.color = '#10B981';
+        }
+      }
+
+      if (barEl) {
+        barEl.style.width = `${cappedPct}%`;
+        if (rawPct >= 100) {
+          barEl.style.background = '#EF4444';
+        } else if (rawPct >= 80) {
+          barEl.style.background = '#F59E0B';
+        } else {
+          barEl.style.background = '#10B981';
+        }
+      }
+
+      if (alertEl) {
+        if (rawPct >= 100) {
+          alertEl.style.display = 'block';
+          alertEl.style.background = 'rgba(239,68,68,0.15)';
+          alertEl.style.color = '#EF4444';
+          alertEl.textContent = `⚠️ Monthly budget exceeded! You have spent ${rawPct}% of your ₹${budgetData.monthlyLimit.toLocaleString('en-IN')} limit.`;
+        } else if (rawPct >= 80) {
+          alertEl.style.display = 'block';
+          alertEl.style.background = 'rgba(245,158,11,0.15)';
+          alertEl.style.color = '#F59E0B';
+          alertEl.textContent = `⚠️ Approaching monthly budget limit: ${rawPct}% of ₹${budgetData.monthlyLimit.toLocaleString('en-IN')} spent.`;
+        } else {
+          alertEl.style.display = 'none';
+        }
+      }
+    } else {
+      if (badgeEl) {
+        badgeEl.textContent = 'No limit';
+        badgeEl.style.background = 'rgba(255,255,255,0.08)';
+        badgeEl.style.color = 'var(--ll-text-muted)';
+      }
+      if (barEl) {
+        barEl.style.width = '0%';
+        barEl.style.background = '#10B981';
+      }
+      if (alertEl) alertEl.style.display = 'none';
+    }
+  }
+
+  const budgetModal = document.getElementById('budgetModal');
+  const openBudgetModalBtn = document.getElementById('openBudgetModalBtn');
+  const closeBudgetModalBtn = document.getElementById('closeBudgetModalBtn');
+  const cancelBudgetBtn = document.getElementById('cancelBudgetBtn');
+  const budgetForm = document.getElementById('budgetForm');
+  const budgetMonthlyLimitInput = document.getElementById('budgetMonthlyLimitInput');
+  const budgetModalAlert = document.getElementById('budgetModalAlert');
+  const saveBudgetBtn = document.getElementById('saveBudgetBtn');
+
+  function openBudgetModal() {
+    if (!budgetModal) return;
+    hideAlert(budgetModalAlert);
+    if (budgetMonthlyLimitInput) {
+      budgetMonthlyLimitInput.value = currentGroupBudget?.monthlyLimit > 0 ? currentGroupBudget.monthlyLimit : '';
+    }
+    budgetModal.classList.add('open');
+    document.body.classList.add('modal-open');
+    setTimeout(() => {
+      budgetMonthlyLimitInput?.focus();
+    }, 50);
+  }
+
+  function closeBudgetModal() {
+    if (!budgetModal) return;
+    budgetModal.classList.remove('open');
+    if (!document.querySelector('.modal-backdrop.open')) {
+      document.body.classList.remove('modal-open');
+    }
+  }
+
+  if (openBudgetModalBtn) openBudgetModalBtn.addEventListener('click', openBudgetModal);
+  if (closeBudgetModalBtn) closeBudgetModalBtn.addEventListener('click', closeBudgetModal);
+  if (cancelBudgetBtn) cancelBudgetBtn.addEventListener('click', closeBudgetModal);
+  if (budgetModal) {
+    budgetModal.addEventListener('click', (e) => {
+      if (e.target === budgetModal) closeBudgetModal();
+    });
+  }
+
+  if (budgetForm) {
+    budgetForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAlert(budgetModalAlert);
+      const rawVal = budgetMonthlyLimitInput?.value.trim() || '0';
+      const limitNum = Number(rawVal);
+      if (isNaN(limitNum) || limitNum < 0) {
+        showAlert(budgetModalAlert, 'Please enter a valid monthly limit (0 for no limit)');
+        return;
+      }
+
+      if (saveBudgetBtn) {
+        saveBudgetBtn.disabled = true;
+        saveBudgetBtn.textContent = 'Saving...';
+      }
+
+      try {
+        await api(`/groups/${groupId}/budget`, {
+          method: 'PUT',
+          body: JSON.stringify({ monthlyLimit: limitNum }),
+        });
+        closeBudgetModal();
+        if (window.FX) window.FX.toast('Budget updated successfully');
+        loadAll(true);
+      } catch (err) {
+        showAlert(budgetModalAlert, err.message || 'Failed to update budget');
+        if (window.FX) window.FX.shake(budgetModalAlert);
+      } finally {
+        if (saveBudgetBtn) {
+          saveBudgetBtn.disabled = false;
+          saveBudgetBtn.textContent = 'Save Budget';
+        }
+      }
+    });
+  }
+
+  /* =========================================================
+     GROUP INVITE QR CODE MODAL
+  ========================================================= */
+
+  const groupQrModal = document.getElementById('groupQrModal');
+  const showGroupQrBtn = document.getElementById('showGroupQrBtn');
+  const closeGroupQrBtn = document.getElementById('closeGroupQrBtn');
+  const doneGroupQrBtn = document.getElementById('doneGroupQrBtn');
+  const copyGroupInviteLinkBtn = document.getElementById('copyGroupInviteLinkBtn');
+  const groupQrContainer = document.getElementById('groupQrContainer');
+  const groupQrDeepLinkText = document.getElementById('groupQrDeepLinkText');
+
+  function openGroupQrModal() {
+    if (!groupQrModal) return;
+    const groupName = group?.name || 'Group';
+    const deepLink = `lendlocal://join?code=${encodeURIComponent(groupId)}&name=${encodeURIComponent(groupName)}`;
+    if (groupQrDeepLinkText) {
+      groupQrDeepLinkText.textContent = deepLink;
+    }
+    if (groupQrContainer) {
+      groupQrContainer.innerHTML = '';
+      if (typeof QRCode !== 'undefined') {
+        new QRCode(groupQrContainer, {
+          text: deepLink,
+          width: 200,
+          height: 200,
+          colorDark: '#000000',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M,
+        });
+      } else {
+        // Generate an <img> tag with QR server fallback
+        const img = document.createElement('img');
+        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(deepLink)}`;
+        img.alt = `Group invite QR code: ${escapeHtml(groupName)}`;
+        img.style.maxWidth = '200px';
+        img.style.width = '100%';
+        img.style.height = 'auto';
+        img.onerror = () => {
+          // Fallback to clean text if QR generation fails
+          groupQrContainer.innerHTML = `<p style="color:#64748B; font-size: 0.9rem;">${escapeHtml(deepLink)}</p>`;
+        };
+        groupQrContainer.appendChild(img);
+      }
+    }
+    groupQrModal.classList.add('open');
+    document.body.classList.add('modal-open');
+  }
+
+  function closeGroupQrModal() {
+    if (!groupQrModal) return;
+    groupQrModal.classList.remove('open');
+    if (!document.querySelector('.modal-backdrop.open')) {
+      document.body.classList.remove('modal-open');
+    }
+  }
+
+  if (showGroupQrBtn) showGroupQrBtn.addEventListener('click', openGroupQrModal);
+  if (closeGroupQrBtn) closeGroupQrBtn.addEventListener('click', closeGroupQrModal);
+  if (doneGroupQrBtn) doneGroupQrBtn.addEventListener('click', closeGroupQrModal);
+  if (groupQrModal) {
+    groupQrModal.addEventListener('click', (e) => {
+      if (e.target === groupQrModal) closeGroupQrModal();
+    });
+  }
+
+  if (copyGroupInviteLinkBtn) {
+    copyGroupInviteLinkBtn.addEventListener('click', async () => {
+      const inviteUrl = `${window.location.origin}/group.html?id=${encodeURIComponent(groupId)}`;
+      let success = false;
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(inviteUrl);
+          success = true;
+        } catch (_e) {}
+      }
+      if (!success) {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = inviteUrl;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          success = document.execCommand('copy');
+          document.body.removeChild(ta);
+        } catch (_e) {}
+      }
+      const origText = copyGroupInviteLinkBtn.textContent;
+      copyGroupInviteLinkBtn.textContent = success ? '✓ Copied Link!' : 'Failed to Copy';
+      setTimeout(() => {
+        copyGroupInviteLinkBtn.textContent = origText;
+      }, 2000);
     });
   }
 
@@ -2547,8 +3283,9 @@ if (!requireAuth()) {
       if (isMobile) {
         upiLink.style.display = 'block';
         desktopMsg.style.display = 'none';
-        if (qrContainer) qrContainer.style.display = 'none';
         if (intentData.upiUri) upiLink.href = intentData.upiUri;
+        // Always show QR code on mobile - remove the display none
+        // if (qrContainer) qrContainer.style.display = 'none';
       } else {
         upiLink.style.display = 'none';
         desktopMsg.style.display = 'block';

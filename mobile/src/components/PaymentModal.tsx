@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import * as Linking from 'expo-linking';
+import { Image } from 'expo-image';
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
@@ -81,6 +82,7 @@ export function PaymentModal({
 
   // UPI launch feedback state
   const [launchStatus, setLaunchStatus] = useState<'idle' | 'launched' | 'fallback'>('idle');
+  const [showQrCode, setShowQrCode] = useState<boolean>(false);
 
   // Refs for bounded polling and preventing stale / overlapping updates
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -119,6 +121,7 @@ export function PaymentModal({
       setIsSubmitting(false);
       setIsActionInProgress(false);
       setIsRefreshingStatus(false);
+      setShowQrCode(false);
 
       if (existingIntent) {
         const fromId = String(
@@ -269,7 +272,7 @@ export function PaymentModal({
   };
 
   // M2: Create Intent flow
-  const handlePay = async () => {
+  const handlePay = async (launchExternal = true) => {
     if (isSubmitting) return;
 
     setFormError(null);
@@ -323,8 +326,12 @@ export function PaymentModal({
         }
       }
 
-      // Attempt to launch external UPI app
-      await handleLaunchUpi(res.upiUri);
+      if (launchExternal) {
+        // Attempt to launch external UPI app
+        await handleLaunchUpi(res.upiUri);
+      } else {
+        setShowQrCode(true);
+      }
     } catch (err: any) {
       const status = err?.status;
       const message: string = err?.message || 'Failed to initiate UPI payment';
@@ -547,6 +554,7 @@ export function PaymentModal({
       setFormError(err?.message || 'Failed to refresh payment status');
     } finally {
       setIsRefreshingStatus(false);
+      setShowQrCode(false);
     }
   };
 
@@ -641,6 +649,7 @@ export function PaymentModal({
     setCurrentStatus(null);
     setCurrentAmount(null);
     setCurrentUpiUri(null);
+    setShowQrCode(false);
     setLaunchStatus('idle');
     setIsConflict(false);
     setConflictIntentId(null);
@@ -841,6 +850,43 @@ export function PaymentModal({
                     </ThemedText>
                   </View>
                 </View>
+
+                {/* UPI Payment QR Code Section */}
+                {currentUpiUri && isPayer ? (
+                  <View style={styles.qrSection}>
+                    <TouchableOpacity
+                      style={styles.toggleQrBtn}
+                      onPress={() => setShowQrCode((prev) => !prev)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Toggle UPI Payment QR Code"
+                    >
+                      <ThemedText style={styles.toggleQrBtnText}>
+                        {showQrCode ? '🙈 Hide QR Code' : '📷 Show Payment QR Code'}
+                      </ThemedText>
+                    </TouchableOpacity>
+
+                    {showQrCode ? (
+                      <View style={styles.qrCard}>
+                        <View style={styles.qrImageWrapper}>
+                          <Image
+                            source={{
+                              uri: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+                                currentUpiUri
+                              )}`,
+                            }}
+                            style={styles.qrImage}
+                            contentFit="contain"
+                            accessibilityLabel="UPI Payment QR Code"
+                          />
+                        </View>
+                        <ThemedText type="small" style={styles.qrScanHint}>
+                          Scan with Google Pay, PhonePe, Paytm, or any UPI app to pay {formatINR(displayAmount)}
+                        </ThemedText>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
 
                 {/* Status Guidance Card for Payer */}
                 {isPayer && currentStatus === 'pending' ? (
@@ -1096,10 +1142,23 @@ export function PaymentModal({
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.btn, styles.payBtn, isSubmitting && styles.btnDisabled]}
-                    onPress={handlePay}
+                    style={[styles.btn, styles.qrPayBtn, isSubmitting && styles.btnDisabled]}
+                    onPress={() => handlePay(false)}
                     disabled={isSubmitting}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Pay via UPI QR Code"
+                  >
+                    <ThemedText style={styles.qrPayBtnText}>📷 QR</ThemedText>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.btn, styles.payBtn, isSubmitting && styles.btnDisabled]}
+                    onPress={() => handlePay(true)}
+                    disabled={isSubmitting}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Pay via installed UPI App"
                   >
                     {isSubmitting ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
@@ -1514,5 +1573,57 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 14,
     fontWeight: '600',
+  },
+  qrSection: {
+    gap: Spacing.two,
+  },
+  toggleQrBtn: {
+    backgroundColor: Surfaces.darkCardMid,
+    borderColor: Brand.primaryDim,
+    borderWidth: 1,
+    borderRadius: Spacing.two,
+    paddingVertical: Spacing.two,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toggleQrBtnText: {
+    color: Brand.primaryLight,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  qrCard: {
+    backgroundColor: Surfaces.darkCardMid,
+    borderRadius: Spacing.two,
+    padding: Spacing.three,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Surfaces.darkBorder,
+    gap: Spacing.two,
+  },
+  qrImageWrapper: {
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    borderRadius: Spacing.two,
+  },
+  qrImage: {
+    width: 200,
+    height: 200,
+  },
+  qrScanHint: {
+    color: '#94A3B8',
+    textAlign: 'center',
+    maxWidth: 240,
+    fontSize: 12,
+  },
+  qrPayBtn: {
+    backgroundColor: Surfaces.darkCardMid,
+    borderColor: Brand.primaryDim,
+    borderWidth: 1,
+    flex: 0.8,
+  },
+  qrPayBtnText: {
+    color: Brand.primaryLight,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

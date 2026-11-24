@@ -25,6 +25,26 @@ const groupSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    budget: {
+      monthlyLimit: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      categoryLimits: {
+        type: Map,
+        of: Number,
+        default: () => new Map(),
+      },
+      alertsSent: [
+        {
+          month: String,
+          threshold: Number,
+          category: { type: String, default: 'Overall' },
+          sentAt: { type: Date, default: Date.now },
+        },
+      ],
+    },
   },
   { timestamps: true }
 );
