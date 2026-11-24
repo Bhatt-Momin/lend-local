@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://lendlocal-58sf.onrender.com"><img src="https://img.shields.io/badge/Live%20Web%20App-lendlocal--58sf.onrender.com-10B981?style=for-the-badge&logo=render" alt="Live Web App" /></a>
-  <a href="https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.1.0"><img src="https://img.shields.io/badge/Android%20APK-v1.1.0%20(101MB)-0ea5e9?style=for-the-badge&logo=android" alt="Download APK" /></a>
+  <a href="https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.2.0"><img src="https://img.shields.io/badge/Android%20APK-v1.2.0-0ea5e9?style=for-the-badge&logo=android" alt="Download APK" /></a>
   <img src="https://img.shields.io/badge/Expo-SDK%2057-000000?style=for-the-badge&logo=expo" alt="Expo SDK 57" />
   <img src="https://img.shields.io/badge/React%20Native-0.86.3-61DAFB?style=for-the-badge&logo=react" alt="React Native" />
   <img src="https://img.shields.io/badge/Node.js-Express-339933?style=for-the-badge&logo=node.js" alt="Node.js" />
@@ -22,7 +22,7 @@
 Available as both a **responsive Progressive Web App (PWA)** and a **native Android application (Expo SDK 57 / React Native 0.86)** with seamless UPI integration and in-app automated updates.
 
 - 🌐 **Live Web Application**: [https://lendlocal-58sf.onrender.com](https://lendlocal-58sf.onrender.com)
-- 📦 **Latest Android Release (v1.1.0)**: [Download Standalone APK](https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.1.0)
+- 📦 **Latest Android Release (v1.2.0)**: [Download Standalone APK](https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.2.0)
 - 🐙 **GitHub Repository**: [https://github.com/Bhatt-Momin/lend-local](https://github.com/Bhatt-Momin/lend-local)
 
 ---
@@ -179,11 +179,11 @@ All three test suites execute sequentially and must exit with code 0:
 ## 📦 Distribution & Releases
 
 - **Web App**: Hosted on [Render](https://lendlocal-58sf.onrender.com).
-- **Android APK**: Downloadable directly from the Web App login page or via [GitHub Releases](https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.1.0).
+- **Android APK**: Downloadable directly from the Web App login page or via [GitHub Releases](https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.2.0).
 - **Checksum Verification**:
   ```text
-  File: lendlocal.apk (v1.1.0, 101 MB)
-  SHA-256: ee769cc4824f4980260639dacb4f607238f807e8142b3b340b1a8fd5273ccdca
+  File: lendlocal.apk (v1.2.0)
+  SHA-256: 70c95bfaf0f6b70043009fd5c4a9cc704ff671e7463d9020bb855b0baf5e18b9
   ```
 
 ---

@@ -101,13 +101,15 @@ app.get("/api/config", (req, res) => res.status(200).json({ razorpayEnabled: pro
 // When LOCAL_APK_PATH is set (or in local dev when /tmp/lendlocal-v1.1.0.apk exists),
 // the server provides a verified same-origin download endpoint for physical Android testing.
 // In production (Render) without LOCAL_APK_PATH, this is disabled and the production GitHub release manifest is served.
-const DEFAULT_LOCAL_APK_PATH = "/tmp/lendlocal-v1.1.0.apk";
+const DEFAULT_LOCAL_APK_PATH = "/tmp/lendlocal-v1.2.0.apk";
 const V1_0_0_SHA256 = "2a7d975ec6f8a7faa4f035ff4fb9d5d409f89128e5500a7f8c98e1df87a1f7e0";
 const V1_1_0_SHA256 = "ee769cc4824f4980260639dacb4f607238f807e8142b3b340b1a8fd5273ccdca";
+const V1_2_0_SHA256 = "70c95bfaf0f6b70043009fd5c4a9cc704ff671e7463d9020bb855b0baf5e18b9";
 
 // Backward-compatible SHA-256 references for test invariants (exact string forms)
 const V1_0_0_SHA256_REF = 'sha256: "2a7d975ec6f8a7faa4f035ff4fb9d5d409f89128e5500a7f8c98e1df87a1f7e0"';
 const V1_1_0_SHA256_REF = `sha256: "${V1_1_0_SHA256}"`;
+const V1_2_0_SHA256_REF = `sha256: "${V1_2_0_SHA256}"`;
 
 function getLocalApkInfo() {
   const configuredPath = process.env.LOCAL_APK_PATH || DEFAULT_LOCAL_APK_PATH;
@@ -134,29 +136,29 @@ app.get("/api/app-version", (req, res) => {
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     return res.status(200).json({
       applicationId: "com.lendlocal.app",
-      latestVersion: "1.1.0",
-      versionCode: 2,
-      releaseNotes: "LendLocal v1.1.0 — In-app updates, phone verification, and spending analytics.",
+      latestVersion: "1.2.0",
+      versionCode: 3,
+      releaseNotes: "LendLocal v1.2.0 — Inline math calculator, multi-payer expenses, group budgets, and QR codes.",
       apkUrl: `${baseUrl}/api/app-version/download`,
       releasesPageUrl: "https://github.com/Bhatt-Momin/lend-local/releases",
-      sha256: V1_1_0_SHA256,
+      sha256: V1_2_0_SHA256,
       minSupportedVersion: "1.0.0",
       minSupportedVersionCode: 1,
-      publishedAt: "2026-11-10T00:00:00Z",
+      publishedAt: "2026-11-24T00:00:00Z",
     });
   }
 
   res.status(200).json({
     applicationId: "com.lendlocal.app",
-    latestVersion: "1.1.0",
-    versionCode: 2,
-    releaseNotes: "LendLocal v1.1.0 — In-app updates, phone verification, and spending analytics.",
-    apkUrl: "https://github.com/Bhatt-Momin/lend-local/releases/download/v1.1.0/lendlocal.apk",
-    releasesPageUrl: "https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.1.0",
-    sha256: "ee769cc4824f4980260639dacb4f607238f807e8142b3b340b1a8fd5273ccdca",
+    latestVersion: "1.2.0",
+    versionCode: 3,
+    releaseNotes: "LendLocal v1.2.0 — Inline math calculator, multi-payer expenses, group budgets, and QR codes.",
+    apkUrl: "https://github.com/Bhatt-Momin/lend-local/releases/download/v1.2.0/lendlocal.apk",
+    releasesPageUrl: "https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.2.0",
+    sha256: "70c95bfaf0f6b70043009fd5c4a9cc704ff671e7463d9020bb855b0baf5e18b9",
     minSupportedVersion: "1.0.0",
     minSupportedVersionCode: 1,
-    publishedAt: "2026-11-10T00:00:00Z",
+    publishedAt: "2026-11-24T00:00:00Z",
   });
 });
 
@@ -173,9 +175,9 @@ app.all("/api/app-version/download", (req, res) => {
 
   res.setHeader("Content-Type", "application/vnd.android.package-archive");
   res.setHeader("Content-Length", localApk.size);
-  res.setHeader("Content-Disposition", 'attachment; filename="lendlocal-v1.1.0.apk"');
+  res.setHeader("Content-Disposition", 'attachment; filename="lendlocal-v1.2.0.apk"');
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-  res.download(localApk.path, "lendlocal-v1.1.0.apk", (err) => {
+  res.download(localApk.path, "lendlocal-v1.2.0.apk", (err) => {
     if (err && !res.headersSent) {
       console.error("[APK Download] Failed to transmit APK:", err);
       res.status(500).json({ error: "Error transferring APK." });

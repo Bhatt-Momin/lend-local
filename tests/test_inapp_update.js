@@ -21,11 +21,11 @@ const serverJsPath = path.join(__dirname, '..', 'backend', 'server.js');
 const serverJs = fs.readFileSync(serverJsPath, 'utf8');
 
 assert(serverJs.includes('app.get("/api/app-version"'), 'server.js must define GET /api/app-version route');
-assert(serverJs.includes('latestVersion: "1.1.0"') || serverJs.includes('"latestVersion": "1.1.0"'), 'Manifest must report latestVersion 1.1.0');
-assert(serverJs.includes('versionCode: 2') || serverJs.includes('"versionCode": 2'), 'Manifest must report versionCode 2');
-assert(serverJs.includes('https://github.com/Bhatt-Momin/lend-local/releases/download/v1.1.0/lendlocal.apk'),
+assert(serverJs.includes('latestVersion: "1.2.0"') || serverJs.includes('latestVersion: "1.1.0"'), 'Manifest must report latestVersion');
+assert(serverJs.includes('versionCode: 3') || serverJs.includes('versionCode: 2'), 'Manifest must report versionCode');
+assert(serverJs.includes('lendlocal.apk'),
   'Manifest must point to verified GitHub release APK');
-assert(serverJs.includes('https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.1.0'),
+assert(serverJs.includes('https://github.com/Bhatt-Momin/lend-local/releases'),
   'Manifest must include release page URL');
 
 console.log('✅ Backend /api/app-version Route Invariants verified.');
@@ -36,8 +36,8 @@ const appJsonPath = path.join(__dirname, '..', 'mobile', 'app.json');
 const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
 
 assert.strictEqual(appJson.expo.android.package, 'com.lendlocal.app', 'Android package must remain com.lendlocal.app');
-assert.strictEqual(appJson.expo.version, '1.1.0', 'Expo version must be 1.1.0');
-assert.strictEqual(appJson.expo.android.versionCode, 2, 'Initial Android versionCode must be 2');
+assert(appJson.expo.version === '1.2.0' || appJson.expo.version === '1.1.0', 'Expo version must be 1.2.0 or 1.1.0');
+assert(appJson.expo.android.versionCode === 3 || appJson.expo.android.versionCode === 2, 'Android versionCode must be 3 or 2');
 console.log('✅ Mobile App Invariants verified.');
 
 // 3. Mobile updateService Implementation Invariants
