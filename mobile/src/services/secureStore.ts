@@ -87,6 +87,26 @@ export async function deleteRegisteredPushToken(): Promise<void> {
   }
 }
 
+export async function setDismissedUpdateVersionCode(versionCode: number): Promise<void> {
+  try {
+    await SecureStore.setItemAsync('lendlocal_dismissed_update_version_code', versionCode.toString());
+  } catch (err) {
+    console.warn('Failed to save dismissed update version code:', err);
+  }
+}
+
+export async function getDismissedUpdateVersionCode(): Promise<number | null> {
+  try {
+    const raw = await SecureStore.getItemAsync('lendlocal_dismissed_update_version_code');
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  } catch (err) {
+    console.warn('Failed to retrieve dismissed update version code:', err);
+    return null;
+  }
+}
+
 export async function clearAllAuth(): Promise<void> {
   await Promise.all([deleteAuthToken(), deleteUserData(), deleteRegisteredPushToken()]);
 }

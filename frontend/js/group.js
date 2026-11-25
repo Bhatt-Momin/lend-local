@@ -517,17 +517,18 @@ if (!requireAuth()) {
           if (found) val = Number(found.amount).toFixed(2);
         }
         return `
-          <div class="split-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <span style="font-size: 0.9rem; color: var(--ll-text);">${escapeHtml(member.name)}</span>
-            <input
-              type="text"
-              class="multi-payer-amount"
-              data-user="${userId}"
-              placeholder="0.00"
-              value="${val}"
-              inputmode="decimal"
-              style="width: 110px; text-align: right;"
-            />
+          <div class="split-row">
+            <span class="split-member-name">${escapeHtml(member.name)}</span>
+            <div class="split-input-group">
+              <input
+                type="text"
+                class="multi-payer-amount"
+                data-user="${userId}"
+                placeholder="0.00"
+                value="${val}"
+                inputmode="decimal"
+              />
+            </div>
           </div>
         `;
       })
@@ -838,118 +839,36 @@ if (!requireAuth()) {
           if (savedValues[userId] !== undefined) shareValue = savedValues[userId];
         }
 
+        function makeLabel(userName) {
+          return `<label class="split-member-label"><input type="checkbox" class="split-check" data-user="${userId}" ${isChecked ? 'checked' : ''}/><span class="split-member-name">${escapeHtml(userName)}</span></label>`;
+        }
+
+        function makeRupeePreview() {
+          return `<span class="split-rupee-preview">₹0.00</span>`;
+        }
+
         if (type === 'percentage') {
           if (!initialSplits && !preserveState) {
             shareValue = memberCount > 0 ? (100 / memberCount).toFixed(1) : '';
           }
-          return `
-            <div class="split-row" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0;">
-              <label style="display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer;">
-                <input
-                  type="checkbox"
-                  class="split-check"
-                  data-user="${userId}"
-                  ${isChecked ? 'checked' : ''}
-                />
-                <span>${escapeHtml(member.name)}</span>
-              </label>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <input
-                  type="text"
-                  class="split-share"
-                  data-user="${userId}"
-                  inputmode="decimal"
-                  placeholder="0"
-                  value="${shareValue}"
-                  ${isChecked ? '' : 'disabled'}
-                  style="width: 70px; text-align: right;"
-                />
-                <span style="font-size: 0.85rem; color: var(--ll-text-muted);">%</span>
-                <span class="split-rupee-preview" style="font-size: 0.85rem; color: var(--ll-text); min-width: 65px; text-align: right;">₹0.00</span>
-              </div>
-            </div>
-          `;
+          return `<div class="split-row">${makeLabel(member.name)}<div class="split-input-group"><input type="text" class="split-share" data-user="${userId}" inputmode="decimal" placeholder="0" value="${shareValue}" ${isChecked ? '' : 'disabled'}/><span class="split-unit">%</span><span class="split-rupee-preview">₹0.00</span></div></div>`;
         }
 
         if (type === 'shares') {
           if (!initialSplits && !preserveState) {
             shareValue = '1';
           }
-          return `
-            <div class="split-row" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0;">
-              <label style="display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer;">
-                <input
-                  type="checkbox"
-                  class="split-check"
-                  data-user="${userId}"
-                  ${isChecked ? 'checked' : ''}
-                />
-                <span>${escapeHtml(member.name)}</span>
-              </label>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <input
-                  type="text"
-                  class="split-share"
-                  data-user="${userId}"
-                  inputmode="decimal"
-                  placeholder="1"
-                  value="${shareValue}"
-                  ${isChecked ? '' : 'disabled'}
-                  style="width: 70px; text-align: right;"
-                />
-                <span style="font-size: 0.85rem; color: var(--ll-text-muted);">shares</span>
-                <span class="split-rupee-preview" style="font-size: 0.85rem; color: var(--ll-text); min-width: 65px; text-align: right;">₹0.00</span>
-              </div>
-            </div>
-          `;
+          return `<div class="split-row">${makeLabel(member.name)}<div class="split-input-group"><input type="text" class="split-share" data-user="${userId}" inputmode="decimal" placeholder="1" value="${shareValue}" ${isChecked ? '' : 'disabled'}/><span class="split-unit">shares</span><span class="split-rupee-preview">₹0.00</span></div></div>`;
         }
 
         if (type === 'custom') {
           if (!initialSplits && !preserveState) {
             shareValue = '';
           }
-
-          return `
-            <div class="split-row" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0;">
-              <label style="display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer;">
-                <input
-                  type="checkbox"
-                  class="split-check"
-                  data-user="${userId}"
-                  ${isChecked ? 'checked' : ''}
-                />
-                <span>${escapeHtml(member.name)}</span>
-              </label>
-              <input
-                type="text"
-                class="split-share"
-                data-user="${userId}"
-                inputmode="decimal"
-                placeholder="0.00"
-                value="${shareValue}"
-                ${isChecked ? '' : 'disabled'}
-                style="width: 100px; text-align: right;"
-              />
-            </div>
-          `;
+          return `<div class="split-row">${makeLabel(member.name)}<input type="text" class="split-share" data-user="${userId}" inputmode="decimal" placeholder="0.00" value="${shareValue}" ${isChecked ? '' : 'disabled'}></div>`;
         }
 
-        return `
-          <div class="split-row" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0;">
-            <label style="display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer;">
-              <input
-                type="checkbox"
-                class="split-check"
-                data-user="${userId}"
-                ${isChecked ? 'checked' : ''}
-              />
-              <span>${escapeHtml(member.name)}</span>
-            </label>
-            <span class="equal-share-label" style="color: var(--ll-text-muted); font-size: 0.9rem;">
-              ₹0.00 each
-            </span>
-          </div>
-        `;
+        return `<div class="split-row">${makeLabel(member.name)}<span class="equal-share-label">₹0.00 each</span></div>`;
       })
       .join('');
 
@@ -1269,13 +1188,28 @@ if (!requireAuth()) {
           emptyBtn.addEventListener('click', () => {
             expenseModalLastFocus = document.activeElement;
             const expenseModal = document.getElementById('expenseModal');
+            const expenseForm = document.getElementById('expenseForm');
             if (expenseModal) {
               expenseModal.classList.add('open');
+              document.body.classList.add('modal-open');
               clearTimeout(expenseFocusTimeout);
               expenseFocusTimeout = setTimeout(() => {
                 if (expenseModal.classList.contains('open')) expenseForm?.querySelector('input')?.focus();
               }, 50);
             }
+            // Reset form state
+            const editId = document.getElementById('editExpenseId');
+            if (editId) editId.value = '';
+            const modalTitle = document.getElementById('expenseModalTitle');
+            if (modalTitle) modalTitle.textContent = 'Add expense';
+            if (expenseForm) expenseForm?.reset();
+            const singlePayerTab = document.getElementById('tabSinglePayer');
+            if (singlePayerTab) singlePayerTab.click();
+            const preview = document.getElementById('expAmountPreview');
+            if (preview) preview.style.display = 'none';
+            const dateInput = document.getElementById('expDate');
+            if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+            renderSplitInputs('equal');
           });
         }
       }
@@ -1304,9 +1238,11 @@ if (!requireAuth()) {
 
                   · Paid by
 
-                  ${escapeHtml(
-                    expense.paidBy.name
-                  )}
+                  ${Array.isArray(expense.payers) && expense.payers.length > 1
+                    ? expense.payers
+                        .map((p) => escapeHtml(p.user?.name || 'Member'))
+                        .join(', ')
+                    : escapeHtml(expense.paidBy?.name || 'Unknown')}
 
                   ·
 
@@ -1343,10 +1279,18 @@ if (!requireAuth()) {
                       )
                     : null;
 
+                const isPayer =
+                  Array.isArray(expense.payers) &&
+                  expense.payers.length > 1 &&
+                  expense.payers.some(
+                    (p) => String(p.user?.id || p.user?._id || p.user) === myId
+                  );
+
                 if (
                   myId === exId ||
                   myId === grpId ||
-                  myId === String(expense.paidBy.id || expense.paidBy._id)
+                  (expense.paidBy && myId === String(expense.paidBy.id || expense.paidBy._id)) ||
+                  isPayer
                 ) {
                   return `
               <div class="actions">
@@ -1364,7 +1308,6 @@ if (!requireAuth()) {
                 >
                   Delete
                 </button>
-              </div>
               </div>`;
                 }
 
@@ -2399,7 +2342,7 @@ if (!requireAuth()) {
         renameGroupError.style.display = 'none';
         renameGroupError.textContent = '';
       }
-      const titleRow = document.querySelector('.group-title-row');
+      const titleRow = document.getElementById('groupNameWrapper');
       if (titleRow) titleRow.style.display = 'none';
       renameGroupForm.style.display = 'flex';
       renameGroupInput.focus();
@@ -2414,7 +2357,7 @@ if (!requireAuth()) {
         renameGroupError.style.display = 'none';
         renameGroupError.textContent = '';
       }
-      const titleRow = document.querySelector('.group-title-row');
+      const titleRow = document.getElementById('groupNameWrapper');
       if (titleRow) titleRow.style.display = 'flex';
       editGroupNameBtn?.focus();
     });
@@ -2461,7 +2404,7 @@ if (!requireAuth()) {
         document.title = `${updatedName} — LendLocal`;
 
         renameGroupForm.style.display = 'none';
-        const titleRow = document.querySelector('.group-title-row');
+        const titleRow = document.getElementById('groupNameWrapper');
         if (titleRow) titleRow.style.display = 'flex';
         editGroupNameBtn?.focus();
 
@@ -2508,46 +2451,49 @@ if (!requireAuth()) {
         : 'No limit';
     }
 
+    // Remove existing status classes first
+    if (badgeEl) {
+      badgeEl.classList.remove('budget-badge-high', 'budget-badge-medium', 'budget-badge-low');
+    }
+
     if (budgetData.monthlyLimit > 0) {
       const rawPct = Math.round(budgetData.percentageUsed || 0);
       const cappedPct = Math.min(rawPct, 100);
 
       if (badgeEl) {
         badgeEl.textContent = `${rawPct}%`;
+        // Add appropriate status class
         if (rawPct >= 100) {
-          badgeEl.style.background = 'rgba(239,68,68,0.2)';
-          badgeEl.style.color = '#EF4444';
+          badgeEl.classList.add('budget-badge-high');
         } else if (rawPct >= 80) {
-          badgeEl.style.background = 'rgba(245,158,11,0.2)';
-          badgeEl.style.color = '#F59E0B';
+          badgeEl.classList.add('budget-badge-medium');
         } else {
-          badgeEl.style.background = 'rgba(16,185,129,0.15)';
-          badgeEl.style.color = '#10B981';
+          badgeEl.classList.add('budget-badge-low');
         }
       }
 
       if (barEl) {
         barEl.style.width = `${cappedPct}%`;
+        // Remove existing background classes first
+        barEl.classList.remove('budget-bar-high', 'budget-bar-medium', 'budget-bar-low');
         if (rawPct >= 100) {
-          barEl.style.background = '#EF4444';
+          barEl.classList.add('budget-bar-high');
         } else if (rawPct >= 80) {
-          barEl.style.background = '#F59E0B';
+          barEl.classList.add('budget-bar-medium');
         } else {
-          barEl.style.background = '#10B981';
+          barEl.classList.add('budget-bar-low');
         }
       }
 
       if (alertEl) {
         if (rawPct >= 100) {
+          alertEl.className = 'budget-alert-msg exceeded show';
           alertEl.style.display = 'block';
-          alertEl.style.background = 'rgba(239,68,68,0.15)';
-          alertEl.style.color = '#EF4444';
-          alertEl.textContent = `⚠️ Monthly budget exceeded! You have spent ${rawPct}% of your ₹${budgetData.monthlyLimit.toLocaleString('en-IN')} limit.`;
+          alertEl.textContent = '⚠️ Monthly budget exceeded! You have spent ' + rawPct + '% of your ₹' + budgetData.monthlyLimit.toLocaleString('en-IN') + ' limit.';
         } else if (rawPct >= 80) {
+          alertEl.className = 'budget-alert-msg warning show';
           alertEl.style.display = 'block';
-          alertEl.style.background = 'rgba(245,158,11,0.15)';
-          alertEl.style.color = '#F59E0B';
-          alertEl.textContent = `⚠️ Approaching monthly budget limit: ${rawPct}% of ₹${budgetData.monthlyLimit.toLocaleString('en-IN')} spent.`;
+alertEl.textContent = '⚠️ Approaching monthly budget limit: ' + rawPct + '% of ₹' + budgetData.monthlyLimit.toLocaleString('en-IN') + ' spent.';
         } else {
           alertEl.style.display = 'none';
         }
@@ -2555,12 +2501,11 @@ if (!requireAuth()) {
     } else {
       if (badgeEl) {
         badgeEl.textContent = 'No limit';
-        badgeEl.style.background = 'rgba(255,255,255,0.08)';
-        badgeEl.style.color = 'var(--ll-text-muted)';
+        badgeEl.classList.remove('budget-badge-high', 'budget-badge-medium', 'budget-badge-low');
       }
       if (barEl) {
         barEl.style.width = '0%';
-        barEl.style.background = '#10B981';
+        barEl.classList.remove('budget-bar-high', 'budget-bar-medium', 'budget-bar-low');
       }
       if (alertEl) alertEl.style.display = 'none';
     }

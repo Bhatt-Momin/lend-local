@@ -1538,3 +1538,345 @@ body.modal-open {
     padding-top: 1rem !important;
   }
 }
+
+
+/* ============================================================
+   BUDGET CARD
+   ============================================================ */
+
+body.ll-group-page .budget-card {
+  background: var(--ll-surface) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 20px !important;
+  padding: 1.25rem !important;
+  margin: 1rem 0 !important;
+}
+
+body.ll-group-page .budget-card-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 0.5rem 0.75rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+body.ll-group-page .budget-title-wrap {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+body.ll-group-page .budget-title {
+  color: var(--ll-text) !important;
+  font-size: 1.05rem !important;
+  font-weight: 600 !important;
+}
+
+body.ll-group-page .budget-badge {
+  font-size: 0.8rem !important;
+  padding: 2px 8px !important;
+  border-radius: 12px !important;
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: var(--ll-positive) !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+}
+
+body.ll-group-page .budget-set-btn {
+  border: 1px solid var(--ll-border) !important;
+  background: var(--ll-surface-raised) !important;
+  border-radius: 99px !important;
+  min-height: 34px !important;
+  padding: 0.3rem 0.75rem !important;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  white-space: nowrap !important;
+  color: var(--ll-text) !important;
+  cursor: pointer !important;
+  transition: all 0.2s var(--ll-ease) !important;
+}
+
+body.ll-group-page .budget-set-btn:hover {
+  background: var(--ll-brand-dim) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+body.ll-group-page .budget-stats-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 0.35rem 0.75rem !important;
+  font-size: 0.85rem !important;
+  color: var(--ll-text-muted) !important;
+  margin-bottom: 8px !important;
+}
+
+body.ll-group-page .budget-stat {
+  color: var(--ll-text) !important;
+}
+
+body.ll-group-page .budget-progress-track {
+  height: 10px !important;
+  border-radius: 6px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  overflow: hidden !important;
+  position: relative !important;
+  margin: 0.5rem 0 !important;
+}
+
+body.ll-group-page .budget-progress-bar {
+  height: 100%;
+  border-radius: 6px;
+  background: var(--ll-positive);
+  transition: width 0.4s ease;
+}
+
+body.ll-group-page .budget-alert-msg {
+  display: none;
+  padding: 6px 12px !important;
+  border-radius: 8px !important;
+  font-size: 0.8rem !important;
+  margin-top: 8px !important;
+}
+
+body.ll-group-page .budget-bar-low {
+  background: #10B981 !important;
+}
+
+body.ll-group-page .budget-bar-medium {
+  background: #F59E0B !important;
+}
+
+body.ll-group-page .budget-bar-high {
+  background: #EF4444 !important;
+}
+
+body.ll-group-page .budget-badge-low {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #10B981 !important;
+}
+
+body.ll-group-page .budget-badge-medium {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #F59E0B !important;
+}
+
+body.ll-group-page .budget-badge-high {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #EF4444 !important;
+}
+body.ll-group-page .budget-alert-msg.show {
+  display: block !important;
+}
+
+body.ll-group-page .budget-alert-msg.warning {
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: #F59E0B !important;
+}
+
+body.ll-group-page .budget-alert-msg.exceeded {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #EF4444 !important;
+}
+
+/* ============================================================
+   BTN QR MATCHING BTN-RENAME
+   ============================================================ */
+
+body.ll-group-page .btn-qr {
+  background: var(--ll-surface-raised) !important;
+  color: var(--ll-text-muted) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 99px !important;
+  padding: 0.25rem 0.75rem !important;
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  min-height: 32px !important;
+  transition: all 0.2s var(--ll-ease) !important;
+}
+
+body.ll-group-page .btn-qr:hover {
+  background: var(--ll-brand-dim) !important;
+  color: var(--ll-brand) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+/* ============================================================
+   MOBILE HERO SPACING
+   ============================================================ */
+
+@media (max-width: 640px) {
+  body.ll-group-page .dashboard-intro.group-intro {
+    margin-bottom: 1.25rem !important;
+    gap: 1rem !important;
+  }
+}
+
+/* ============================================================
+   EXPENSE MODAL & SPLIT ROWS (SINGLE DEFINITION)
+   ============================================================ */
+
+body.ll-group-page .split-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  background: var(--ll-surface-raised) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 10px !important;
+  padding: 0.5rem 0.75rem !important;
+  /* NO white-space: nowrap on .split-row itself! */
+}
+
+body.ll-group-page .split-member-label {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  margin: 0 !important;
+  cursor: pointer !important;
+  color: var(--ll-text) !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+body.ll-group-page .split-member-name {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 0.9rem !important;
+  color: var(--ll-text) !important;
+  flex: 1 1 auto !important;
+}
+
+body.ll-group-page .split-input-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.4rem !important;
+  flex-shrink: 0 !important;
+}
+
+body.ll-group-page .split-unit {
+  font-size: 0.85rem !important;
+  color: var(--ll-text-muted) !important;
+  flex-shrink: 0 !important;
+}
+
+body.ll-group-page .split-share,
+body.ll-group-page .multi-payer-amount {
+  width: clamp(72px, 24vw, 100px) !important;
+  min-width: 0 !important;
+  min-height: 38px !important;
+  text-align: right !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  color: var(--ll-text) !important;
+  border: 1px solid var(--ll-border) !important;
+  border-radius: 8px !important;
+  padding: 0.4rem 0.6rem !important;
+  font-size: 0.9rem !important;
+}
+
+@media (max-width: 760px) {
+  body.ll-group-page .split-row {
+    flex-direction: row !important;
+    align-items: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+  body.ll-group-page .split-row {
+    flex-wrap: wrap !important;
+  }
+  body.ll-group-page .split-input-group {
+    margin-left: auto !important;
+    justify-content: flex-end !important;
+  }
+}
+
+/* ============================================================
+   PAID-BY HEADER & SEGMENTED CONTROLS
+   ============================================================ */
+
+body.ll-group-page .paid-by-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  flex-wrap: wrap !important;
+  margin-bottom: 0.45rem !important;
+}
+
+body.ll-group-page .btn-group-segmented {
+  display: inline-flex !important;
+  flex-wrap: wrap !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 4px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  padding: 2px !important;
+  border-radius: 8px !important;
+  min-height: 34px !important;
+}
+
+body.ll-group-page .btn-group-segmented .btn {
+  background: transparent !important;
+  border: none !important;
+  padding: 0.25rem 0.75rem !important;
+  font-size: 0.75rem !important;
+  border-radius: 6px !important;
+  min-height: 34px !important;
+  color: var(--ll-text-muted) !important;
+  white-space: nowrap !important;
+}
+
+body.ll-group-page .btn-group-segmented .btn.active {
+  background: var(--ll-brand-dim) !important;
+  color: var(--ll-brand) !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+
+/* Override styles.css min-width: 44px; min-height: 44px; inside segmented control */
+body.ll-group-page .btn-group-segmented .btn {
+  min-width: auto !important;
+  min-height: 34px !important;
+  padding: 0.25rem 0.75rem !important;
+}
+
+body.ll-group-page .multi-payer-list {
+  margin-bottom: 8px !important;
+}
+
+body.ll-group-page .multi-payer-summary {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  font-size: 0.88rem !important;
+  gap: 0.5rem !important;
+  margin-top: 0.5rem !important;
+}
+
+body.ll-group-page #expAmountPreview {
+  color: var(--ll-positive) !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  margin-top: 0.4rem !important;
+  font-family: var(--ll-font-mono) !important;
+}
+
+/* ============================================================
+   RESPONSIVE: TIGHTEN HEADER & MODAL ON VERY SMALL SCREENS
+   ============================================================ */
+
+@media (max-width: 380px) {
+  body.ll-group-page .user-chip {
+    max-width: 60px !important;
+  }
+}
+

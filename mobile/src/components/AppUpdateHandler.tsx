@@ -32,6 +32,7 @@ import {
   DownloadProgress,
   UpdatePhase,
 } from '../services/updateService';
+import { setDismissedUpdateVersionCode, getDismissedUpdateVersionCode } from '../services/secureStore';
 import { Brand } from '../constants/theme';
 
 export function AppUpdateHandler() {
@@ -54,6 +55,12 @@ export function AppUpdateHandler() {
     async function verifyUpdate() {
       const result = await checkAppUpdate();
       if (isMounted && result.hasUpdate && result.manifest) {
+        const dismissedCode = await getDismissedUpdateVersionCode();
+        if (!result.isMandatory && dismissedCode !== null && dismissedCode >= result.manifest.versionCode) {
+          // User has already dismissed this or a newer version - do not show modal
+          setVisible(false);
+          return;
+        }
         setManifest(result.manifest);
         setIsMandatory(result.isMandatory);
         setVisible(true);
@@ -147,6 +154,7 @@ export function AppUpdateHandler() {
 
   const handleDismiss = () => {
     if (isMandatory || phase === 'downloading') return;
+    setDismissedUpdateVersionCode(manifest.versionCode);
     setVisible(false);
   };
 

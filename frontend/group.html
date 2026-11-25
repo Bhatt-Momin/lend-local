@@ -110,7 +110,7 @@
             </button>
             <button
               id="showGroupQrBtn"
-              class="btn-rename"
+              class="btn-rename btn-qr"
               type="button"
               aria-label="Group QR Code"
               title="Show Group QR Code"
@@ -190,23 +190,23 @@
       </section>
 
       <!-- BUDGET PROGRESS WIDGET -->
-      <section id="groupBudgetCard" class="budget-card" style="margin: 1rem 0; padding: 1.25rem; border-radius: 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 1.25rem;">🎯</span>
-            <strong style="color: var(--ll-text); font-size: 1.05rem;">Monthly Budget</strong>
-            <span id="budgetPctBadge" style="font-size: 0.8rem; padding: 2px 8px; border-radius: 12px; background: rgba(16,185,129,0.15); color: #10B981; font-weight: 600;">0%</span>
+      <section id="groupBudgetCard" class="budget-card">
+        <div class="budget-card-header">
+          <div class="budget-title-wrap">
+            <span class="budget-icon">🎯</span>
+            <span class="budget-title">Monthly Budget</span>
+            <span id="budgetPctBadge" class="budget-badge">0%</span>
           </div>
-          <button type="button" id="openBudgetModalBtn" class="btn btn-ghost btn-sm" style="font-size: 0.85rem; padding: 4px 10px;">⚙️ Set Budget</button>
+          <button type="button" id="openBudgetModalBtn" class="budget-set-btn btn btn-ghost btn-sm">⚙️ Set Budget</button>
         </div>
-        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--ll-text-muted); margin-bottom: 8px;">
-          <span>This Month Spent: <strong id="budgetSpentVal" style="color: var(--ll-text);">₹0.00</strong></span>
-          <span>Monthly Limit: <strong id="budgetLimitVal" style="color: var(--ll-text);">No limit</strong></span>
+        <div class="budget-stats-row">
+          <span>This Month Spent: <strong id="budgetSpentVal" class="budget-stat">₹0.00</strong></span>
+          <span>Monthly Limit: <strong id="budgetLimitVal" class="budget-stat">No limit</strong></span>
         </div>
-        <div class="budget-progress-track" style="height: 10px; border-radius: 6px; background: rgba(255,255,255,0.08); overflow: hidden; position: relative;">
-          <div id="budgetProgressBar" style="height: 100%; width: 0%; background: #10B981; border-radius: 6px; transition: width 0.4s ease, background 0.4s ease;"></div>
+        <div class="budget-progress-track">
+          <div id="budgetProgressBar" class="budget-progress-bar"></div>
         </div>
-        <div id="budgetAlertMsg" style="display: none; font-size: 0.8rem; margin-top: 8px; padding: 6px 12px; border-radius: 8px;"></div>
+        <div id="budgetAlertMsg" class="budget-alert-msg"></div>
       </section>
 
 
@@ -616,7 +616,7 @@
               placeholder="e.g. 500 or 12+34"
               autocomplete="off"
             />
-            <div id="expAmountPreview" style="display: none; font-size: 0.85rem; color: #10B981; margin-top: 5px; font-weight: 600;">
+            <div id="expAmountPreview" class="exp-amount-preview">
               Preview: <span id="expAmountPreviewVal">₹0.00</span>
             </div>
 
@@ -650,11 +650,11 @@
           <!-- PAID BY & MULTI-PAYER -->
           <div class="field">
 
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <label style="margin: 0;">Paid by</label>
-              <div class="btn-group-segmented" style="display: flex; gap: 4px; background: rgba(255,255,255,0.06); padding: 2px; border-radius: 8px;">
-                <button type="button" id="tabSinglePayer" class="btn btn-ghost btn-sm active" style="font-size: 0.75rem; padding: 3px 8px; border-radius: 6px;">Single</button>
-                <button type="button" id="tabMultiPayer" class="btn btn-ghost btn-sm" style="font-size: 0.75rem; padding: 3px 8px; border-radius: 6px;">Multiple</button>
+            <div class="paid-by-header">
+              <label>Paid by</label>
+              <div class="btn-group-segmented">
+                <button type="button" id="tabSinglePayer" class="btn btn-ghost btn-sm active">Single</button>
+                <button type="button" id="tabMultiPayer" class="btn btn-ghost btn-sm">Multiple</button>
               </div>
             </div>
 
@@ -668,13 +668,12 @@
 
             <!-- Multiple Payers List -->
             <div id="multiPayerContainer" style="display: none;">
-              <div id="multiPayerList" class="split-list" style="margin-bottom: 8px;"></div>
-              <div class="split-summary-bar" style="font-size: 0.82rem; padding: 6px 10px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between;">
+              <div id="multiPayerList" class="multi-payer-list"></div>
+              <div class="multi-payer-summary">
                 <span>Total Paid: <strong id="multiPayerTotal">₹0.00</strong></span>
                 <span>Remaining: <strong id="multiPayerRemaining">₹0.00</strong></span>
               </div>
             </div>
-
           </div>
 
 
