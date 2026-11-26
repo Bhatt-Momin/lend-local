@@ -104,7 +104,7 @@ app.get("/api/config", (req, res) => res.status(200).json({ razorpayEnabled: pro
 const DEFAULT_LOCAL_APK_PATH = "/tmp/lendlocal-v1.2.0.apk";
 const V1_0_0_SHA256 = "2a7d975ec6f8a7faa4f035ff4fb9d5d409f89128e5500a7f8c98e1df87a1f7e0";
 const V1_1_0_SHA256 = "ee769cc4824f4980260639dacb4f607238f807e8142b3b340b1a8fd5273ccdca";
-const V1_2_0_SHA256 = "70c95bfaf0f6b70043009fd5c4a9cc704ff671e7463d9020bb855b0baf5e18b9";
+const V1_2_0_SHA256 = "ce054bc970950ff75aaf9454e035e58ef0ce200d8a5a82a14d5d7799c36f1e35";
 
 // Backward-compatible SHA-256 references for test invariants (exact string forms)
 const V1_0_0_SHA256_REF = 'sha256: "2a7d975ec6f8a7faa4f035ff4fb9d5d409f89128e5500a7f8c98e1df87a1f7e0"';
@@ -155,7 +155,7 @@ app.get("/api/app-version", (req, res) => {
     releaseNotes: "LendLocal v1.2.0 — Inline math calculator, multi-payer expenses, group budgets, and QR codes.",
     apkUrl: "https://github.com/Bhatt-Momin/lend-local/releases/download/v1.2.0/lendlocal.apk",
     releasesPageUrl: "https://github.com/Bhatt-Momin/lend-local/releases/tag/v1.2.0",
-    sha256: "70c95bfaf0f6b70043009fd5c4a9cc704ff671e7463d9020bb855b0baf5e18b9",
+    sha256: "ce054bc970950ff75aaf9454e035e58ef0ce200d8a5a82a14d5d7799c36f1e35",
     minSupportedVersion: "1.0.0",
     minSupportedVersionCode: 1,
     publishedAt: "2026-11-24T00:00:00Z",

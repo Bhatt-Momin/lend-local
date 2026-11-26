@@ -183,7 +183,7 @@ All three test suites execute sequentially and must exit with code 0:
 - **Checksum Verification**:
   ```text
   File: lendlocal.apk (v1.2.0)
-  SHA-256: 70c95bfaf0f6b70043009fd5c4a9cc704ff671e7463d9020bb855b0baf5e18b9
+  SHA-256: ce054bc970950ff75aaf9454e035e58ef0ce200d8a5a82a14d5d7799c36f1e35
   ```
 
 ---
